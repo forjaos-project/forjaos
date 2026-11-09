@@ -2,16 +2,22 @@
 """roadmap.py — fonte única: docs/roadmap/roadmap.json → docs/STATUS.md + docs/roadmap/index.html
 
 Uso:
-  python3 scripts/roadmap.py validate
-  python3 scripts/roadmap.py build [--check]
-  python3 scripts/roadmap.py add-delivery --pr N --items ID1,ID2 --summary "texto" [--date AAAA-MM-DD]
+  python3 scripts/roadmap.py available                      # o que dá para pegar agora (lê branches remotas)
+  python3 scripts/roadmap.py claim ID --agent claude|codex|human [--scope pasta/]
+  python3 scripts/roadmap.py done ID --pr N --summary "texto" [--date AAAA-MM-DD]
+  python3 scripts/roadmap.py validate [--branch [--base origin/main]]
+  python3 scripts/roadmap.py build [--check]                # só na main (workflow roadmap-sync)
 
-Só stdlib. Os arquivos gerados nunca são editados à mão (METHODOLOGY §0.7).
+Só stdlib. Os arquivos gerados nunca são editados à mão nem commitados em PR (METHODOLOGY §6).
 Schema do roadmap.json:
-  project, updated_at (AAAA-MM-DD),
+  project, updated_at? (legado; a data exibida é derivada),
   phases[]: id, name, weeks, dod, status (todo|doing|done|blocked)
-  items[]:  id, fr[], phase, title, status, pr?, merged_at?, notes?
-  deliveries[]: date, pr (int|null), items[], summary
+  items[]:  id, fr[], phase, title, status, scope?, depends_on[]?, agent?, claimed_at?,
+            pr?, merged_at?, summary?, notes?
+  deliveries[]: date, pr (int|null), items[], summary   (legado, só leitura)
+
+Trabalho em paralelo: cada PR altera apenas o PRÓPRIO item (claim/done). Nada de campos
+compartilhados (updated_at, deliveries) nem arquivos gerados — assim PRs paralelos não conflitam.
 """
 from __future__ import annotations
 
@@ -19,10 +25,13 @@ import argparse
 import datetime as _dt
 import html as _html
 import json
+import subprocess
 import sys
 from pathlib import Path
 
 STATUSES = ("todo", "doing", "done", "blocked")
+AGENTS = ("claude", "codex", "human")
+GENERATED = ("docs/STATUS.md", "docs/roadmap/index.html")
 STATUS_LABEL = {"todo": "a fazer", "doing": "em andamento", "done": "feito", "blocked": "bloqueado"}
 GEN_MD = "<!-- GERADO por scripts/roadmap.py a partir de docs/roadmap/roadmap.json — NÃO EDITAR À MÃO -->"
 GEN_HTML = "<!-- GERADO por scripts/roadmap.py a partir de docs/roadmap/roadmap.json — NÃO EDITAR À MÃO -->"
@@ -49,15 +58,16 @@ def save(root: Path, data: dict) -> None:
 # ---------------------------------------------------------------- validate
 def validate(data: dict) -> list[str]:
     errors: list[str] = []
-    for key in ("project", "updated_at", "phases", "items", "deliveries"):
+    for key in ("project", "phases", "items", "deliveries"):
         if key not in data:
             errors.append(f"campo obrigatório ausente: {key}")
     if errors:
         return errors
-    try:
-        _dt.date.fromisoformat(data["updated_at"])
-    except ValueError:
-        errors.append(f"updated_at inválido: {data['updated_at']!r}")
+    if "updated_at" in data:
+        try:
+            _dt.date.fromisoformat(data["updated_at"])
+        except ValueError:
+            errors.append(f"updated_at inválido: {data['updated_at']!r}")
     phase_ids: set[str] = set()
     for p in data["phases"]:
         for key in ("id", "name", "weeks", "dod", "status"):
@@ -82,6 +92,21 @@ def validate(data: dict) -> list[str]:
             errors.append(f"item {it.get('id')}: phase desconhecida {it.get('phase')!r}")
         if not isinstance(it.get("fr"), list):
             errors.append(f"item {it.get('id')}: fr deve ser lista")
+        if "agent" in it and it["agent"] not in AGENTS:
+            errors.append(f"item {it.get('id')}: agent inválido {it['agent']!r} (use {', '.join(AGENTS)})")
+        if it.get("status") == "doing":
+            if not it.get("agent"):
+                errors.append(f"item {it.get('id')}: doing sem agent")
+            if not it.get("scope"):
+                errors.append(f"item {it.get('id')}: doing sem scope")
+        if not isinstance(it.get("depends_on", []), list):
+            errors.append(f"item {it.get('id')}: depends_on deve ser lista")
+    for it in data["items"]:
+        for dep in it.get("depends_on", []) or []:
+            if dep not in item_ids:
+                errors.append(f"item {it.get('id')}: depends_on {dep} não existe")
+            elif dep == it.get("id"):
+                errors.append(f"item {it.get('id')}: depende de si mesmo")
     for d in data["deliveries"]:
         for key in ("date", "items", "summary"):
             if key not in d:
@@ -125,6 +150,101 @@ def counts(data: dict) -> dict[str, int]:
     return c
 
 
+def last_updated(data: dict) -> str:
+    dates = [data.get("updated_at") or ""]
+    dates += [it.get(k) or "" for it in data["items"] for k in ("merged_at", "claimed_at")]
+    dates += [d.get("date") or "" for d in data["deliveries"]]
+    return max(dates) or "—"
+
+
+def scopes_overlap(a: str | None, b: str | None) -> bool:
+    if not a or not b:
+        return False
+    if a == "." or b == ".":
+        return True
+    a, b = a.rstrip("/") + "/", b.rstrip("/") + "/"
+    return a.startswith(b) or b.startswith(a)
+
+
+def _by_id(data: dict) -> dict[str, dict]:
+    return {it["id"]: it for it in data["items"]}
+
+
+def unmet_deps(data: dict, it: dict) -> list[str]:
+    known = _by_id(data)
+    return [d for d in it.get("depends_on", []) or [] if known.get(d, {}).get("status") != "done"]
+
+
+def _doing(data: dict, extra_doing=()) -> list[dict]:
+    out = {it["id"]: it for it in data["items"] if it["status"] == "doing"}
+    for it in extra_doing:
+        out.setdefault(it["id"], it)
+    return list(out.values())
+
+
+def available(data: dict, extra_doing=()) -> list[dict]:
+    """Itens que um agente pode pegar agora: todo, na fase atual, dependências feitas,
+    não pegos em outra branch e sem sobreposição de escopo com o que está em andamento."""
+    phase = current_phase(data)
+    doing = _doing(data, extra_doing)
+    taken = {it["id"] for it in doing}
+    out = []
+    for it in data["items"]:
+        if it["status"] != "todo" or it["id"] in taken or (phase and it["phase"] != phase["id"]):
+            continue
+        if unmet_deps(data, it):
+            continue
+        if any(scopes_overlap(it.get("scope"), d.get("scope")) for d in doing):
+            continue
+        out.append(it)
+    return out
+
+
+def branch_doing(root: Path, prefix: str = "refs/remotes/origin/") -> list[dict]:
+    """Itens 'doing' no roadmap.json de cada branch (claims ainda não mergeados)."""
+    def run(*args):
+        return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, encoding="utf-8")
+    try:
+        r = run("for-each-ref", "--format=%(refname)", prefix)
+    except OSError:
+        return []
+    found: dict[str, dict] = {}
+    for ref in r.stdout.split():
+        name = ref[len(prefix):]
+        if name in ("HEAD", "main"):
+            continue
+        shown = run("show", f"{ref}:docs/roadmap/roadmap.json")
+        if shown.returncode:
+            continue
+        try:
+            items = json.loads(shown.stdout).get("items", [])
+        except ValueError:
+            continue
+        for it in items:
+            if it.get("status") == "doing" and it.get("id") not in found:
+                found[it["id"]] = {**it, "branch": name}
+    return list(found.values())
+
+
+def generated_touched(files) -> list[str]:
+    return sorted(f for f in files if f in GENERATED)
+
+
+def deliveries(data: dict) -> list[dict]:
+    """Entregas legadas + itens concluídos via `done` (agrupados por data e PR)."""
+    out = [dict(d) for d in data["deliveries"]]
+    groups: dict[tuple, dict] = {}
+    for it in data["items"]:
+        if it["status"] == "done" and it.get("summary"):
+            key = (it.get("merged_at") or "", it.get("pr"))
+            g = groups.setdefault(key, {"date": key[0], "pr": key[1], "items": [], "summary": []})
+            g["items"].append(it["id"])
+            g["summary"].append(it["summary"])
+    for g in groups.values():
+        out.append({**g, "summary": "; ".join(g["summary"])})
+    return sorted(out, key=lambda d: d["date"])
+
+
 def phase_name(data: dict, pid: str) -> str:
     for p in data["phases"]:
         if p["id"] == pid:
@@ -136,6 +256,8 @@ def phase_name(data: dict, pid: str) -> str:
 def _md_item(data: dict, it: dict) -> str:
     frs = ", ".join(it["fr"]) if it["fr"] else "—"
     extra = []
+    if it.get("status") == "doing":
+        extra.append(f"agente: {it.get('agent')} · escopo: {it.get('scope')}" + (f" · branch: {it['branch']}" if it.get("branch") else ""))
     if it.get("pr"):
         extra.append(f"PR #{it['pr']}")
     if it.get("merged_at"):
@@ -155,10 +277,11 @@ def render_status(data: dict) -> str:
         "",
         f"# Status — {data['project']}",
         "",
-        f"**Atualizado em:** {data['updated_at']} · **Itens:** {c['done']}/{c['total']} feitos ({c['pct_done']} %) · "
+        f"**Atualizado em:** {last_updated(data)} · **Itens:** {c['done']}/{c['total']} feitos ({c['pct_done']} %) · "
         f"{c['doing']} em andamento · {c['todo']} a fazer · {c['blocked']} bloqueados",
         "",
-        "Regenerar: `python3 scripts/roadmap.py build`. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`.",
+        "Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. Visual: `docs/roadmap/index.html`. "
+        "Fonte: `docs/roadmap/roadmap.json`. Antes de pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available`.",
         "",
         "## Fase atual",
         "",
@@ -179,6 +302,14 @@ def render_status(data: dict) -> str:
         ]
     else:
         lines += ["Nenhuma tarefa pendente.", ""]
+    lines += ["## Disponíveis agora (trabalho em paralelo)", ""]
+    avail = available(data)
+    for it in avail:
+        deps = ", ".join(it.get("depends_on") or []) or "—"
+        lines.append(f"- `{it['id']}` {it['title']} · escopo: {it.get('scope') or '(definir no claim)'} · depende de: {deps}")
+    if not avail:
+        lines.append("- (nenhuma — tudo pego ou esperando dependência)")
+    lines += ["", "Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY §6).", ""]
     lines += ["## Em andamento", ""]
     doing = [it for it in data["items"] if it["status"] == "doing"]
     lines += [_md_item(data, it) for it in doing] or ["- (nada em andamento)"]
@@ -197,10 +328,11 @@ def render_status(data: dict) -> str:
             lines += [_md_item(data, it) for it in todo]
             lines.append("")
     lines += ["## Entregas (mais recentes primeiro)", ""]
-    for d in list(reversed(data["deliveries"]))[:10]:
+    dl = deliveries(data)
+    for d in list(reversed(dl))[:10]:
         pr = f"PR #{d['pr']}" if d.get("pr") else "sem PR"
         lines.append(f"- **{d['date']}** · {pr} · {d['summary']} · itens: {', '.join(d['items'])}")
-    if not data["deliveries"]:
+    if not dl:
         lines.append("- (nenhuma)")
     lines.append("")
     return "\n".join(lines)
@@ -219,7 +351,14 @@ def _item_row(data: dict, it: dict) -> str:
     frs = ", ".join(it["fr"]) if it["fr"] else "—"
     pr = f'#{it["pr"]}' if it.get("pr") else "—"
     when = it.get("merged_at") or "—"
-    notes = it.get("notes") or ""
+    bits = [it.get("notes") or ""]
+    if it.get("agent"):
+        bits.append(f"agente: {it['agent']}")
+    if it.get("scope"):
+        bits.append(f"escopo: {it['scope']}")
+    if it.get("depends_on"):
+        bits.append("depende de: " + ", ".join(it["depends_on"]))
+    notes = " · ".join(b for b in bits if b)
     return (
         f'<tr data-phase="{_e(it["phase"])}" data-status="{_e(it["status"])}">'
         f'<td><code>{_e(it["id"])}</code></td>'
@@ -271,7 +410,7 @@ def _phase_cards(data: dict) -> str:
 
 def _deliveries(data: dict) -> str:
     out = []
-    for d in reversed(data["deliveries"]):
+    for d in reversed(deliveries(data)):
         pr = f'PR #{d["pr"]}' if d.get("pr") else "sem PR"
         out.append(
             f'<li><span class="tl-date mono">{_e(d["date"])}</span>'
@@ -288,7 +427,7 @@ def render_html(data: dict, template: str) -> str:
     repl = {
         "GEN": GEN_HTML,
         "PROJECT": _e(data["project"]),
-        "UPDATED": _e(data["updated_at"]),
+        "UPDATED": _e(last_updated(data)),
         "PHASE_ID": _e(phase["id"]) if phase else "—",
         "PHASE_NAME": _e(phase["name"]) if phase else "—",
         "PHASE_DOD": _e(phase["dod"]) if phase else "—",
@@ -353,52 +492,138 @@ def check(root: Path) -> int:
     return drift
 
 
-def add_delivery(root: Path, pr: int | None, items: list[str], summary: str, date: str | None = None) -> None:
-    data = load(root)
-    date = date or _dt.date.today().isoformat()
-    known = {it["id"]: it for it in data["items"]}
-    unknown = [i for i in items if i not in known]
-    if unknown:
-        raise SystemExit(f"roadmap: itens desconhecidos: {', '.join(unknown)}")
-    for i in items:
-        known[i]["status"] = "done"
-        known[i]["pr"] = pr
-        known[i]["merged_at"] = date
-    data["deliveries"].append({"date": date, "pr": pr, "items": items, "summary": summary})
-    data["updated_at"] = date
+def _set(data: dict, item_id: str, **fields) -> dict:
+    it = _by_id(data).get(item_id)
+    if it is None:
+        raise SystemExit(f"roadmap: item desconhecido: {item_id}")
+    it.update(fields)
+    return it
+
+
+def _save_valid(root: Path, data: dict) -> None:
     errors = validate(data)
     if errors:
         raise SystemExit("roadmap: " + "; ".join(errors))
     save(root, data)
-    print(f"roadmap: entrega registrada ({date}, PR {pr}, {len(items)} item(ns)). Agora rode `build`.")
+
+
+def claim(root: Path, item_id: str, agent: str, scope: str | None = None, date: str | None = None,
+          extra_doing=()) -> None:
+    data = load(root)
+    it = _by_id(data).get(item_id)
+    if it is None:
+        raise SystemExit(f"roadmap: item desconhecido: {item_id}")
+    if agent not in AGENTS:
+        raise SystemExit(f"roadmap: agent inválido {agent!r} (use {', '.join(AGENTS)})")
+    if it["status"] != "todo":
+        raise SystemExit(f"roadmap: {item_id} está '{it['status']}', só itens 'todo' podem ser pegos")
+    other = next((d for d in extra_doing if d["id"] == item_id), None)
+    if other:
+        raise SystemExit(f"roadmap: {item_id} já foi pego por {other.get('agent')} na branch {other.get('branch')}")
+    missing = unmet_deps(data, it)
+    if missing:
+        raise SystemExit(f"roadmap: {item_id} depende de itens não feitos: {', '.join(missing)}")
+    scope = scope or it.get("scope")
+    if not scope:
+        raise SystemExit(f"roadmap: {item_id} sem scope — passe --scope <pasta/> (ou '.' para o repositório todo)")
+    busy = [d for d in _doing(data, extra_doing) if scopes_overlap(scope, d.get("scope"))]
+    if busy:
+        b = busy[0]
+        raise SystemExit(f"roadmap: escopo {scope} ocupado por {b['id']} ({b.get('agent')}, escopo {b.get('scope')})")
+    _set(data, item_id, status="doing", agent=agent, scope=scope, claimed_at=date or _dt.date.today().isoformat())
+    _save_valid(root, data)
+    print(f"roadmap: {item_id} pego por {agent} (escopo {scope}). Commite e faça push da branch agora.")
+
+
+def done(root: Path, item_id: str, pr: int | None, summary: str, date: str | None = None) -> None:
+    data = load(root)
+    it = _by_id(data).get(item_id)
+    if it is None:
+        raise SystemExit(f"roadmap: item desconhecido: {item_id}")
+    if it["status"] != "doing":
+        raise SystemExit(f"roadmap: {item_id} está '{it['status']}' — rode `claim` antes de `done`")
+    _set(data, item_id, status="done", pr=pr, merged_at=date or _dt.date.today().isoformat(), summary=summary)
+    _save_valid(root, data)
+    print(f"roadmap: {item_id} concluído (PR {pr}). Não rode `build` na branch: a main regenera os gerados.")
+
+
+def _git_fetch(root: Path) -> None:
+    try:
+        subprocess.run(["git", "fetch", "--quiet", "--prune", "origin"], cwd=root, capture_output=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def check_branch(root: Path, base: str) -> int:
+    r = subprocess.run(["git", "diff", "--name-only", f"{base}...HEAD"], cwd=root, capture_output=True,
+                       text=True, encoding="utf-8")
+    if r.returncode:
+        print(f"roadmap: não consegui comparar com {base}: {r.stderr.strip()}", file=sys.stderr)
+        return 2
+    touched = generated_touched(r.stdout.split())
+    if touched:
+        print("roadmap: arquivos gerados alterados na branch (a main regenera; reverta-os): " + ", ".join(touched),
+              file=sys.stderr)
+        return 2
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("validate")
+    v = sub.add_parser("validate")
+    v.add_argument("--branch", action="store_true", help="também falha se a branch alterou arquivos gerados")
+    v.add_argument("--base", default="origin/main")
+    av = sub.add_parser("available")
+    av.add_argument("--no-fetch", action="store_true")
+    c = sub.add_parser("claim")
+    c.add_argument("id")
+    c.add_argument("--agent", required=True, choices=AGENTS)
+    c.add_argument("--scope", default=None)
+    c.add_argument("--no-fetch", action="store_true")
+    dn = sub.add_parser("done")
+    dn.add_argument("id")
+    dn.add_argument("--pr", type=int, required=True)
+    dn.add_argument("--summary", required=True)
+    dn.add_argument("--date", default=None)
     b = sub.add_parser("build")
     b.add_argument("--check", action="store_true", help="não escreve; falha se gerados diferem")
-    a = sub.add_parser("add-delivery")
-    a.add_argument("--pr", type=int, default=None)
-    a.add_argument("--items", required=True, help="IDs separados por vírgula")
-    a.add_argument("--summary", required=True)
-    a.add_argument("--date", default=None)
     ns = ap.parse_args(argv)
     if ns.cmd == "validate":
         errors = validate(load(root))
         for e in errors:
             print("roadmap: " + e, file=sys.stderr)
         print("roadmap: OK" if not errors else f"roadmap: {len(errors)} erro(s)")
-        return 2 if errors else 0
+        if errors:
+            return 2
+        return check_branch(root, ns.base) if ns.branch else 0
+    if ns.cmd == "available":
+        if not ns.no_fetch:
+            _git_fetch(root)
+        data = load(root)
+        other = branch_doing(root)
+        for it in _doing(data, other):
+            print(f"em andamento: {it['id']} · {it.get('agent')} · escopo {it.get('scope')}"
+                  + (f" · branch {it['branch']}" if it.get("branch") else ""))
+        avail = available(data, other)
+        for it in avail:
+            print(f"disponível:   {it['id']} · escopo {it.get('scope') or '(definir no claim)'} · {it['title']}")
+        if not avail:
+            print("disponível:   (nenhum)")
+        return 0
+    if ns.cmd == "claim":
+        if not ns.no_fetch:
+            _git_fetch(root)
+        claim(root, ns.id, ns.agent, ns.scope, extra_doing=branch_doing(root))
+        return 0
+    if ns.cmd == "done":
+        done(root, ns.id, ns.pr, ns.summary, ns.date)
+        return 0
     if ns.cmd == "build":
         if ns.check:
             return check(root)
         build(root)
-        return 0
-    if ns.cmd == "add-delivery":
-        add_delivery(root, ns.pr, [s.strip() for s in ns.items.split(",") if s.strip()], ns.summary, ns.date)
         return 0
     return 1
 
