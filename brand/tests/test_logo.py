@@ -91,6 +91,8 @@ class LogoTests(unittest.TestCase, SvgAssertions):
                 svg = read(name)
                 for part in ('id="mark"', 'id="wordmark"', 'id="word-forja"', 'id="word-os"'):
                     self.assertIn(part, svg)
+                self.assertIn('id="logo-tile"', svg)
+                self.assertIn('id="logo-divider"', svg)
                 self.assert_clean_svg(svg)
 
     def test_wordmark_colors(self):

@@ -143,11 +143,13 @@ def mark_svg(palette, variant):
 
 
 WORDMARK_PATH = HERE / "src" / "wordmark.json"
-# Logotipo horizontal, no espaço da marca (512): caixa visível da marca e do wordmark.
-MARK_BOX = (28, 104, 428, 416)  # x0, y0, x1, y1 com margem para o brilho
-MARK_CENTER_Y = 261
+# Logotipo horizontal: placa da marca, divisor e wordmark do protótipo.
+LOGO_HEIGHT = 420
+LOGO_TILE = (40, 40, 340)
+LOGO_DIVIDER_X = 425
+MARK_CENTER_Y = LOGO_HEIGHT / 2
 CAP_HEIGHT = 118  # altura das maiúsculas do wordmark
-WORD_GAP = 40
+WORD_X = 500
 WORD_COLORS = {"on-dark": ("text-strong", "accent-cyan"), "on-light": ("text-strong", "accent-cyan")}
 
 
@@ -172,14 +174,35 @@ def wordmark_body(palette, variant, wm, x, baseline):
 
 def logo_svg(palette, variant, wm):
     k = CAP_HEIGHT / wm["cap_height"]
-    x0, y0, x1, y1 = MARK_BOX
-    word_x = x1 + WORD_GAP
     word_w = (wm["os"]["offset"] + wm["os"]["advance"]) * k
     baseline = MARK_CENTER_Y + CAP_HEIGHT / 2
-    width = round(word_x + word_w + 16 - x0)
-    height = y1 - y0
-    body = mark_body(palette, variant, "") + wordmark_body(palette, variant, wm, word_x, round(baseline, 1))
-    return svg_doc(f"{x0} {y0} {width} {height}", width, height, mark_defs(palette, variant, ""), body)
+    width = round(WORD_X + word_w + 40)
+    x, y, side = LOGO_TILE
+    if VARIANTS[variant]["theme"] is None:
+        fill, outline, inner = "none", "currentColor", "currentColor"
+    else:
+        theme = VARIANTS[variant]["theme"]
+        colors = palette["themes"][theme]["colors"]
+        if theme == "dark":
+            fill, outline, inner = colors["void"], colors["layer-3"], colors["accent-cyan-deep"]
+        else:
+            fill, outline, inner = colors["layer-1"], colors["hairline"], colors["hairline-active"]
+    tile = (
+        f'<rect id="logo-tile" x="{x}" y="{y}" width="{side}" height="{side}" rx="76" '
+        f'fill="{fill}" stroke="{outline}" stroke-width="4"/>'
+        f'<rect id="logo-tile-inner" x="{x+14}" y="{y+14}" width="{side-28}" height="{side-28}" '
+        f'rx="64" fill="none" stroke="{inner}" stroke-opacity="0.3" stroke-width="2"/>'
+    )
+    divider = (
+        f'<path id="logo-divider" d="M{LOGO_DIVIDER_X} 70V350" '
+        f'fill="none" stroke="{outline}" stroke-width="2"/>'
+    )
+    mark = (
+        '<g transform="translate(210 210) scale(0.8) translate(-240 -261)">'
+        f'{mark_body(palette, variant, "")}</g>'
+    )
+    body = tile + mark + divider + wordmark_body(palette, variant, wm, WORD_X, round(baseline, 1))
+    return svg_doc(f"0 0 {width} {LOGO_HEIGHT}", width, LOGO_HEIGHT, mark_defs(palette, variant, ""), body)
 
 
 # Ícone de aplicativo: placa escura arredondada + marca (cores do tema escuro).
