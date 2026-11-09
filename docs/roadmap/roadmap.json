@@ -230,14 +230,17 @@
       ],
       "phase": "0",
       "title": "Workflow GitHub Actions: podman build → testes de imagem → cosign → push :testing diário",
-      "status": "doing",
+      "status": "done",
       "scope": ".github/",
       "depends_on": [
         "F0-001",
         "F0-002"
       ],
       "agent": "codex",
-      "claimed_at": "2026-11-09"
+      "claimed_at": "2026-11-09",
+      "pr": 23,
+      "merged_at": "2026-11-09",
+      "summary": "Workflow diário para duas imagens bootc com testes antes da publicação, assinatura cosign por digest, promoção testing e issue automática de falha"
     },
     {
       "id": "F0-004",
