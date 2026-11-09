@@ -42,7 +42,7 @@ Ocorrências encontradas no `code.html` por `grep`; a coluna "Na implementação
 | `TPM2` | 2 | KWallet (TPM2 não é requisito do PRD; só se ADR futuro aprovar) | FR-023, NFR-024 |
 | `claude-sonnet` | 1 | Claude Code (API) | FR-005 |
 | `Atuin Cloud Sync` | 1 | atuin local (sync é opt-in do usuário) | FR-132, NFR-033 |
-| `DevOS` | 3 | ForjaOS | ADR-004 |
+| `DevOS` | 3 | ForjaOS | ADR-031 |
 | `claude-daemon` | 1 | claude (aba) | — |
 | `codex-engine` | 1 | codex (aba) | — |
 | `ollama-core` | 1 | ollama (aba) | — |

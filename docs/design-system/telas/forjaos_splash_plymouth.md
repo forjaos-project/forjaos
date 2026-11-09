@@ -17,7 +17,7 @@
 | Região | Medidas / tokens | FR |
 | --- | --- | --- |
 | Fundo | `canvas` (#070a11) sólido; glow radial ciano/violeta 20 % no centro (gradiente, sem imagem pesada) | FR-056 |
-| Logo | logo ForjaOS centralizado, 144–176 px (w-36/w-44); wordmark 'FORJA' + 'OS' em `display-sm`; descritor 'The DevOS' `label-sm` só em marketing — **não** no Plymouth do produto (ADR-004) | FR-053, FR-056 |
+| Logo | logo ForjaOS centralizado, 144–176 px (w-36/w-44); wordmark 'FORJA' + 'OS' em `display-sm`; sem descritor (ADR-031) | FR-053, FR-056 |
 | Barra de progresso | largura 256 px (w-64), altura 4–6 px (h-1/h-1.5), raio full, trilho `layer-3`, preenchimento gradiente ciano→violeta | FR-056 |
 | Rodapé | texto 'Pressione Esc para logs' `label-xs` muted a 32 px da base — opcional; o PRD pede 'sem texto', então fica **desligado por padrão** | FR-056 |
 
