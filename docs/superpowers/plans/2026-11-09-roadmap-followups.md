@@ -2,7 +2,7 @@
 
 **Goal:** Registrar como itens do roadmap as tarefas descobertas no F0-006 e na revisão do PR #9, em vez de deixá-las soltas (METHODOLOGY §5, passo 5).
 
-**Architecture:** Só `docs/roadmap/roadmap.json` muda: dois itens `todo` novos, com `scope` e `depends_on`. Gerados ficam para o `roadmap-sync`.
+**Architecture:** Só `docs/roadmap/roadmap.json` muda: dois itens novos, ainda não iniciados, com `scope` e `depends_on`. Gerados ficam para o `roadmap-sync`.
 
 **Tech Stack:** JSON, `scripts/roadmap.py`.
 
