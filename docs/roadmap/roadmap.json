@@ -173,6 +173,19 @@
       "summary": "Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, available lendo branches remotas, gerados regenerados na main pelo workflow roadmap-sync"
     },
     {
+      "id": "GOV-011",
+      "fr": [
+        "NFR-040",
+        "NFR-041",
+        "NFR-042"
+      ],
+      "phase": "0",
+      "title": "CI de verificação em PR: unittest (scripts/tests, brand/tests), run-shell-tests, check-tokens, check-agents-sync, roadmap validate --branch, gen_tela_specs --check, build_logo --check",
+      "status": "todo",
+      "scope": ".github/",
+      "notes": "Hoje nenhum workflow roda esses testes (só roadmap-sync e signing-preflight). PRs do roadmap-sync abertos com GITHUB_TOKEN não disparam workflows: não marcar o job como status check obrigatório da main sem resolver isso, senão o bot trava."
+    },
+    {
       "id": "F0-001",
       "fr": [
         "ADR-002",
@@ -356,6 +369,22 @@
       "phase": "1",
       "title": "Plymouth, SDDM e GRUB temáticos — telas splash_plymouth / sddm_login / bootloader_grub",
       "status": "todo"
+    },
+    {
+      "id": "F1-011",
+      "fr": [
+        "FR-002",
+        "FR-003",
+        "FR-053"
+      ],
+      "phase": "1",
+      "title": "Rebranding mínimo da imagem: ícone ForjaOS (brand/logo/png) no hicolor, LOGO= no os-release e /usr/share/ublue-os/image-info.json apontando para ghcr.io/forjaos-project",
+      "status": "todo",
+      "scope": "image/",
+      "depends_on": [
+        "F0-002"
+      ],
+      "notes": "Achados da revisão do PR #9: image-info.json ainda aponta para a imagem Bazzite (lido por ujust e pelas atualizações) e o LOGO foi removido sem substituto. Conferir scripts do Bazzite que testam ID=bazzite."
     },
     {
       "id": "F1-008",
