@@ -28,7 +28,7 @@ Ao implementar qualquer tela:
 | `RTX 4070` | `RTX 5060 8 GB` (desktop de referência) | §10.2 |
 | `GameMode on` | `hero-game.target` / `Modo Jogo` | FR-043 |
 | `Escudo ativo` no painel | exibido só se `forja install escudo` foi executado; caso contrário o indicador não aparece | ADR-023, NFR-027 |
-| `DeveloperOS` isolado | `ForjaOS` (descritor "the DevOS" só em marketing) | ADR-004 |
+| `DeveloperOS` isolado | `ForjaOS` (sem descritor) | ADR-031 |
 | Ícones Material Symbols | Breeze recolorido por token ou SVG próprio em `brand/icons/` | DESIGN-RULES §5 |
 
 5. **O `code.html` não é lido antes da spec da tela.** O agente abre primeiro `docs/design-system/telas/<slug>.md`, que já lista regiões, medidas, tokens e substituições; o `code.html` serve para conferir medida ou classe específica.
