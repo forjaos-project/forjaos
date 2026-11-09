@@ -23,9 +23,15 @@ class VerifyWorkflowTest(unittest.TestCase):
         self.assertRegex(WORKFLOW, r"(?m)^on:\n(?:  .*\n)*?  pull_request:")
 
     def test_runs_every_gate_command(self):
+        runs = re.findall(r"(?m)^\s+run: (.+)$", WORKFLOW)
         for cmd in REQUIRED:
             with self.subTest(cmd=cmd):
-                self.assertIn(f"run: {cmd}", WORKFLOW)
+                self.assertIn(cmd, runs)  # linha inteira, sem eco nem comentário
+
+    def test_no_step_can_be_skipped_or_ignored(self):
+        code = "\n".join(l.split(" #")[0] for l in WORKFLOW.splitlines() if not l.lstrip().startswith("#"))
+        self.assertNotIn("continue-on-error", code)
+        self.assertIsNone(re.search(r"(?m)^\s+if:", code))
 
     def test_fetches_full_history_for_roadmap_base(self):
         self.assertIn("fetch-depth: 0", WORKFLOW)
