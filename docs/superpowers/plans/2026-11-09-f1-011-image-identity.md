@@ -32,3 +32,11 @@
 
 - [ ] Run root and image-area checks: Python unittest, shell suite, tokens, agents sync, branch roadmap validation, tela spec check, both real image builds, `bootc container lint`, and `check-branding.sh --image` on both. Record the remaining finding count in issue #25 without weakening the checker.
 - [ ] Open the PR with issue #30, exact outputs and the issue #25 residual. Review in a clean context; ship only after `review: 8/8` and CI green. The broader visual rebranding remains tracked until the daily image run actually publishes both `:testing` tags.
+
+## Residual branding closure plan (FR-002, issue #25)
+
+The two images built from this branch each fail the unchanged branding checker with the same 243 findings in 161 paths: 148 path findings, 92 text findings and three package findings. The largest clusters are Plasma look and feel (85), Fedora wallpapers (76), hicolor icons (29) and KDE settings (27). The package findings are `fedora-logos`, `fedora-release-identity-kinoite` and missing `forjaos-branding`. This is the remaining FR-002 work, not acceptance of the daily pipeline.
+
+1. Inventory the RPM owner and runtime consumers of every reported path. Replace inherited Plasma, wallpaper, icon and KDE settings assets with ForjaOS assets and values from `brand/palette.json` and the approved screen specs. Verify the replacements in a built image and with side-by-side captures where a screen changes (FR-002, ADR-027, ADR-028).
+2. In the image build, replace the inherited identity packages with a licensed ForjaOS branding package and remove or rename inherited visible paths and autostart entries after checking their dependencies. Keep required Bazzite runtime services functional; test boot and service behavior after changing their visible configuration (FR-002, FR-006).
+3. Rebuild both variants and require `scripts/check-branding.sh --image <variant> --json` to report zero findings for each, alongside `bootc container lint` and the root/image suites. Run the daily-image workflow and verify both signed `:testing` images were published before closing issue #25 (FR-002, ADR-030).
