@@ -245,13 +245,16 @@
       ],
       "phase": "0",
       "title": "check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI",
-      "status": "doing",
+      "status": "done",
       "scope": "scripts/",
       "depends_on": [
         "F0-002"
       ],
       "agent": "codex",
-      "claimed_at": "2026-11-09"
+      "claimed_at": "2026-11-09",
+      "pr": 20,
+      "merged_at": "2026-11-09",
+      "summary": "Checker de branding para rootfs e imagens OCI, com saída JSON e falha verificada nas duas variantes F0-002"
     },
     {
       "id": "F0-005",
