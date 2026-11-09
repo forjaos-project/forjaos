@@ -2,7 +2,7 @@
 
 # Status — ForjaOS
 
-**Atualizado em:** 2026-11-09 · **Itens:** 16/54 feitos (30 %) · 0 em andamento · 38 a fazer · 0 bloqueados
+**Atualizado em:** 2026-11-09 · **Itens:** 17/54 feitos (31 %) · 0 em andamento · 37 a fazer · 0 bloqueados
 
 Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`. Antes de pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available`.
 
@@ -12,9 +12,9 @@ Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. 
 
 ## Próxima tarefa
 
-**`F0-005` — THIRD_PARTY_LICENSES.md gerado no CI**
+**`F0-007` — Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados)**
 
-- Requisitos: G4, ADR-007
+- Requisitos: FR-054
 - Fase: 0 — Fundação
 - Estado: a fazer
 
@@ -22,7 +22,6 @@ Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
 
 ## Disponíveis agora (trabalho em paralelo)
 
-- `F0-005` THIRD_PARTY_LICENSES.md gerado no CI · escopo: .github/ · depende de: F0-003
 - `F0-007` Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados) · escopo: brand/ · depende de: —
 - `F0-008` bootc switch para a imagem em VM + upgrade/rollback testados · escopo: image/ · depende de: F0-003
 
@@ -53,13 +52,13 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - `F0-002` Containerfile mínimo FROM bazzite-nvidia-open:stable + os-release ForjaOS (FR-001, FR-003) · fase 0 — PR #9 · 2026-11-09
 - `F0-003` Workflow GitHub Actions: podman build → testes de imagem → cosign → push :testing diário (ADR-002, NFR-040) · fase 0 — PR #23 · 2026-11-09
 - `F0-004` check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI (FR-002, G4) · fase 0 — PR #20 · 2026-11-09
+- `F0-005` THIRD_PARTY_LICENSES.md gerado no CI (G4, ADR-007) · fase 0 — PR #27 · 2026-11-09
 - `F0-006` Logo ForjaOS v1 em SVG (mono, cor, dark/light, ícone 16–512) (FR-053) · fase 0 — PR #8 · 2026-11-09
 
 ## A fazer (por fase)
 
 ### Fase 0 — Fundação (em andamento)
 
-- `F0-005` THIRD_PARTY_LICENSES.md gerado no CI (G4, ADR-007) · fase 0
 - `F0-007` Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados) (FR-054) · fase 0
 - `F0-008` bootc switch para a imagem em VM + upgrade/rollback testados (FR-001, FR-008) · fase 0
 
@@ -116,6 +115,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 ## Entregas (mais recentes primeiro)
 
 - **2026-11-09** · PR #8 · Logo ForjaOS v1: marca, logotipo horizontal e ícone de app em SVG (cor sobre escuro, cor sobre claro e mono) e PNG 16–512, gerados de palette.json com wordmark Plus Jakarta Sans em contornos · itens: F0-006
+- **2026-11-09** · PR #27 · CI gera e anexa inventário de licenças RPM por variante da imagem construída, inclusive quando branding bloqueia a publicação · itens: F0-005
 - **2026-11-09** · PR #20 · Checker de branding para rootfs e imagens OCI, com saída JSON e falha verificada nas duas variantes F0-002 · itens: F0-004
 - **2026-11-09** · PR #23 · Workflow diário para duas imagens bootc com testes antes da publicação, assinatura cosign por digest, promoção testing e issue automática de falha · itens: F0-003
 - **2026-11-09** · PR #9 · Containerfile mínimo sobre bazzite-nvidia-open/bazzite (ADR-0032) com os-release ForjaOS, chave cosign pública e política de assinatura no namespace ghcr.io/forjaos-project; build real e bootc container lint verdes nas duas variantes · itens: F0-002
