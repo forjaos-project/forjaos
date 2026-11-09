@@ -58,10 +58,13 @@ if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
   exit 1
 fi
 
-cosign sign --yes --key env://CHECK_SIGNING_KEY \
+# containers/image's use-sigstore-attachments policy reads the legacy
+# sha256-<digest>.sig attachment, not Cosign 3's default OCI 1.1 bundle.
+cosign sign --yes --new-bundle-format=false --use-signing-config=false \
+  --registry-referrers-mode=legacy --key env://CHECK_SIGNING_KEY \
   --registry-username "$GITHUB_ACTOR" --registry-password "$GH_TOKEN" \
   "$image@$digest"
-cosign verify --key cosign.pub \
+cosign verify --new-bundle-format=false --key cosign.pub \
   --registry-username "$GITHUB_ACTOR" --registry-password "$GH_TOKEN" \
   "$image@$digest" >/dev/null
 
@@ -76,7 +79,7 @@ if [[ "$remote_digest" != "$digest" ]]; then
   echo 'daily-image: :testing digest differs from the signed digest' >&2
   exit 1
 fi
-cosign verify --key cosign.pub \
+cosign verify --new-bundle-format=false --key cosign.pub \
   --registry-username "$GITHUB_ACTOR" --registry-password "$GH_TOKEN" \
   "$image:testing" >/dev/null
 printf 'daily-image: published and verified %s@%s as :testing\n' "$image" "$digest"

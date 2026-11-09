@@ -74,6 +74,12 @@ for variant in forjaos-nvidia-open forjaos; do
   assert_order 'podman push' 'cosign sign'
   assert_order 'cosign sign' 'cosign verify'
   assert_order 'cosign verify' 'skopeo copy'
+  grep -qF -- 'cosign sign --yes --new-bundle-format=false --use-signing-config=false --registry-referrers-mode=legacy' "$TEST_LOG" || {
+    echo 'FAIL: signature format is not discoverable by containers/image' >&2; exit 1;
+  }
+  grep -qF -- 'cosign verify --new-bundle-format=false --key cosign.pub' "$TEST_LOG" || {
+    echo 'FAIL: legacy signature was not explicitly verified' >&2; exit 1;
+  }
   grep -qF "docker://ghcr.io/forjaos-project/$variant:testing" "$TEST_LOG"
   grep -qF -- '--preserve-digests' "$TEST_LOG"
   grep -qF "ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
