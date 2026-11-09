@@ -245,11 +245,13 @@
       ],
       "phase": "0",
       "title": "check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI",
-      "status": "todo",
+      "status": "doing",
       "scope": "scripts/",
       "depends_on": [
         "F0-002"
-      ]
+      ],
+      "agent": "codex",
+      "claimed_at": "2026-11-09"
     },
     {
       "id": "F0-005",
