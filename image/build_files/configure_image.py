@@ -8,6 +8,7 @@ from pathlib import Path
 
 REGISTRY = "ghcr.io/forjaos-project"
 IMAGE_INFO = "/usr/share/ublue-os/image-info.json"
+ICON_SIZES = (16, 22, 24, 32, 48, 64, 128, 256, 512)
 KEY_DESTINATION = "/etc/pki/containers/forjaos.pub"
 PROJECT_URL = "https://github.com/forjaos-project/forjaos"
 ISSUES_URL = f"{PROJECT_URL}/issues"
@@ -23,6 +24,7 @@ def update_os_release(source: str, image_name: str) -> str:
         "VERSION": '"0.1"',
         "ID": "forjaos",
         "ID_LIKE": "fedora",
+        "LOGO": "forjaos-icon",
         "VERSION_ID": "0.1",
         "PRETTY_NAME": '"ForjaOS 0.1"',
         "HOME_URL": f'"{PROJECT_URL}"',
@@ -34,7 +36,7 @@ def update_os_release(source: str, image_name: str) -> str:
         "VARIANT_ID": image_name,
         "IMAGE_ID": f'"{image_name}-0.1"',
     }
-    removed = {"LOGO", "CPE_NAME"}
+    removed = {"CPE_NAME"}
     result = []
     seen = set()
     for line in source.splitlines():
@@ -51,7 +53,7 @@ def update_os_release(source: str, image_name: str) -> str:
     return "\n".join(result) + "\n"
 
 
-def configure(root: Path, public_key: Path, image_name: str) -> None:
+def configure(root: Path, public_key: Path, image_name: str, icons_dir: Path) -> None:
     release_path = root / "usr/lib/os-release"
     policy_path = root / "etc/containers/policy.json"
     info_path = root / IMAGE_INFO.lstrip("/")
@@ -69,6 +71,12 @@ def configure(root: Path, public_key: Path, image_name: str) -> None:
     required_info = ("image-name", "image-vendor", "image-ref", "image-tag", "image-branch")
     if not isinstance(info, dict) or any(not isinstance(info.get(key), str) for key in required_info):
         raise ValueError("base image-info.json is missing image identity fields")
+    icons = {}
+    for size in ICON_SIZES:
+        data = (icons_dir / f"forjaos-{size}.png").read_bytes()
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError(f"invalid ForjaOS PNG for size {size}")
+        icons[size] = data
 
     info.update(
         {
@@ -98,6 +106,10 @@ def configure(root: Path, public_key: Path, image_name: str) -> None:
     release_path.write_text(update_os_release(release, image_name), encoding="utf-8")
     policy_path.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
     info_path.write_text(json.dumps(info, indent=2) + "\n", encoding="utf-8")
+    for size, data in icons.items():
+        destination = root / f"usr/share/icons/hicolor/{size}x{size}/apps/forjaos-icon.png"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
 
 
 def main() -> None:
@@ -105,9 +117,10 @@ def main() -> None:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--public-key", type=Path, required=True)
     parser.add_argument("--image-name", choices=("forjaos", "forjaos-nvidia-open"), required=True)
+    parser.add_argument("--icons-dir", type=Path, required=True)
     args = parser.parse_args()
     try:
-        configure(args.root, args.public_key, args.image_name)
+        configure(args.root, args.public_key, args.image_name, args.icons_dir)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         parser.exit(2, f"configure-image: {exc}\n")
 
