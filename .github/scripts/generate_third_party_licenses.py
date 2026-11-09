@@ -91,13 +91,16 @@ def main():
     parser.add_argument("--image-id", required=True)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    if not re.fullmatch(r"sha256:[0-9a-f]{64}", args.image_id):
+    image_id = args.image_id
+    if re.fullmatch(r"[0-9a-f]{64}", image_id):
+        image_id = f"sha256:{image_id}"
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id):
         parser.error("--image-id must be a sha256 image ID")
 
     temporary = None
     try:
         packages = parse_records(sys.stdin)
-        report = render(args.variant, args.image_id, packages)
+        report = render(args.variant, image_id, packages)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
             mode="w", encoding="utf-8", newline="\n", dir=args.output.parent,
