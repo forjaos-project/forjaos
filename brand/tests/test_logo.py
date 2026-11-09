@@ -71,6 +71,15 @@ class MarkTests(unittest.TestCase, SvgAssertions):
             with self.subTest(name=name):
                 self.assertIn('id="anvil-bottom-grad"', read(name))
 
+    def test_nodes_keep_prototype_accent_order(self):
+        for name, theme in self.VARIANTS.items():
+            with self.subTest(name=name):
+                nodes = re.search(r'<g id="nodes">(.*?)</g>', read(name)).group(1)
+                fills = re.findall(r'<circle[^>]*fill="([^"]+)"', nodes)
+                colors = PALETTE["themes"][theme]["colors"]
+                corner = colors["accent-violet" if theme == "dark" else "accent-indigo"]
+                self.assertEqual(fills, [corner, colors["accent-cyan"], corner])
+
     def test_glow_only_on_dark(self):
         self.assertIn("<filter", read("forjaos-mark-on-dark.svg"))
         self.assertNotIn("<filter", read("forjaos-mark-on-light.svg"))

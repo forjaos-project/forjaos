@@ -31,7 +31,7 @@ ANVIL_STROKE = 22
 SPARK_STROKE = 18
 NODE_R = 6
 
-# Tokens por variante: gradiente da bigorna, gradiente do spark, núcleo e nós (rebites claros sobre o traço)
+# Tokens por variante: gradientes, núcleo e nós coloridos do protótipo.
 VARIANTS = {
     "on-dark": {
         "theme": "dark",
@@ -39,7 +39,7 @@ VARIANTS = {
         "anvil_bottom": ("accent-violet", "accent-sky"),
         "spark": ("accent-orange", "danger"),
         "core": "accent-cyan",
-        "node_fill": "primary",
+        "node_fill": ("accent-violet", "accent-cyan", "accent-violet"),
         "glow": True,
     },
     "on-light": {
@@ -48,7 +48,7 @@ VARIANTS = {
         "anvil_bottom": ("accent-indigo", "text-strong"),
         "spark": ("accent-orange", "danger"),
         "core": "accent-cyan",
-        "node_fill": "layer-1",
+        "node_fill": ("accent-indigo", "accent-cyan", "accent-indigo"),
         "glow": False,
     },
     "mono": {"theme": None, "glow": False},
@@ -139,10 +139,10 @@ def mark_body(palette, variant, prefix="", small=False):
     if not small:
         parts.append(f'<circle id="{prefix}core" cx="{cx}" cy="{cy}" r="{r}" fill="{core_paint}"/>')
     if not mono and not small:
-        fill = color(palette, spec["theme"], spec["node_fill"])
         nodes = "".join(
-            f'<circle cx="{x}" cy="{y}" r="{NODE_R}" fill="{fill}"/>'
-            for x, y in NODES
+            f'<circle cx="{x}" cy="{y}" r="{NODE_R}" '
+            f'fill="{color(palette, spec["theme"], token)}"/>'
+            for (x, y), token in zip(NODES, spec["node_fill"])
         )
         parts.append(f'<g id="{prefix}nodes">{nodes}</g>')
     parts.append("</g>")
