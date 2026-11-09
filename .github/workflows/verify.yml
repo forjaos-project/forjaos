@@ -1,0 +1,43 @@
+# Verificação de PR (GOV-011, ADR-033): roda os mesmos comandos do gate /test, para que "CI verde" no /ship
+# signifique algo. Não marque este check como obrigatório na main: PRs abertos pelo GITHUB_TOKEN (roadmap-sync)
+# não disparam workflows e ficariam bloqueados.
+# Ações de terceiros fixadas por SHA (todas MIT/Apache-2.0).
+name: verify
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0 # roadmap.py compara com origin/main
+      - name: "Pillow (testes dos PNGs do logo)"
+        run: python3 -m pip install --disable-pip-version-check pillow
+      - name: "unittest: scripts/tests"
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+      - name: "unittest: brand/tests"
+        run: python3 -m unittest discover -s brand/tests -p 'test_*.py'
+      - name: "shell tests"
+        run: scripts/run-shell-tests.sh
+      - name: "tokens (ADR-027)"
+        run: scripts/check-tokens.sh
+      - name: "AGENTS.md ≡ .claude/commands"
+        run: scripts/check-agents-sync.sh
+      - name: "roadmap.json da branch"
+        run: python3 scripts/roadmap.py validate --branch
+      - name: "specs de tela em dia"
+        run: python3 scripts/gen_tela_specs.py --check
+      - name: "SVGs do logo em dia"
+        run: python3 brand/logo/build_logo.py --check
