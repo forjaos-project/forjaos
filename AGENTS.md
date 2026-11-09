@@ -20,7 +20,7 @@ ForjaOS: sistema operacional open source baseado em Linux (Fedora Atomic via Uni
 
 1. **Comece por `git fetch origin && python3 scripts/roadmap.py available`.** Pegue um item da lista com `claim` e faça push na hora. Não pegue item fora da lista sem pedido explícito do humano.
 2. **Cinco gates, nenhum pulável:** plan → code → test → review → ship. Hotfix de segurança pula só *plan*.
-3. **Quem implementou não revisa.** Claude Code e Codex implementam em paralelo, cada um no seu item; cada um revisa o PR do outro. Se você abriu a branch, não execute o gate *review* nela.
+3. **Quem pega o item leva até o merge** (ADR-033). Claude Code e Codex trabalham em paralelo, cada um no seu item, sem esperar o outro. O gate *review* roda com contexto limpo (subagente/sessão nova da mesma ferramenta) e o merge exige `review: 8/8` + CI verde.
 4. **PRD manda no conteúdo; protótipo manda no layout** (ADR-028). Strings proibidas em código de tela: `Jarvis`, `devos`, `nftables`, `24.04`, `arm64`, `RTX 4070`. Divergência vira issue, não improviso.
 5. **Toda cor vem de `brand/palette.json`** (ADR-027). Fontes: Plus Jakarta Sans (UI), JetBrains Mono (mono), Inter só em corpo denso. Fira Code proibida. `scripts/check-tokens.sh` é juiz.
 6. **Nada de tela genérica:** Breeze/Fedora/Bazzite visível, componente sem estilo, medida "a olho" ou ícone Material Symbols no produto reprovam o PR.
@@ -121,13 +121,13 @@ python3 -m unittest discover -s scripts/tests -p 'test_*.py' && scripts/run-shel
 
 **Saída esperada:** tudo verde; captura lado a lado commitada quando houver tela; pronto para `/review`.
 
-# /review — Gate 4: revisão cruzada (quem implementou não revisa)
+# /review — Gate 4: revisão com contexto limpo (ADR-033)
 
-**Quando usar:** em um PR aberto por **outra** ferramenta. Você está revisando código que outra ferramenta escreveu. Se você escreveu esta branch, pare e peça a outra (Claude Code ↔ Codex).
+**Quando usar:** no PR do item que você pegou, antes do merge. Quem implementou leva o item até o fim; a revisão roda numa instância **sem o contexto da implementação** (Claude Code: subagente novo; Codex: sessão nova), que recebe só o número do PR e estas regras.
 
 **Pré-condições**
-- PR aberto com template preenchido, incluindo "Implementado por".
-- `git log --format=%an origin/main..HEAD` e a descrição do PR confirmam que o autor não é você.
+- PR aberto com template preenchido.
+- Revisor em contexto limpo: não reaproveite a sessão que implementou.
 
 **Passos** (`docs/dev/METHODOLOGY.md §4`)
 1. Rode do zero a verificação do `/test` (raiz + pasta). Não confie na saída colada.
@@ -142,7 +142,7 @@ python3 -m unittest discover -s scripts/tests -p 'test_*.py' && scripts/run-shel
    8. Roadmap: no `roadmap.json` só mudou o item deste PR (`claim` → `done`); `STATUS.md`/`index.html` **fora** do diff (`roadmap.py validate --branch`).
 3. Tela: compare a captura lado a lado com a spec; registre `visual: fiel` ou liste as medidas divergentes.
 4. Cada achado vira **commit na branch** com prefixo `fix(review): …` — não comentário solto.
-5. Feche com um comentário `review: N/8`. Só `8/8` libera `/ship`.
+5. Feche com um comentário `review: N/8` e a linha `revisor: <ferramenta> (contexto limpo)`. Só `8/8` libera `/ship`.
 
 **Verificação**
 ```bash
@@ -153,7 +153,7 @@ gh pr view <N> --json comments -q '.comments[].body' | grep -E '^review: 8/8$'
 
 # /ship — Gate 5: registrar a entrega no roadmap e mergear
 
-**Quando usar:** após `review: 8/8` e CI verde.
+**Quando usar:** após `review: 8/8` e CI verde (ADR-033: sem CI de PR ainda, vale a saída da verificação colada pelo revisor).
 
 **Pré-condições**
 - `review: 8/8` no PR; CI verde; branch rebased em `main`.

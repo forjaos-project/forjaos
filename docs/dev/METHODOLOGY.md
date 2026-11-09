@@ -9,7 +9,7 @@ O PRD diz *o quê*. Este documento diz *como* uma tarefa entra e sai do reposit�
 **Regras invioláveis**
 
 1. Nenhum gate é pulado. Hotfix de segurança pode pular *plan* (ver §8), nunca *test* nem *review*.
-2. **Quem implementou não revisa.** Claude Code e Codex implementam em paralelo, cada um no seu item (§6), e cada um revisa o PR do outro. A mesma ferramenta nunca ocupa os dois papéis na mesma branch.
+2. **Quem pega o item leva até o merge** (ADR-033). Claude Code e Codex trabalham em paralelo, cada um no seu item (§6), sem fila de revisão. O gate *review* roda com contexto limpo e o merge exige CI verde.
 3. **PRD manda no conteúdo; protótipo manda no layout** (ADR-028). Divergência vira issue, não improviso.
 4. **Toda cor vem de `brand/palette.json`** (ADR-027). `scripts/check-tokens.sh` é juiz.
 5. **Nenhuma ação destrutiva fora de tier** (FR-093, FR-100): `rm -rf`, `dd`, alteração de firewall, de SELinux ou de `/etc` só com confirmação explícita do humano e registro no PR.
@@ -111,14 +111,14 @@ python3 -m unittest discover -s scripts/tests -p 'test_*.py' && scripts/run-shel
 
 ---
 
-## 4. Gate *review* (revisão cruzada)
+## 4. Gate *review* (contexto limpo, ADR-033)
 
-**Entrada:** PR aberto pela ferramenta que implementou. Ela **para** aqui.
+**Entrada:** PR aberto pelo agente que pegou o item.
 
-**Saída:** comentário `review: 8/8` da **outra** ferramenta e zero achados abertos.
+**Saída:** comentário `review: 8/8` + `revisor: <ferramenta> (contexto limpo)` e zero achados abertos.
 
 **Protocolo**
-1. O revisor confirma que não é o autor da branch (`git log --format=%an`, descrição do PR). Se for, interrompe e devolve.
+1. O agente abre um revisor sem o contexto da implementação (Claude Code: subagente novo; Codex: sessão nova) e passa só o número do PR.
 2. Roda os comandos do gate 3 do zero (não confia na saída colada).
 3. Percorre o checklist abaixo. Cada achado vira **commit na branch** com prefixo `fix(review): …`, nunca comentário solto.
 4. Fecha com `review: N/8` — só `8/8` libera o gate 5.
@@ -178,7 +178,7 @@ Claude Code e Codex implementam ao mesmo tempo, cada um no seu item do roadmap, 
 2. **Escopo e dependências.** Cada item tem `scope` (a pasta que ele altera) e `depends_on`. `claim` recusa item com dependência não feita ou com escopo sobreposto a um item em andamento (`image/` bloqueia `image/build/`; `.` bloqueia o repositório inteiro). Paralelo só entre pastas diferentes. Item sem `scope` recebe um no `claim` (`--scope`).
 3. **PR toca só o próprio item.** `claim` e `done` alteram apenas o objeto do item no `roadmap.json`. Nenhum PR mexe em `updated_at`, `deliveries`, `docs/STATUS.md` ou `docs/roadmap/index.html`; os gerados são reconstruídos na `main` pelo workflow `.github/workflows/roadmap-sync.yml` depois de cada merge. `roadmap.py validate --branch` falha se a branch alterou um gerado.
 
-**Papéis no PR:** "Implementado por" = quem fez o `claim`; "Revisado por" = o outro agente. Claude Code revisa PR do Codex com `/review`; Codex revisa PR do Claude Code quando alguém comenta `@codex review` no PR (exige a integração do Codex com o GitHub conectada ao repositório).
+**Papéis no PR:** "Implementado por" = quem fez o `claim`; "Revisado por" = a mesma ferramenta em contexto limpo (ADR-033). Revisão de outra ferramenta ou humana é opcional, a pedido do mantenedor.
 
 **Conflito mesmo assim** (ex.: dois PRs mudam o status de uma fase): quem mergeia depois faz rebase em `origin/main`, roda `/test` de novo e segue.
 
@@ -206,6 +206,6 @@ Os cinco arquivos em `.claude/commands/` e o bloco `<!-- flow:start -->…<!-- f
 
 ## 8. Exceções
 
-- **Hotfix de segurança** (CVE crítica em pacote próprio, NFR-026; chave vazada): pode pular o gate *plan*; a descrição do PR começa com `hotfix: <motivo>`; *test* e *review* continuam obrigatórios; o revisor cruzado tem prioridade sobre qualquer outra tarefa.
-- **Mudança só em `docs/`** sem impacto em código: *test* reduz-se a `roadmap.py validate --branch` + links válidos; *review* continua cruzada.
+- **Hotfix de segurança** (CVE crítica em pacote próprio, NFR-026; chave vazada): pode pular o gate *plan*; a descrição do PR começa com `hotfix: <motivo>`; *test* e *review* continuam obrigatórios.
+- **Mudança só em `docs/`** sem impacto em código: *test* reduz-se a `roadmap.py validate --branch` + links válidos; *review* continua obrigatória.
 - **Esta entrega inicial (2026-11-08)** foi commitada direto em `main` por não existir CI nem segunda ferramenta configurada ainda; está registrada em `roadmap.json` como `GOV-*`. A partir da primeira tarefa da Fase 0, os cinco gates valem integralmente.

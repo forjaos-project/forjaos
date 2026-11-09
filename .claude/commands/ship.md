@@ -1,6 +1,6 @@
 # /ship — Gate 5: registrar a entrega no roadmap e mergear
 
-**Quando usar:** após `review: 8/8` e CI verde.
+**Quando usar:** após `review: 8/8` e CI verde (ADR-033: sem CI de PR ainda, vale a saída da verificação colada pelo revisor).
 
 **Pré-condições**
 - `review: 8/8` no PR; CI verde; branch rebased em `main`.
