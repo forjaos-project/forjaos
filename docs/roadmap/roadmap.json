@@ -269,11 +269,13 @@
       ],
       "phase": "0",
       "title": "THIRD_PARTY_LICENSES.md gerado no CI",
-      "status": "todo",
+      "status": "doing",
       "scope": ".github/",
       "depends_on": [
         "F0-003"
-      ]
+      ],
+      "agent": "codex",
+      "claimed_at": "2026-11-09"
     },
     {
       "id": "F0-006",
