@@ -2,7 +2,7 @@
 
 # Status — ForjaOS
 
-**Atualizado em:** 2026-11-09 · **Itens:** 12/53 feitos (23 %) · 0 em andamento · 41 a fazer · 0 bloqueados
+**Atualizado em:** 2026-11-09 · **Itens:** 13/54 feitos (24 %) · 0 em andamento · 41 a fazer · 0 bloqueados
 
 Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`. Antes de pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available`.
 
@@ -23,7 +23,8 @@ Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
 ## Disponíveis agora (trabalho em paralelo)
 
 - `GOV-011` CI de verificação em PR: unittest (scripts/tests, brand/tests), run-shell-tests, check-tokens, check-agents-sync, roadmap validate --branch, gen_tela_specs --check, build_logo --check · escopo: .github/ · depende de: —
-- `F0-002` Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS · escopo: image/ · depende de: —
+- `F0-003` Workflow GitHub Actions: podman build → testes de imagem → cosign → push :testing diário · escopo: .github/ · depende de: F0-001, F0-002
+- `F0-004` check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI · escopo: scripts/ · depende de: F0-002
 - `F0-007` Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados) · escopo: brand/ · depende de: —
 
 Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY §6).
@@ -49,6 +50,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - `GOV-009` Higiene do repositório: .gitignore, .gitattributes (LF), remoção de .pyc e .lnk, nome forjaos-project/forjaos (NFR-042) · fase 0 — 2026-11-09
 - `GOV-010` Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, gerados só na main (NFR-042) · fase 0 — PR #2 · 2026-11-09
 - `F0-001` Org GitHub + GHCR + cosign: segredos e permissões do repositório (ADR-002, G6) · fase 0 — PR #4 · 2026-11-09
+- `F0-002` Containerfile mínimo FROM bazzite-nvidia-open:stable + os-release ForjaOS (FR-001, FR-003) · fase 0 — PR #9 · 2026-11-09
 - `F0-006` Logo ForjaOS v1 em SVG (mono, cor, dark/light, ícone 16–512) (FR-053) · fase 0 — PR #8 · 2026-11-09
 
 ## A fazer (por fase)
@@ -56,7 +58,6 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 ### Fase 0 — Fundação (em andamento)
 
 - `GOV-011` CI de verificação em PR: unittest (scripts/tests, brand/tests), run-shell-tests, check-tokens, check-agents-sync, roadmap validate --branch, gen_tela_specs --check, build_logo --check (NFR-040, NFR-041, NFR-042) · fase 0 — Hoje nenhum workflow roda esses testes (só roadmap-sync e signing-preflight). PRs do roadmap-sync abertos com GITHUB_TOKEN não disparam workflows: não marcar o job como status check obrigatório da main sem resolver isso, senão o bot trava.
-- `F0-002` Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS (FR-001, FR-003) · fase 0
 - `F0-003` Workflow GitHub Actions: podman build → testes de imagem → cosign → push :testing diário (ADR-002, NFR-040) · fase 0
 - `F0-004` check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI (FR-002, G4) · fase 0
 - `F0-005` THIRD_PARTY_LICENSES.md gerado no CI (G4, ADR-007) · fase 0
@@ -75,6 +76,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - `F1-011` Rebranding mínimo da imagem: ícone ForjaOS (brand/logo/png) no hicolor, LOGO= no os-release e /usr/share/ublue-os/image-info.json apontando para ghcr.io/forjaos-project (FR-002, FR-003, FR-053) · fase 1 — Achados da revisão do PR #9: image-info.json ainda aponta para a imagem Bazzite (lido por ujust e pelas atualizações) e o LOGO foi removido sem substituto. Conferir scripts do Bazzite que testam ID=bazzite.
 - `F1-008` Konsole tema + forja doctor — tela terminal_konsole_dev_forja_doctor (FR-035, FR-036) · fase 1
 - `F1-009` CLI forja: esqueleto Rust, doctor, install unity/claude-code (FR-042, FR-060) · fase 1
+- `F1-010` Reproduzir componentes DX na base Bazzite desktop a partir dos scripts ublue-os/bazzite-dx, com verificação de licença (FR-001, FR-005, ADR-0032) · fase 1
 
 ### Fase 2 — Experiência dev/gamedev (a fazer)
 
@@ -115,6 +117,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 ## Entregas (mais recentes primeiro)
 
 - **2026-11-09** · PR #8 · Logo ForjaOS v1: marca, logotipo horizontal e ícone de app em SVG (cor sobre escuro, cor sobre claro e mono) e PNG 16–512, gerados de palette.json com wordmark Plus Jakarta Sans em contornos · itens: F0-006
+- **2026-11-09** · PR #9 · Containerfile mínimo sobre bazzite-nvidia-open/bazzite (ADR-0032) com os-release ForjaOS, chave cosign pública e política de assinatura no namespace ghcr.io/forjaos-project; build real e bootc container lint verdes nas duas variantes · itens: F0-002
 - **2026-11-09** · PR #4 · Assinatura cosign por par de chaves (ADR-030): cosign.pub versionada, SIGNING_SECRET verificado pelo workflow signing-preflight · itens: F0-001
 - **2026-11-09** · PR #2 · Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, available lendo branches remotas, gerados regenerados na main pelo workflow roadmap-sync · itens: GOV-010
 - **2026-11-09** · sem PR · Higiene do repositório: .gitignore e .gitattributes (LF), .pyc e .lnk fora do índice, nome do repositório corrigido em ADR-026 e PRD; repositório público após scan de segredos sem achados · itens: GOV-009
