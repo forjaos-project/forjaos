@@ -1,4 +1,4 @@
-# ADR-026 — Monorepo em `rrb-forjaOS`
+# ADR-026 — Monorepo em `forjaos-project/forjaos`
 
 **Status:** aceito · **Data:** 2026-11-08 · **Revoga:** PRD §5.2 (tabela de 7 repositórios) · **Relacionados:** ADR-009 (equipe solo)
 
@@ -8,7 +8,7 @@ O PRD 1.0 §5.2 prevê sete repositórios (`forjaos-image`, `forja-cli`, `hero`,
 
 ## Decisão
 
-O ForjaOS é desenvolvido como **monorepo** em `rrb-forjaOS`, com uma pasta por componente:
+O ForjaOS é desenvolvido como **monorepo** em `forjaos-project/forjaos`, com uma pasta por componente:
 
 | Pasta | Equivale a (PRD §5.2) | Conteúdo |
 | --- | --- | --- |

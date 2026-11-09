@@ -2,7 +2,7 @@
 
 # Status — ForjaOS
 
-**Atualizado em:** 2026-11-08 · **Itens:** 8/49 feitos (16 %) · 0 em andamento · 41 a fazer · 0 bloqueados
+**Atualizado em:** 2026-11-09 · **Itens:** 9/50 feitos (18 %) · 0 em andamento · 41 a fazer · 0 bloqueados
 
 Regenerar: `python3 scripts/roadmap.py build`. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`.
 
@@ -38,6 +38,7 @@ Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
 - `GOV-006` Roadmap como fonte única: roadmap.json → STATUS.md + index.html (scripts/roadmap.py) (NFR-042, NFR-044) · fase 0 — 2026-11-08
 - `GOV-007` AGENTS.md (fonte única), CLAUDE.md (@AGENTS.md), comandos /plan /code /test /review /ship, AGENTS.md por pasta (NFR-042) · fase 0 — 2026-11-08
 - `GOV-008` PR template, check-agents-sync.sh, stub check-branding.sh, README (NFR-042) · fase 0 — 2026-11-08
+- `GOV-009` Higiene do repositório: .gitignore, .gitattributes (LF), remoção de .pyc e .lnk, nome forjaos-project/forjaos (NFR-042) · fase 0 — 2026-11-09
 
 ## A fazer (por fase)
 
@@ -102,4 +103,5 @@ Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
 
 ## Entregas (mais recentes primeiro)
 
+- **2026-11-09** · sem PR · Higiene do repositório: .gitignore e .gitattributes (LF), .pyc e .lnk fora do índice, nome do repositório corrigido em ADR-026 e PRD; repositório público após scan de segredos sem achados · itens: GOV-009
 - **2026-11-08** · sem PR · Metodologia executável e governança: ADRs, palette canônico, metodologia de 5 gates, design rules, specs das 16 telas, roadmap gerado, AGENTS.md/CLAUDE.md · itens: GOV-001, GOV-002, GOV-003, GOV-004, GOV-005, GOV-006, GOV-007, GOV-008
