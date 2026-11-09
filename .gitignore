@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Atalhos e lixo do SO
+*.lnk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Segredos e ambiente local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Build e dependências
+node_modules/
+target/
+build/
+dist/
+*.iso
+*.img
+*.qcow2
+
+# Editor
+.vscode/
+.idea/
+*.swp
