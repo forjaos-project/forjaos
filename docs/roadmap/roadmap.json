@@ -1,6 +1,5 @@
 {
   "project": "ForjaOS",
-  "updated_at": "2026-11-09",
   "phases": [
     {
       "id": "0",
@@ -159,6 +158,18 @@
       "merged_at": "2026-11-09"
     },
     {
+      "id": "GOV-010",
+      "fr": [
+        "NFR-042"
+      ],
+      "phase": "0",
+      "title": "Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, gerados só na main",
+      "status": "doing",
+      "agent": "claude",
+      "scope": ".",
+      "claimed_at": "2026-11-09"
+    },
+    {
       "id": "F0-001",
       "fr": [
         "ADR-002",
@@ -166,7 +177,8 @@
       ],
       "phase": "0",
       "title": "Org GitHub + GHCR + cosign: segredos e permissões do repositório",
-      "status": "todo"
+      "status": "todo",
+      "scope": ".github/"
     },
     {
       "id": "F0-002",
@@ -176,7 +188,8 @@
       ],
       "phase": "0",
       "title": "Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS",
-      "status": "todo"
+      "status": "todo",
+      "scope": "image/"
     },
     {
       "id": "F0-003",
@@ -186,7 +199,12 @@
       ],
       "phase": "0",
       "title": "Workflow GitHub Actions: podman build → testes de imagem → cosign → push :testing diário",
-      "status": "todo"
+      "status": "todo",
+      "scope": ".github/",
+      "depends_on": [
+        "F0-001",
+        "F0-002"
+      ]
     },
     {
       "id": "F0-004",
@@ -196,7 +214,11 @@
       ],
       "phase": "0",
       "title": "check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI",
-      "status": "todo"
+      "status": "todo",
+      "scope": "scripts/",
+      "depends_on": [
+        "F0-002"
+      ]
     },
     {
       "id": "F0-005",
@@ -206,7 +228,11 @@
       ],
       "phase": "0",
       "title": "THIRD_PARTY_LICENSES.md gerado no CI",
-      "status": "todo"
+      "status": "todo",
+      "scope": ".github/",
+      "depends_on": [
+        "F0-003"
+      ]
     },
     {
       "id": "F0-006",
@@ -215,7 +241,8 @@
       ],
       "phase": "0",
       "title": "Logo ForjaOS v1 em SVG (mono, cor, dark/light, ícone 16–512)",
-      "status": "todo"
+      "status": "todo",
+      "scope": "brand/"
     },
     {
       "id": "F0-007",
@@ -224,7 +251,8 @@
       ],
       "phase": "0",
       "title": "Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados)",
-      "status": "todo"
+      "status": "todo",
+      "scope": "brand/"
     },
     {
       "id": "F0-008",
@@ -234,7 +262,11 @@
       ],
       "phase": "0",
       "title": "bootc switch para a imagem em VM + upgrade/rollback testados",
-      "status": "todo"
+      "status": "todo",
+      "scope": "image/",
+      "depends_on": [
+        "F0-003"
+      ]
     },
     {
       "id": "F1-001",
