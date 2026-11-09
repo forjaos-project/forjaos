@@ -5,7 +5,7 @@
 | Campo | Valor |
 | --- | --- |
 | Produto | ForjaOS — sistema operacional open source baseado em Linux para desenvolvimento de software e jogos |
-| Descritor | "ForjaOS" (usado em marketing e metadados: *ForjaOS, the DevOS*) |
+| Descritor | Nenhum: o nome é só "ForjaOS" (ADR-031) |
 | Motor de assistente | HERO (daemon `herod`) |
 | Mascote padrão | Guará (lobo-guará do cerrado); nome escolhido pelo usuário na instalação |
 | CLI | `forja` |
