@@ -28,7 +28,7 @@ SUBST = {
     "RTX 4070": ("RTX 5060 8 GB (desktop de referência)", "§10.2"),
     "GameMode": ("Modo Jogo (hero-game.target)", "FR-043"),
     "Escudo ativo": ("indicador só se `forja install escudo` executado", "ADR-023, NFR-027"),
-    "DeveloperOS": ("ForjaOS (descritor só em marketing)", "ADR-004"),
+    "DeveloperOS": ("ForjaOS (sem descritor)", "ADR-031"),
     "Feral": ("remover — Modo Jogo é hero-game.target, não Feral GameMode", "FR-043"),
     "Fedora Atomic 41": ("base Universal Blue (sem versão Fedora exposta)", "FR-002, G4"),
     "NVIDIA Open 590": ("driver NVIDIA open (versão vem da base)", "ADR-001"),

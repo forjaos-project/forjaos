@@ -83,7 +83,7 @@ Instalador próprio, loja de apps própria, COSMIC como desktop, spin tiling com
 | ADR-001 | Base | Fedora Atomic via Universal Blue, `FROM ghcr.io/ublue-os/bazzite-dx-nvidia-open:stable` | Arch/Omarchy (rolling quebra driver; Omarchy já ocupa o nicho); NixOS (curva, binários proprietários); Debian/Ubuntu (kernel velho para gaming) |
 | ADR-002 | Modelo de build | bootc/OCI: Containerfile + GitHub Actions + cosign + GHCR; ISO via bootc-image-builder | ISO artesanal (não reproduzível); live-build (Debian) |
 | ADR-003 | Desktop | KDE Plasma 6 padrão; spin tiling (niri) só no 2.0 | GNOME (gaming fraco, extensões quebram); COSMIC (estável desde 12/2025, mas lacunas de applets — candidato 2.0); Hyprland como padrão (descoberta zero para quem vem do Windows) |
-| ADR-004 | Nome do SO | ForjaOS, descritor "DeveloperOS" | "DeveloperOS" sozinho (genérico, colide com DevOS-Developer-OS no GitHub); Ipê (menos ligado a dev/jogos) |
+| ADR-004 | Nome do SO | ForjaOS, sem descritor (ADR-031) | "DeveloperOS" sozinho (genérico, colide com DevOS-Developer-OS no GitHub); Ipê (menos ligado a dev/jogos) |
 | ADR-005 | Assistente | Projeto novo, nativo: daemon Rust (`herod`) + QML/KDE Frameworks. rrb-jarvisOS descontinuado como código; suas decisões migram como ADR-010 a ADR-016 | Portar o Electron do jarvisOS (150–300 MB ociosos, migração dupla) |
 | ADR-006 | Nome do mascote | Escolhido na instalação; padrão **Guará**. HERO é o nome do motor | Nome fixo HERO (saturado, wake word curta); "Jarvis" (marca Marvel/Disney) |
 | ADR-007 | Licenças | Código próprio Apache-2.0; artes CC BY-SA 4.0; nome e logo sob política de marca própria | AGPL (afasta contribuição de empresas; sem versão paga planejada, perde o motivo) |
@@ -182,7 +182,7 @@ push/cron ─► GitHub Actions
 | --- | --- | --- |
 | FR-001 | Imagem OCI derivada de `bazzite-dx-nvidia-open` e `bazzite-dx`, construída por Containerfile | `podman build` passa no CI; `bootc switch ghcr.io/<org>/forjaos-nvidia-open:stable` funciona a partir de Bazzite |
 | FR-002 | Rebranding total: nenhum texto, ícone ou wallpaper Fedora/Bazzite/Bluefin visível em boot, login, desktop, Configurações, `os-release`, Discover | Script `check-branding.sh` no CI grepa a imagem e falha ao encontrar; inspeção visual nos 2 hardwares de referência |
-| FR-003 | `/etc/os-release`: `NAME="ForjaOS"`, `PRETTY_NAME="ForjaOS (DeveloperOS) X.Y"`, `ID=forjaos`, `ID_LIKE="fedora"`, `HOME_URL`, `BUG_REPORT_URL` | Teste no CI |
+| FR-003 | `/etc/os-release`: `NAME="ForjaOS"`, `PRETTY_NAME="ForjaOS X.Y"`, `ID=forjaos`, `ID_LIKE="fedora"`, `HOME_URL`, `BUG_REPORT_URL` | Teste no CI |
 | FR-004 | Pacotes removidos da base que não servem ao público: emuladores pré-instalados, Waydroid, apps de mídia duplicados (lista em `build_files/remove.txt`) | Lista aplicada; tamanho da ISO ≤ 6 GB |
 | FR-005 | Pacotes adicionados: Docker CE, Podman, distrobox, Homebrew, VS Code (rpm oficial), Godot 4 (Flatpak Flathub), Ollama, Hermes Agent (uv tool), Codex CLI, `gh`, git-credential-libsecret, kubectl, k9s, terraform, Node LTS (via `fnm`), Python 3 + uv, Rust (`rustup` via recipe), Java 21 (OpenJDK) + `sdkman` via recipe, Blender (Flatpak), btop, nvtop, Cockpit (desligado), firewalld, auditd, `forja`, `hero*`, `forjaos-branding` | `forja doctor` lista cada um como presente |
 | FR-006 | Serviços habilitados por padrão: `docker.socket` (rootless por usuário via recipe), `firewalld`, `auditd`, `herod` (user), `memd` (user). Desligados: `sshd`, `cockpit.socket` | `systemctl is-enabled` testado no CI |
