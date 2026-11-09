@@ -196,8 +196,10 @@
       ],
       "phase": "0",
       "title": "Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS",
-      "status": "todo",
-      "scope": "image/"
+      "status": "doing",
+      "scope": "image/",
+      "agent": "codex",
+      "claimed_at": "2026-11-09"
     },
     {
       "id": "F0-003",
