@@ -9,8 +9,10 @@ mkdir -p "$TMP/bin" "$TMP/repo"
 # cosign falso: `cosign public-key --key env://SIGNING_SECRET` imprime "PUB:<secret>"
 cat > "$TMP/bin/cosign" <<'FAKE'
 #!/usr/bin/env bash
-[ "$1" = "public-key" ] && [ "$2" = "--key" ] && [ "$3" = "env://SIGNING_SECRET" ] || exit 9
-printf -- '-----BEGIN PUBLIC KEY-----\nPUB:%s\n-----END PUBLIC KEY-----\n' "$SIGNING_SECRET"
+[ "$1" = "public-key" ] && [ "$2" = "--key" ] && case "$3" in env://*) ;; *) exit 9;; esac
+var="${3#env://}"; val="${!var}"
+case "$val" in *$'\r'*) echo "fake cosign: CR in key" >&2; exit 1;; esac
+printf -- '-----BEGIN PUBLIC KEY-----\nPUB:%s\n-----END PUBLIC KEY-----\n' "$val"
 FAKE
 chmod +x "$TMP/bin/cosign"
 run() { PATH="$TMP/bin:$PATH" "$ROOT/scripts/check-signing-key.sh" "$TMP/repo/cosign.pub" 2>&1; }
@@ -28,6 +30,9 @@ case "$out" in *s3cr3t-B*) echo "FAIL: saída vazou o secret"; exit 1;; esac
 # caso 3: secret vazio -> 2
 set +e; out=$(SIGNING_SECRET='' run); rc=$?; set -e
 [ "$rc" -eq 2 ] || { echo "FAIL: secret vazio deveria sair 2 (saiu $rc)"; exit 1; }
+
+# caso 3b: secret colado com CRLF (Windows) ainda corresponde
+out=$(SIGNING_SECRET=$'s3cr3t-A\r' run) || { echo "FAIL: secret com CRLF reprovado: $out"; exit 1; }
 
 # caso 4: cosign.pub ausente -> 2
 rm "$TMP/repo/cosign.pub"
