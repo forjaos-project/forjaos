@@ -2,7 +2,7 @@
 
 # Status — ForjaOS
 
-**Atualizado em:** 2026-11-09 · **Itens:** 10/51 feitos (20 %) · 0 em andamento · 41 a fazer · 0 bloqueados
+**Atualizado em:** 2026-11-09 · **Itens:** 11/51 feitos (22 %) · 0 em andamento · 40 a fazer · 0 bloqueados
 
 Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`. Antes de pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available`.
 
@@ -12,9 +12,9 @@ Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. 
 
 ## Próxima tarefa
 
-**`F0-001` — Org GitHub + GHCR + cosign: segredos e permissões do repositório**
+**`F0-002` — Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS**
 
-- Requisitos: ADR-002, G6
+- Requisitos: FR-001, FR-003
 - Fase: 0 — Fundação
 - Estado: a fazer
 
@@ -22,7 +22,6 @@ Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
 
 ## Disponíveis agora (trabalho em paralelo)
 
-- `F0-001` Org GitHub + GHCR + cosign: segredos e permissões do repositório · escopo: .github/ · depende de: —
 - `F0-002` Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS · escopo: image/ · depende de: —
 - `F0-006` Logo ForjaOS v1 em SVG (mono, cor, dark/light, ícone 16–512) · escopo: brand/ · depende de: —
 - `F0-007` Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados) · escopo: brand/ · depende de: —
@@ -49,12 +48,12 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - `GOV-008` PR template, check-agents-sync.sh, stub check-branding.sh, README (NFR-042) · fase 0 — 2026-11-08
 - `GOV-009` Higiene do repositório: .gitignore, .gitattributes (LF), remoção de .pyc e .lnk, nome forjaos-project/forjaos (NFR-042) · fase 0 — 2026-11-09
 - `GOV-010` Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, gerados só na main (NFR-042) · fase 0 — PR #2 · 2026-11-09
+- `F0-001` Org GitHub + GHCR + cosign: segredos e permissões do repositório (ADR-002, G6) · fase 0 — PR #4 · 2026-11-09
 
 ## A fazer (por fase)
 
 ### Fase 0 — Fundação (em andamento)
 
-- `F0-001` Org GitHub + GHCR + cosign: segredos e permissões do repositório (ADR-002, G6) · fase 0
 - `F0-002` Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS (FR-001, FR-003) · fase 0
 - `F0-003` Workflow GitHub Actions: podman build → testes de imagem → cosign → push :testing diário (ADR-002, NFR-040) · fase 0
 - `F0-004` check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI (FR-002, G4) · fase 0
@@ -113,6 +112,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 
 ## Entregas (mais recentes primeiro)
 
+- **2026-11-09** · PR #4 · Assinatura cosign por par de chaves (ADR-030): cosign.pub versionada, SIGNING_SECRET verificado pelo workflow signing-preflight · itens: F0-001
 - **2026-11-09** · PR #2 · Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, available lendo branches remotas, gerados regenerados na main pelo workflow roadmap-sync · itens: GOV-010
 - **2026-11-09** · sem PR · Higiene do repositório: .gitignore e .gitattributes (LF), .pyc e .lnk fora do índice, nome do repositório corrigido em ADR-026 e PRD; repositório público após scan de segredos sem achados · itens: GOV-009
 - **2026-11-08** · sem PR · Metodologia executável e governança: ADRs, palette canônico, metodologia de 5 gates, design rules, specs das 16 telas, roadmap gerado, AGENTS.md/CLAUDE.md · itens: GOV-001, GOV-002, GOV-003, GOV-004, GOV-005, GOV-006, GOV-007, GOV-008
