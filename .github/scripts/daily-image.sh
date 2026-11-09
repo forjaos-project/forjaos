@@ -9,7 +9,7 @@ case "$variant" in
   *) echo 'daily-image: expected forjaos or forjaos-nvidia-open' >&2; exit 2 ;;
 esac
 
-for required in GITHUB_ACTOR GH_TOKEN SIGNING_SECRET; do
+for required in GITHUB_ACTOR GH_TOKEN SIGNING_SECRET LICENSE_REPORT_DIR; do
   if [[ -z "${!required:-}" ]]; then
     echo "daily-image: $required is required" >&2
     exit 2
@@ -41,6 +41,12 @@ for key in ("PRETTY_NAME", "HOME_URL", "BUG_REPORT_URL"):
     if not values.get(key):
         raise SystemExit(f"missing os-release {key}")
 '
+image_id="$(podman image inspect --format '{{.Id}}' "$local_image")"
+podman run --rm --entrypoint /usr/bin/rpm "$local_image" -qa \
+  --queryformat 'P\t%{NAME}\t%{VERSION}-%{RELEASE}\t%{ARCH}\t%{LICENSE}\t%{SOURCERPM}\n[F\t%{FILENAMES}\t%{FILEFLAGS:fflags}\n]' \
+  | python3 .github/scripts/generate_third_party_licenses.py \
+    --variant "$variant" --image-id "$image_id" \
+    --output "$LICENSE_REPORT_DIR/$variant/THIRD_PARTY_LICENSES.md"
 bash scripts/check-branding.sh --image "$local_image"
 bash scripts/check-signing-key.sh cosign.pub
 

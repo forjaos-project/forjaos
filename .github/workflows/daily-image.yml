@@ -35,7 +35,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
+          LICENSE_REPORT_DIR: ${{ runner.temp }}/licenses
         run: bash .github/scripts/daily-image.sh '${{ matrix.variant }}'
+      - name: Upload ${{ matrix.variant }} license inventory
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4; MIT
+        with:
+          name: third-party-licenses-${{ matrix.variant }}
+          path: ${{ runner.temp }}/licenses/${{ matrix.variant }}/THIRD_PARTY_LICENSES.md
+          if-no-files-found: error
+          retention-days: 30
 
   report_failure:
     needs: image

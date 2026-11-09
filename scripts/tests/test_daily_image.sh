@@ -10,12 +10,22 @@ export TEST_LOG="$TMP/commands"
 export TEST_DIGEST="sha256:$(printf 'a%.0s' {1..64})"
 export TEST_PUBLIC_KEY="$REPO/cosign.pub"
 export GH_TOKEN=synthetic-token GITHUB_ACTOR=synthetic-actor SIGNING_SECRET=synthetic-key GITHUB_RUN_ID=123
+export LICENSE_REPORT_DIR="$TMP/reports"
 
 cat > "$TMP/bin/podman" <<'FAKE_PODMAN'
 #!/usr/bin/env bash
 printf 'podman %s\n' "$*" >> "$TEST_LOG"
 case "$1" in
+  image)
+    if [[ "$2" == inspect ]]; then printf 'sha256:%064d\n' 1; fi
+    ;;
   run)
+    if [[ "$*" == *'--entrypoint /usr/bin/rpm'* ]]; then
+      [[ "${TEST_FAIL_RPM:-}" != 1 ]] || exit 1
+      [[ "${TEST_EMPTY_RPM:-}" != 1 ]] || exit 0
+      printf 'P\tfixture\t1-1.fc45\tx86_64\tMIT\tfixture-1-1.src.rpm\n'
+      printf 'F\t/usr/share/licenses/fixture/LICENSE\tl\n'
+    fi
     if [[ "$*" == *'--rootfs /'* && "${TEST_FAIL_BRANDING:-}" == 1 ]]; then exit 1; fi
     if [[ "$*" == *'os-release'* && "${TEST_FAIL_IDENTITY:-}" == 1 ]]; then exit 1; fi
     ;;
@@ -69,6 +79,8 @@ for variant in forjaos-nvidia-open forjaos; do
   }
   grep -qF -- "--build-arg IMAGE_NAME=$variant" "$TEST_LOG"
   assert_order 'container lint' 'os-release'
+  assert_order 'os-release' '--entrypoint /usr/bin/rpm'
+  assert_order '--entrypoint /usr/bin/rpm' '--rootfs /'
   assert_order 'os-release' '--rootfs /'
   assert_order '--rootfs /' 'podman push'
   assert_order 'podman push' 'cosign sign'
@@ -83,13 +95,32 @@ for variant in forjaos-nvidia-open forjaos; do
   grep -qF "docker://ghcr.io/forjaos-project/$variant:testing" "$TEST_LOG"
   grep -qF -- '--preserve-digests' "$TEST_LOG"
   grep -qF "ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
+  report="$LICENSE_REPORT_DIR/$variant/THIRD_PARTY_LICENSES.md"
+  grep -qF 'fixture-1-1.src.rpm' "$report"
+  grep -qF '/usr/share/licenses/fixture/LICENSE' "$report"
 done
 
 : > "$TEST_LOG"
+rm -f "$LICENSE_REPORT_DIR/forjaos/THIRD_PARTY_LICENSES.md"
 export TEST_FAIL_BRANDING=1
 if bash "$REPO/.github/scripts/daily-image.sh" forjaos >/dev/null 2>&1; then echo 'FAIL: accepted branded image' >&2; exit 1; fi
+if [[ ! -f "$LICENSE_REPORT_DIR/forjaos/THIRD_PARTY_LICENSES.md" ]]; then echo 'FAIL: branding failure discarded license report' >&2; exit 1; fi
 if grep -qE 'podman push|cosign sign|skopeo copy' "$TEST_LOG"; then echo 'FAIL: published branded image' >&2; exit 1; fi
 unset TEST_FAIL_BRANDING
+
+: > "$TEST_LOG"
+rm -f "$LICENSE_REPORT_DIR/forjaos/THIRD_PARTY_LICENSES.md"
+export TEST_FAIL_RPM=1
+if bash "$REPO/.github/scripts/daily-image.sh" forjaos >/dev/null 2>&1; then echo 'FAIL: accepted failed RPM query' >&2; exit 1; fi
+if grep -qE 'podman push|cosign sign|skopeo copy' "$TEST_LOG"; then echo 'FAIL: published image without license inventory' >&2; exit 1; fi
+if [[ -e "$LICENSE_REPORT_DIR/forjaos/THIRD_PARTY_LICENSES.md" ]]; then echo 'FAIL: stale report after failed RPM query' >&2; exit 1; fi
+unset TEST_FAIL_RPM
+
+: > "$TEST_LOG"
+export TEST_EMPTY_RPM=1
+if bash "$REPO/.github/scripts/daily-image.sh" forjaos >/dev/null 2>&1; then echo 'FAIL: accepted empty RPM query' >&2; exit 1; fi
+if grep -qE 'podman push|cosign sign|skopeo copy' "$TEST_LOG"; then echo 'FAIL: published image without packages' >&2; exit 1; fi
+unset TEST_EMPTY_RPM
 
 : > "$TEST_LOG"
 export TEST_FAIL_IDENTITY=1

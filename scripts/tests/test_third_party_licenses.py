@@ -48,7 +48,7 @@ class ThirdPartyLicensesTest(unittest.TestCase):
             self.assertIn(IMAGE_ID, report)
             self.assertIn("2 installed RPM packages", report)
             self.assertLess(report.index("| alpha |"), report.index("| zebra |"))
-            self.assertIn("MIT &#124; BSD-3-Clause", report)
+            self.assertIn("MIT \\| BSD-3-Clause", report)
             self.assertIn("/usr/share/licenses/zebra/LICENSE", report)
             self.assertIn("/usr/share/licenses/alpha/COPYING", report)
             self.assertNotIn("/usr/bin/zebra", report)

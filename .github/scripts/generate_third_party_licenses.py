@@ -51,7 +51,7 @@ def parse_records(lines):
 
 
 def cell(value):
-    return html.escape(value, quote=False).replace("|", "&#124;").replace("`", "&#96;")
+    return html.escape(value, quote=False).replace("|", "\\|").replace("`", "\\`")
 
 
 def render(variant, image_id, packages):
