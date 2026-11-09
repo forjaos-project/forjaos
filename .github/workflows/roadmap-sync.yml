@@ -32,7 +32,7 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -p "test_roadmap.py"
       - name: Regenera os gerados
         run: python3 scripts/roadmap.py build
-      - name: PR automático se mudou (main protegida: sem push direto)
+      - name: "PR automático se mudou (main protegida, sem push direto)"
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
