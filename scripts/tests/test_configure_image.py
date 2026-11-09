@@ -56,6 +56,22 @@ class ConfigureImageTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        info = self.root / "usr/share/ublue-os/image-info.json"
+        info.parent.mkdir(parents=True)
+        info.write_text(
+            json.dumps(
+                {
+                    "image-name": "bazzite",
+                    "image-vendor": "ublue-os",
+                    "image-ref": "ostree-image-signed:docker://ghcr.io/ublue-os/bazzite",
+                    "image-tag": "stable",
+                    "image-branch": "stable",
+                    "base-image-name": "kinoite",
+                    "fedora-version": "45",
+                }
+            ),
+            encoding="utf-8",
+        )
         self.key = self.root / "source.pub"
         self.key.write_bytes(PUBLIC_KEY)
 
@@ -155,6 +171,35 @@ class ConfigureImageTests(unittest.TestCase):
     def test_unknown_image_name_is_rejected(self):
         result = self.run_helper("unapproved-image")
         self.assertNotEqual(result.returncode, 0)
+
+    def test_image_info_points_to_each_forjaos_variant(self):
+        for image_name in ("forjaos", "forjaos-nvidia-open"):
+            with self.subTest(image_name=image_name):
+                result = self.run_helper(image_name)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                info = json.loads(
+                    (self.root / "usr/share/ublue-os/image-info.json").read_text(encoding="utf-8")
+                )
+                self.assertEqual(info["image-name"], image_name)
+                self.assertEqual(info["image-vendor"], "forjaos-project")
+                self.assertEqual(
+                    info["image-ref"],
+                    f"ostree-image-signed:docker://ghcr.io/forjaos-project/{image_name}",
+                )
+                self.assertEqual(info["image-tag"], "testing")
+                self.assertEqual(info["image-branch"], "testing")
+                self.assertEqual(info["base-image-name"], "kinoite")
+                self.assertEqual(info["fedora-version"], "45")
+
+    def test_missing_or_malformed_image_info_leaves_identity_untouched(self):
+        info = self.root / "usr/share/ublue-os/image-info.json"
+        before = (self.root / "usr/lib/os-release").read_bytes()
+        info.unlink()
+        self.assertNotEqual(self.run_helper().returncode, 0)
+        self.assertEqual((self.root / "usr/lib/os-release").read_bytes(), before)
+        info.write_text("{invalid", encoding="utf-8")
+        self.assertNotEqual(self.run_helper().returncode, 0)
+        self.assertEqual((self.root / "usr/lib/os-release").read_bytes(), before)
 
 
 if __name__ == "__main__":
