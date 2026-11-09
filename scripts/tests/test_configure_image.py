@@ -110,6 +110,18 @@ class ConfigureImageTests(unittest.TestCase):
             ],
         )
 
+    def test_sigstore_attachments_enabled_for_project_namespace(self):
+        # Sem use-sigstore-attachments o containers/image não lê a assinatura cosign
+        # (containers-registries.d(5)), e a regra sigstoreSigned nunca é satisfeita.
+        for _ in range(2):
+            result = self.run_helper()
+            self.assertEqual(result.returncode, 0, result.stderr)
+        config = self.root / "etc/containers/registries.d/forjaos-project.yaml"
+        self.assertEqual(
+            config.read_text(encoding="utf-8"),
+            "docker:\n  ghcr.io/forjaos-project:\n    use-sigstore-attachments: true\n",
+        )
+
     def test_generic_variant_has_its_own_trust_scope(self):
         result = self.run_helper("forjaos")
         self.assertEqual(result.returncode, 0, result.stderr)

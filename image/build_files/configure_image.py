@@ -10,6 +10,9 @@ REGISTRY = "ghcr.io/forjaos-project"
 KEY_DESTINATION = "/etc/pki/containers/forjaos.pub"
 PROJECT_URL = "https://github.com/forjaos-project/forjaos"
 ISSUES_URL = f"{PROJECT_URL}/issues"
+REGISTRIES_D = "/etc/containers/registries.d/forjaos-project.yaml"
+# cosign guarda a assinatura como anexo OCI; sem isto a regra sigstoreSigned não a encontra.
+REGISTRIES_D_CONTENT = f"docker:\n  {REGISTRY}:\n    use-sigstore-attachments: true\n"
 
 
 def update_os_release(source: str, image_name: str) -> str:
@@ -72,6 +75,9 @@ def configure(root: Path, public_key: Path, image_name: str) -> None:
     destination = root / KEY_DESTINATION.lstrip("/")
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(key_data)
+    registries = root / REGISTRIES_D.lstrip("/")
+    registries.parent.mkdir(parents=True, exist_ok=True)
+    registries.write_text(REGISTRIES_D_CONTENT, encoding="utf-8")
     release_path.write_text(update_os_release(release, image_name), encoding="utf-8")
     policy_path.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
 
