@@ -17,7 +17,7 @@ cat > "$TMP/bin/podman" <<'FAKE_PODMAN'
 printf 'podman %s\n' "$*" >> "$TEST_LOG"
 case "$1" in
   image)
-    if [[ "$2" == inspect ]]; then printf 'sha256:%064d\n' 1; fi
+    if [[ "$2" == inspect ]]; then printf '%064d\n' 1; fi
     ;;
   run)
     if [[ "$*" == *'--entrypoint /usr/bin/rpm'* ]]; then

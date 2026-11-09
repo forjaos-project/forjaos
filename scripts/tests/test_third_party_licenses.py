@@ -13,7 +13,7 @@ IMAGE_ID = "sha256:" + "a" * 64
 
 
 class ThirdPartyLicensesTest(unittest.TestCase):
-    def run_generator(self, data, output):
+    def run_generator(self, data, output, image_id=IMAGE_ID):
         return subprocess.run(
             [
                 sys.executable,
@@ -21,7 +21,7 @@ class ThirdPartyLicensesTest(unittest.TestCase):
                 "--variant",
                 "forjaos",
                 "--image-id",
-                IMAGE_ID,
+                image_id,
                 "--output",
                 str(output),
             ],
@@ -71,6 +71,18 @@ class ThirdPartyLicensesTest(unittest.TestCase):
                 result = self.run_generator(data, output)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(output.exists())
+
+    def test_bare_podman_image_id_is_normalized_but_invalid_id_fails(self):
+        data = "P\tfixture\t1-1\tx86_64\tMIT\tfixture.src.rpm\n"
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "THIRD_PARTY_LICENSES.md"
+            result = self.run_generator(data, output, image_id="a" * 64)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(IMAGE_ID, output.read_text(encoding="utf-8"))
+            output.unlink()
+            result = self.run_generator(data, output, image_id="a" * 63)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":
