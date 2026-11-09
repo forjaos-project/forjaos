@@ -74,5 +74,39 @@ class MarkTests(unittest.TestCase, SvgAssertions):
         self.assert_mono(read("forjaos-mark-mono.svg"))
 
 
+class LogoTests(unittest.TestCase, SvgAssertions):
+    VARIANTS = {"forjaos-logo-on-dark.svg": "dark", "forjaos-logo-on-light.svg": "light"}
+
+    def test_wordmark_source(self):
+        data = json.loads(read("src/wordmark.json"))
+        self.assertEqual(data["font"], "Plus Jakarta Sans 700")
+        self.assertEqual(data["license"], "OFL-1.1")
+        for key in ("forja", "os"):
+            self.assertTrue(data[key]["d"].strip(), key)
+            self.assertGreater(data[key]["advance"], 0)
+
+    def test_files_and_structure(self):
+        for name in [*self.VARIANTS, "forjaos-logo-mono.svg"]:
+            with self.subTest(name=name):
+                svg = read(name)
+                for part in ('id="mark"', 'id="wordmark"', 'id="word-forja"', 'id="word-os"'):
+                    self.assertIn(part, svg)
+                self.assert_clean_svg(svg)
+
+    def test_wordmark_colors(self):
+        for name, theme in self.VARIANTS.items():
+            with self.subTest(name=name):
+                svg = read(name)
+                self.assert_theme_colors(svg, theme)
+                colors = PALETTE["themes"][theme]["colors"]
+                forja = re.search(r'id="word-forja"[^>]*fill="([^"]+)"', svg).group(1)
+                os_ = re.search(r'id="word-os"[^>]*fill="([^"]+)"', svg).group(1)
+                self.assertEqual(forja.lower(), colors["text-strong"].lower())
+                self.assertEqual(os_.lower(), colors["accent-cyan"].lower())
+
+    def test_mono(self):
+        self.assert_mono(read("forjaos-logo-mono.svg"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -125,10 +125,53 @@ def mark_svg(palette, variant):
     return svg_doc("0 0 512 512", 512, 512, mark_defs(palette, variant, ""), mark_body(palette, variant, ""))
 
 
-def build(palette=None):
+WORDMARK_PATH = HERE / "src" / "wordmark.json"
+# Logotipo horizontal, no espaço da marca (512): caixa visível da marca e do wordmark.
+MARK_BOX = (28, 104, 428, 416)  # x0, y0, x1, y1 com margem para o brilho
+MARK_CENTER_Y = 261
+CAP_HEIGHT = 118  # altura das maiúsculas do wordmark
+WORD_GAP = 40
+WORD_COLORS = {"on-dark": ("text-strong", "accent-cyan"), "on-light": ("text-strong", "accent-cyan")}
+
+
+def load_wordmark(path=WORDMARK_PATH):
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def wordmark_body(palette, variant, wm, x, baseline):
+    k = CAP_HEIGHT / wm["cap_height"]
+    if VARIANTS[variant]["theme"] is None:
+        forja_fill = os_fill = "currentColor"
+    else:
+        theme = VARIANTS[variant]["theme"]
+        forja_fill, os_fill = (color(palette, theme, t) for t in WORD_COLORS[variant])
+    return (
+        f'<g id="wordmark" transform="translate({x} {baseline}) scale({k:.6f})">'
+        f'<path id="word-forja" fill="{forja_fill}" d="{wm["forja"]["d"]}"/>'
+        f'<path id="word-os" fill="{os_fill}" transform="translate({wm["os"]["offset"]} 0)" d="{wm["os"]["d"]}"/>'
+        "</g>"
+    )
+
+
+def logo_svg(palette, variant, wm):
+    k = CAP_HEIGHT / wm["cap_height"]
+    x0, y0, x1, y1 = MARK_BOX
+    word_x = x1 + WORD_GAP
+    word_w = (wm["os"]["offset"] + wm["os"]["advance"]) * k
+    baseline = MARK_CENTER_Y + CAP_HEIGHT / 2
+    width = round(word_x + word_w + 16 - x0)
+    height = y1 - y0
+    body = mark_body(palette, variant, "") + wordmark_body(palette, variant, wm, word_x, round(baseline, 1))
+    return svg_doc(f"{x0} {y0} {width} {height}", width, height, mark_defs(palette, variant, ""), body)
+
+
+def build(palette=None, wordmark=None):
     """Retorna {nome_do_arquivo: conteúdo} de cada SVG gerado."""
     palette = palette or load_palette()
-    return {f"forjaos-mark-{v}.svg": mark_svg(palette, v) for v in VARIANTS}
+    wm = wordmark or load_wordmark()
+    out = {f"forjaos-mark-{v}.svg": mark_svg(palette, v) for v in VARIANTS}
+    out.update({f"forjaos-logo-{v}.svg": logo_svg(palette, v, wm) for v in VARIANTS})
+    return out
 
 
 def main(argv=None):
