@@ -404,12 +404,17 @@
       ],
       "phase": "1",
       "title": "Rebranding mínimo da imagem: ícone ForjaOS (brand/logo/png) no hicolor, LOGO= no os-release e /usr/share/ublue-os/image-info.json apontando para ghcr.io/forjaos-project",
-      "status": "todo",
+      "status": "done",
       "scope": "image/",
       "depends_on": [
         "F0-002"
       ],
-      "notes": "Achados da revisão do PR #9: image-info.json ainda aponta para a imagem Bazzite (lido por ujust e pelas atualizações) e o LOGO foi removido sem substituto. Conferir scripts do Bazzite que testam ID=bazzite."
+      "notes": "Achados da revisão do PR #9: image-info.json ainda aponta para a imagem Bazzite (lido por ujust e pelas atualizações) e o LOGO foi removido sem substituto. Conferir scripts do Bazzite que testam ID=bazzite.",
+      "agent": "codex",
+      "claimed_at": "2026-11-09",
+      "pr": 31,
+      "merged_at": "2026-11-09",
+      "summary": "Identidade ForjaOS nas duas imagens com ícones hicolor, LOGO no os-release e image-info.json próprio por variante"
     },
     {
       "id": "F1-008",
