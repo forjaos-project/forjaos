@@ -164,10 +164,13 @@
       ],
       "phase": "0",
       "title": "Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, gerados só na main",
-      "status": "doing",
+      "status": "done",
       "agent": "claude",
       "scope": ".",
-      "claimed_at": "2026-11-09"
+      "claimed_at": "2026-11-09",
+      "pr": 2,
+      "merged_at": "2026-11-09",
+      "summary": "Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, available lendo branches remotas, gerados regenerados na main pelo workflow roadmap-sync"
     },
     {
       "id": "F0-001",
