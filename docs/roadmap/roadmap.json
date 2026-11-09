@@ -249,8 +249,10 @@
       ],
       "phase": "0",
       "title": "Logo ForjaOS v1 em SVG (mono, cor, dark/light, ícone 16–512)",
-      "status": "todo",
-      "scope": "brand/"
+      "status": "doing",
+      "scope": "brand/",
+      "agent": "claude",
+      "claimed_at": "2026-11-09"
     },
     {
       "id": "F0-007",
