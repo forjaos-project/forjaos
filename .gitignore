@@ -28,3 +28,7 @@ dist/
 .vscode/
 .idea/
 *.swp
+
+# cosign private keys never enter the repo (ADR-030, NFR-024)
+cosign.key
+cosign.private

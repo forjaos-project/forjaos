@@ -78,7 +78,7 @@ grep -niE 'TBD|TODO|depois|a definir' "$f"   # vazio
 
 **Passos** (`docs/dev/METHODOLOGY.md §2`)
 1. Para cada tarefa do plano, nesta ordem: escreva o teste → rode e veja **falhar** → implemente o mínimo → rode e veja **passar** → refatore → commit.
-2. Commit convencional: `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`; escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents roadmap`. Um commit por tarefa.
+2. Commit convencional: `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`; escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents roadmap plans`. Um commit por tarefa.
 3. Telas: abra a spec `docs/design-system/telas/<slug>.md`, aplique a tabela "Conteúdo (PRD → substituir)" (ADR-028), copie **medidas e tokens** (`brand/palette.json`), nunca hex solto, nunca fonte fora de Plus Jakarta Sans / JetBrains Mono / Inter(dense).
 4. Toda unit systemd própria declara `MemoryMax`, `CPUQuota`, `Nice`.
 5. Nenhum segredo em arquivo; chaves só via KWallet/`secret-tool`.
@@ -87,7 +87,7 @@ grep -niE 'TBD|TODO|depois|a definir' "$f"   # vazio
 
 **Verificação**
 ```bash
-git log --format=%s origin/main..HEAD | grep -vE '^(feat|fix|adr|docs|test|chore|refactor)\((image|cli|hero|hero-mcp|hero-memory|brand|site|docs|scripts|agents|roadmap)\): '   # vazio
+git log --format=%s origin/main..HEAD | grep -vE '^(feat|fix|adr|docs|test|chore|refactor)\((image|cli|hero|hero-mcp|hero-memory|brand|site|docs|scripts|agents|roadmap|plans)\): '   # vazio
 scripts/check-tokens.sh
 git diff origin/main..HEAD | grep -nE 'Jarvis|devos|nftables|24\.04|arm64|RTX 4070'   # vazio
 ```
@@ -183,7 +183,7 @@ python3 scripts/roadmap.py validate --branch && git log -1 --format=%s | grep -q
 ## Convenções
 
 - **Branch:** `feat/FR-xxx-slug` · `fix/FR-xxx-slug` · `adr/NNNN-slug` · `docs/slug` · `chore/slug`. Nunca trabalhe em `main`.
-- **Commit:** `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`. Escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents roadmap`. Um commit por tarefa do plano.
+- **Commit:** `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`. Escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents roadmap plans`. Um commit por tarefa do plano.
 - **PR:** template em `.github/PULL_REQUEST_TEMPLATE.md`; squash merge; branch apagada.
 - **Idioma:** regras, PRD, ADRs e specs em pt-BR; código, commits, nomes de arquivo e docs técnicas em inglês; strings do produto em pt-BR + en-US via Qt Linguist.
 - **Testes:** Rust `cargo test` + cobertura ≥ 70 % (NFR-041); shell `scripts/tests/*.sh`; Python `unittest`; tela = captura lado a lado.
