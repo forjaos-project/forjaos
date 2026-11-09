@@ -20,3 +20,9 @@ A spec de 2026-11-08 mandava, no gate *ship*, registrar a entrega com `roadmap.p
 - O claim só vale depois do push da branch; entre o `fetch` e o push ainda existe uma janela de corrida, que aparece como conflito no merge do `roadmap.json`. Uma trava atômica por ref fica como melhoria futura, registrada como item novo se o problema ocorrer.
 - Branch de PR fechado sem merge segura o claim até ser apagada; a regra é apagar a branch remota abandonada.
 - O `STATUS.md` na `main` lista "Disponíveis" sem os claims das branches abertas; o comando `available` é a visão correta.
+
+## Adendo (2026-11-08) — `main` protegida
+
+Com a `main` exigindo PR, o `roadmap-sync` não faz push direto: abre um PR de branch `bot/roadmap-sync-<run>` só com os gerados e faz squash merge com `GITHUB_TOKEN` (permissões `contents` e `pull-requests: write`). Sem bypass de ruleset e sem PAT (regra 9). Esses PRs não passam por revisão cruzada: contêm apenas saída determinística de `roadmap.py build`.
+
+Pré-requisitos: na organização e no repositório, *Workflow permissions* = Read and write e "Allow GitHub Actions to create and approve pull requests" ligado (sem isso o `gh pr create` falha com 403). Limitação: PRs criados com `GITHUB_TOKEN` não disparam workflows; se a `main` passar a exigir status checks, o PR do bot ficará travado e este desenho terá de ser revisto (novo ADR). Branches `bot/*` órfãos podem ser apagados.
