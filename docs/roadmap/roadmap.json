@@ -195,7 +195,7 @@
         "FR-003"
       ],
       "phase": "0",
-      "title": "Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS",
+      "title": "Containerfile mínimo FROM bazzite-nvidia-open:stable + os-release ForjaOS",
       "status": "doing",
       "scope": "image/",
       "agent": "codex",
@@ -378,6 +378,21 @@
       "phase": "1",
       "title": "CLI forja: esqueleto Rust, doctor, install unity/claude-code",
       "status": "todo"
+    },
+    {
+      "id": "F1-010",
+      "fr": [
+        "FR-001",
+        "FR-005",
+        "ADR-0032"
+      ],
+      "phase": "1",
+      "title": "Reproduzir componentes DX na base Bazzite desktop a partir dos scripts ublue-os/bazzite-dx, com verificação de licença",
+      "status": "todo",
+      "scope": "image/",
+      "depends_on": [
+        "F0-002"
+      ]
     },
     {
       "id": "F2-001",
