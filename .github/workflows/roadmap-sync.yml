@@ -25,6 +25,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
@@ -50,4 +52,4 @@ jobs:
           url=$(gh pr create --base main --head "$branch" \
             --title "chore(roadmap): regenerate STATUS.md and index.html" \
             --body "Gerado por roadmap-sync (ADR-029). Só arquivos gerados.")
-          gh pr merge "$url" --squash --delete-branch
+          gh pr merge "$url" --squash --delete-branch || { gh pr close "$url" --delete-branch; exit 1; }
