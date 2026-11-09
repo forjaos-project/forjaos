@@ -231,6 +231,53 @@ class RoadmapTests(unittest.TestCase):
         self.assertEqual(roadmap.validate(merged), [])
         self.assertEqual({i["id"] for i in merged["items"] if i["status"] == "done"} >= {"P-A", "P-B"}, True)
 
+    def _remote_pair(self):
+        """Remoto bare + clone; retorna (clone, git_clone, git_remote_work)."""
+        bare = self.tmp / "remote.git"
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
+        seed = self.tmp / "seed"
+        (seed / "docs" / "roadmap").mkdir(parents=True)
+        def sg(*a, cwd=seed):
+            return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=cwd, capture_output=True, text=True)
+        sg("init", "-q", "-b", "main")
+        roadmap.save(seed, copy(PAR)); sg("add", "."); sg("commit", "-qm", "base")
+        sg("remote", "add", "origin", str(bare)); sg("push", "-q", "origin", "main")
+        clone = self.tmp / "clone"
+        subprocess.run(["git", "clone", "-q", str(bare), str(clone)], check=True)
+        return clone, seed, sg
+
+    def test_claim_guards_refuse_stale_base_and_main(self):
+        clone, seed, sg = self._remote_pair()
+        # origin/main avança: P-A entregue por outro agente
+        data = roadmap.load(seed)
+        roadmap.claim(seed, "P-A", agent="codex", date="2026-11-10")
+        roadmap.done(seed, "P-A", pr=1, summary="A", date="2026-11-10")
+        sg("commit", "-qam", "deliver A"); sg("push", "-q", "origin", "main")
+        subprocess.run(["git", "fetch", "-q", "origin"], cwd=clone, check=True)
+        # na main local (desatualizada): recusa
+        errs = roadmap.claim_guards(clone, "P-A")
+        self.assertTrue(any("branch" in e for e in errs), errs)
+        # em branch criada de main local velha: base desatualizada + item já entregue
+        subprocess.run(["git", "checkout", "-qb", "feat/dup"], cwd=clone, check=True)
+        errs = roadmap.claim_guards(clone, "P-A")
+        self.assertTrue(any("origin/main" in e and "rebase" in e for e in errs), errs)
+        self.assertTrue(any("P-A" in e and "done" in e for e in errs), errs)
+        # branch limpa a partir de origin/main, item livre: sem erros
+        subprocess.run(["git", "checkout", "-q", "-B", "feat/ok", "origin/main"], cwd=clone, check=True)
+        self.assertEqual(roadmap.claim_guards(clone, "P-B"), [])
+
+    def test_load_base_reads_origin_main_not_working_copy(self):
+        clone, seed, sg = self._remote_pair()
+        roadmap.claim(seed, "P-A", agent="codex", date="2026-11-10")
+        roadmap.done(seed, "P-A", pr=1, summary="A", date="2026-11-10")
+        sg("commit", "-qam", "deliver A"); sg("push", "-q", "origin", "main")
+        subprocess.run(["git", "fetch", "-q", "origin"], cwd=clone, check=True)
+        local = roadmap.load(clone)
+        base = roadmap.load_base(clone)
+        self.assertEqual({i["id"]: i["status"] for i in local["items"]}["P-A"], "todo")
+        self.assertEqual({i["id"]: i["status"] for i in base["items"]}["P-A"], "done")
+        self.assertNotIn("P-A", [i["id"] for i in roadmap.available(base)])
+
     def test_branch_doing_reads_claims_from_refs(self):
         repo = self.tmp / "repo2"
         (repo / "docs" / "roadmap").mkdir(parents=True)

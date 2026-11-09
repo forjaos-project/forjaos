@@ -33,7 +33,7 @@
 ## Saída da verificação
 
 ```text
-(cole aqui a saída de: python3 -m unittest discover -s scripts/tests -p 'test_*.py' && bash scripts/tests/*.sh && scripts/check-tokens.sh && scripts/check-agents-sync.sh && python3 scripts/roadmap.py validate --branch  + comando da pasta)
+(cole aqui a saída de: python3 -m unittest discover -s scripts/tests -p 'test_*.py' && scripts/run-shell-tests.sh && scripts/check-tokens.sh && scripts/check-agents-sync.sh && python3 scripts/roadmap.py validate --branch  + comando da pasta)
 ```
 
 ## Segurança e consumo

@@ -54,7 +54,7 @@ grep -niE 'TBD|TODO|depois|a definir' "$f" # deve imprimir nada
 
 **Convenções**
 - Branch: `feat/FR-xxx-slug` · `fix/FR-xxx-slug` · `adr/NNNN-slug` · `docs/slug` · `chore/slug`.
-- Commits convencionais: `tipo(escopo): resumo em inglês no imperativo`. Tipos: `feat fix adr docs test chore refactor`. Escopos: `image cli hero hero-mcp hero-memory brand site docs scripts agents`.
+- Commits convencionais: `tipo(escopo): resumo em inglês no imperativo`. Tipos: `feat fix adr docs test chore refactor`. Escopos: `image cli hero hero-mcp hero-memory brand site docs scripts agents roadmap`.
 - **TDD obrigatório** em Rust, shell e Python: escreva o teste → rode e veja falhar → implemente o mínimo → rode e veja passar → refatore → commit. Um commit sem teste correspondente só é aceito em `docs/` e `brand/` (artes).
 - Para tela: (1) abra `docs/design-system/telas/<slug>.md`; (2) aplique a tabela de substituições (ADR-028); (3) copie **medidas** e **tokens**, nunca valores hex soltos; (4) use `screen.png` como referência visual e `code.html` só para conferir classe/medida específica.
 - Arquivos pequenos e com uma responsabilidade. Um arquivo QML ou Rust acima de ~400 linhas é sinal de divisão.
@@ -69,7 +69,7 @@ grep -niE 'TBD|TODO|depois|a definir' "$f" # deve imprimir nada
 
 **Comando de verificação**
 ```bash
-git log --format=%s origin/main..HEAD | grep -vE '^(feat|fix|adr|docs|test|chore|refactor)\((image|cli|hero|hero-mcp|hero-memory|brand|site|docs|scripts|agents)\): ' # vazio
+git log --format=%s origin/main..HEAD | grep -vE '^(feat|fix|adr|docs|test|chore|refactor)\((image|cli|hero|hero-mcp|hero-memory|brand|site|docs|scripts|agents|roadmap)\): ' # vazio
 scripts/check-tokens.sh
 git diff origin/main..HEAD | grep -nE 'Jarvis|devos|nftables|24\.04|arm64|RTX 4070' # vazio
 ```
@@ -87,10 +87,10 @@ git diff origin/main..HEAD | grep -nE 'Jarvis|devos|nftables|24\.04|arm64|RTX 40
 | Pasta | Comando |
 | --- | --- |
 | `cli/`, `hero/`, `hero-mcp/`, `hero-memory/` (Rust) | `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo llvm-cov --fail-under-lines 70` (NFR-041) |
-| `image/` (shell, Containerfile, recipes) | `bash scripts/tests/*.sh`; `podman build` no CI (Fase 0+); `scripts/check-branding.sh` |
+| `image/` (shell, Containerfile, recipes) | `scripts/run-shell-tests.sh`; `podman build` no CI (Fase 0+); `scripts/check-branding.sh` |
 | `brand/` (QML, SVG, temas) | `scripts/check-tokens.sh`; `qmllint` nos `.qml`; captura lado a lado |
 | `site/` | build do site sem warnings; `scripts/check-tokens.sh` |
-| `scripts/`, `docs/` | `python3 -m unittest discover -s scripts/tests -p 'test_*.py'`; `bash scripts/tests/*.sh`; `python3 scripts/roadmap.py validate --branch` |
+| `scripts/`, `docs/` | `python3 -m unittest discover -s scripts/tests -p 'test_*.py'`; `scripts/run-shell-tests.sh`; `python3 scripts/roadmap.py validate --branch` |
 
 **Evidência visual (toda tarefa de tela)**
 - Captura lado a lado em `docs/design-system/telas/<slug>/compare-AAAA-MM-DD.png`: protótipo à esquerda, implementação à direita, **mesma resolução**.
@@ -105,7 +105,7 @@ git diff origin/main..HEAD | grep -nE 'Jarvis|devos|nftables|24\.04|arm64|RTX 40
 **Comando de verificação**
 ```bash
 # raiz do repositório
-python3 -m unittest discover -s scripts/tests -p 'test_*.py' && bash scripts/tests/*.sh && scripts/check-tokens.sh && python3 scripts/roadmap.py validate --branch
+python3 -m unittest discover -s scripts/tests -p 'test_*.py' && scripts/run-shell-tests.sh && scripts/check-tokens.sh && python3 scripts/roadmap.py validate --branch
 # + comando da pasta tocada (tabela acima)
 ```
 

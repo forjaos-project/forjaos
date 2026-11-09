@@ -32,7 +32,7 @@ scripts/ roadmap.py · gen_tela_specs.py · check-tokens.sh · check-agents-sync
 ## Verificação local
 
 ```bash
-python3 -m unittest discover -s scripts/tests -p 'test_*.py' && bash scripts/tests/*.sh \
+python3 -m unittest discover -s scripts/tests -p 'test_*.py' && scripts/run-shell-tests.sh \
 && scripts/check-tokens.sh && scripts/check-agents-sync.sh \
 && python3 scripts/roadmap.py validate --branch && python3 scripts/gen_tela_specs.py --check
 ```

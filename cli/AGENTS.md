@@ -22,6 +22,6 @@
 `forjaos_terminal_konsole_dev_forja_doctor` (saída do `forja doctor`/`forja ai`; o tema do Konsole fica em `brand/`).
 
 ## Antes de começar aqui
-1. `docs/STATUS.md` → a tarefa é desta pasta? Se não, pare.
+1. `python3 scripts/roadmap.py available` → o item escolhido tem escopo desta pasta? Se não, pare.
 2. `AGENTS.md` da raiz → regras e fluxo valem integralmente.
 3. Telas desta pasta → leia a spec em `docs/design-system/telas/` **antes** do `code.html`.

@@ -78,7 +78,7 @@ grep -niE 'TBD|TODO|depois|a definir' "$f"   # vazio
 
 **Passos** (`docs/dev/METHODOLOGY.md §2`)
 1. Para cada tarefa do plano, nesta ordem: escreva o teste → rode e veja **falhar** → implemente o mínimo → rode e veja **passar** → refatore → commit.
-2. Commit convencional: `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`; escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents`. Um commit por tarefa.
+2. Commit convencional: `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`; escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents roadmap`. Um commit por tarefa.
 3. Telas: abra a spec `docs/design-system/telas/<slug>.md`, aplique a tabela "Conteúdo (PRD → substituir)" (ADR-028), copie **medidas e tokens** (`brand/palette.json`), nunca hex solto, nunca fonte fora de Plus Jakarta Sans / JetBrains Mono / Inter(dense).
 4. Toda unit systemd própria declara `MemoryMax`, `CPUQuota`, `Nice`.
 5. Nenhum segredo em arquivo; chaves só via KWallet/`secret-tool`.
@@ -87,7 +87,7 @@ grep -niE 'TBD|TODO|depois|a definir' "$f"   # vazio
 
 **Verificação**
 ```bash
-git log --format=%s origin/main..HEAD | grep -vE '^(feat|fix|adr|docs|test|chore|refactor)\((image|cli|hero|hero-mcp|hero-memory|brand|site|docs|scripts|agents)\): '   # vazio
+git log --format=%s origin/main..HEAD | grep -vE '^(feat|fix|adr|docs|test|chore|refactor)\((image|cli|hero|hero-mcp|hero-memory|brand|site|docs|scripts|agents|roadmap)\): '   # vazio
 scripts/check-tokens.sh
 git diff origin/main..HEAD | grep -nE 'Jarvis|devos|nftables|24\.04|arm64|RTX 4070'   # vazio
 ```
@@ -105,10 +105,10 @@ git diff origin/main..HEAD | grep -nE 'Jarvis|devos|nftables|24\.04|arm64|RTX 40
 **Passos** (`docs/dev/METHODOLOGY.md §3`)
 1. Rode a verificação da raiz (abaixo) **e** a da pasta tocada:
    - Rust (`cli/ hero/ hero-mcp/ hero-memory/`): `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo llvm-cov --fail-under-lines 70`
-   - `image/`: `bash scripts/tests/*.sh` + `scripts/check-branding.sh` (+ `podman build` no CI)
+   - `image/`: `scripts/run-shell-tests.sh` + `scripts/check-branding.sh` (+ `podman build` no CI)
    - `brand/`: `scripts/check-tokens.sh` + `qmllint` nos `.qml`
    - `site/`: build sem warnings + `scripts/check-tokens.sh`
-   - `scripts/ docs/`: `python3 -m unittest discover -s scripts/tests -p 'test_*.py'` + `bash scripts/tests/*.sh`
+   - `scripts/ docs/`: `python3 -m unittest discover -s scripts/tests -p 'test_*.py'` + `scripts/run-shell-tests.sh`
 2. Prove que o teste testa: reverta a implementação de uma tarefa e confirme que o teste falha; desfaça.
 3. Tela: capture lado a lado em `docs/design-system/telas/<slug>/compare-AAAA-MM-DD.png` (protótipo à esquerda, implementação à direita, mesma resolução) e confira as medidas-chave da spec.
 4. Unit systemd nova: `systemd-analyze verify <unit>`.
@@ -116,7 +116,7 @@ git diff origin/main..HEAD | grep -nE 'Jarvis|devos|nftables|24\.04|arm64|RTX 40
 
 **Verificação**
 ```bash
-python3 -m unittest discover -s scripts/tests -p 'test_*.py' && bash scripts/tests/*.sh && scripts/check-tokens.sh && scripts/check-agents-sync.sh && python3 scripts/roadmap.py validate --branch && python3 scripts/gen_tela_specs.py --check
+python3 -m unittest discover -s scripts/tests -p 'test_*.py' && scripts/run-shell-tests.sh && scripts/check-tokens.sh && scripts/check-agents-sync.sh && python3 scripts/roadmap.py validate --branch && python3 scripts/gen_tela_specs.py --check
 ```
 
 **Saída esperada:** tudo verde; captura lado a lado commitada quando houver tela; pronto para `/review`.
@@ -183,7 +183,7 @@ python3 scripts/roadmap.py validate --branch && git log -1 --format=%s | grep -q
 ## Convenções
 
 - **Branch:** `feat/FR-xxx-slug` · `fix/FR-xxx-slug` · `adr/NNNN-slug` · `docs/slug` · `chore/slug`. Nunca trabalhe em `main`.
-- **Commit:** `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`. Escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents`. Um commit por tarefa do plano.
+- **Commit:** `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`. Escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents roadmap`. Um commit por tarefa do plano.
 - **PR:** template em `.github/PULL_REQUEST_TEMPLATE.md`; squash merge; branch apagada.
 - **Idioma:** regras, PRD, ADRs e specs em pt-BR; código, commits, nomes de arquivo e docs técnicas em inglês; strings do produto em pt-BR + en-US via Qt Linguist.
 - **Testes:** Rust `cargo test` + cobertura ≥ 70 % (NFR-041); shell `scripts/tests/*.sh`; Python `unittest`; tela = captura lado a lado.
@@ -231,4 +231,4 @@ python3 scripts/roadmap.py validate --branch && git log -1 --format=%s | grep -q
 | `scripts/gen_tela_specs.py --check` | Falha se o hash de um `code.html` mudou sem atualizar a spec | `/plan` de tela, `/test` |
 | `scripts/roadmap.py validate --branch` | Falha se o `roadmap.json` é inválido ou se a branch alterou `STATUS.md`/`index.html` | `/test`, `/ship` |
 | `scripts/roadmap.py build` (workflow `roadmap-sync`) | Regenera `STATUS.md`/`index.html` na `main` após cada merge | `main` |
-| `python3 -m unittest discover -s scripts/tests -p 'test_*.py'` + `bash scripts/tests/*.sh` | Testes dos próprios scripts | `/test`, CI |
+| `python3 -m unittest discover -s scripts/tests -p 'test_*.py'` + `scripts/run-shell-tests.sh` | Testes dos próprios scripts | `/test`, CI |

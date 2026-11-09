@@ -51,6 +51,39 @@ def load(root: Path) -> dict:
     return json.loads(paths(root)["json"].read_text(encoding="utf-8"))
 
 
+def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, encoding="utf-8")
+
+
+def load_base(root: Path, ref: str = "origin/main") -> dict | None:
+    """roadmap.json como está em `ref` (a fonte de verdade), não na cópia de trabalho."""
+    try:
+        r = _git(root, "show", f"{ref}:docs/roadmap/roadmap.json")
+        return json.loads(r.stdout) if r.returncode == 0 else None
+    except (OSError, ValueError):
+        return None
+
+
+def claim_guards(root: Path, item_id: str, base: str = "origin/main") -> list[str]:
+    """Pré-condições do claim que dependem do git: branch própria, baseada em `base`, item ainda 'todo' nele."""
+    try:
+        if _git(root, "rev-parse", "--verify", "--quiet", base).returncode:
+            return [f"não encontrei {base}; rode `git fetch origin`"]
+        errors = []
+        cur = _git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+        if cur in ("main", "HEAD"):
+            errors.append("crie a branch do item antes: git switch -c <tipo>/<ID>-<slug> origin/main (nunca claim na main)")
+        if _git(root, "merge-base", "--is-ancestor", base, "HEAD").returncode:
+            errors.append(f"a branch não contém {base} (base desatualizada); recrie a partir de {base} ou faça rebase")
+        data = load_base(root, base)
+        it = _by_id(data).get(item_id) if data else None
+        if it and it["status"] != "todo":
+            errors.append(f"{item_id} está '{it['status']}' em {base}; só itens 'todo' podem ser pegos")
+        return errors
+    except OSError:
+        return []
+
+
 def save(root: Path, data: dict) -> None:
     paths(root)["json"].write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
@@ -601,7 +634,10 @@ def main(argv: list[str] | None = None) -> int:
     if ns.cmd == "available":
         if not ns.no_fetch:
             _git_fetch(root)
-        data = load(root)
+        data = load_base(root)
+        if data is None:
+            print("roadmap: aviso: origin/main indisponível, usando a cópia local (pode estar desatualizada)", file=sys.stderr)
+            data = load(root)
         other = branch_doing(root)
         for it in _doing(data, other):
             print(f"em andamento: {it['id']} · {it.get('agent')} · escopo {it.get('scope')}"
@@ -615,6 +651,9 @@ def main(argv: list[str] | None = None) -> int:
     if ns.cmd == "claim":
         if not ns.no_fetch:
             _git_fetch(root)
+        errors = claim_guards(root, ns.id)
+        if errors:
+            raise SystemExit("roadmap: " + "; ".join(errors))
         claim(root, ns.id, ns.agent, ns.scope, extra_doing=branch_doing(root))
         return 0
     if ns.cmd == "done":
