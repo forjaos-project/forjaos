@@ -2,7 +2,7 @@
 
 # Status — ForjaOS
 
-**Atualizado em:** 2026-11-09 · **Itens:** 12/51 feitos (24 %) · 0 em andamento · 39 a fazer · 0 bloqueados
+**Atualizado em:** 2026-11-09 · **Itens:** 12/53 feitos (23 %) · 0 em andamento · 41 a fazer · 0 bloqueados
 
 Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`. Antes de pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available`.
 
@@ -12,16 +12,17 @@ Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. 
 
 ## Próxima tarefa
 
-**`F0-002` — Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS**
+**`GOV-011` — CI de verificação em PR: unittest (scripts/tests, brand/tests), run-shell-tests, check-tokens, check-agents-sync, roadmap validate --branch, gen_tela_specs --check, build_logo --check**
 
-- Requisitos: FR-001, FR-003
+- Requisitos: NFR-040, NFR-041, NFR-042
 - Fase: 0 — Fundação
-- Estado: a fazer
+- Estado: a fazer — Hoje nenhum workflow roda esses testes (só roadmap-sync e signing-preflight). PRs do roadmap-sync abertos com GITHUB_TOKEN não disparam workflows: não marcar o job como status check obrigatório da main sem resolver isso, senão o bot trava.
 
 Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
 
 ## Disponíveis agora (trabalho em paralelo)
 
+- `GOV-011` CI de verificação em PR: unittest (scripts/tests, brand/tests), run-shell-tests, check-tokens, check-agents-sync, roadmap validate --branch, gen_tela_specs --check, build_logo --check · escopo: .github/ · depende de: —
 - `F0-002` Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS · escopo: image/ · depende de: —
 - `F0-007` Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados) · escopo: brand/ · depende de: —
 
@@ -54,6 +55,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 
 ### Fase 0 — Fundação (em andamento)
 
+- `GOV-011` CI de verificação em PR: unittest (scripts/tests, brand/tests), run-shell-tests, check-tokens, check-agents-sync, roadmap validate --branch, gen_tela_specs --check, build_logo --check (NFR-040, NFR-041, NFR-042) · fase 0 — Hoje nenhum workflow roda esses testes (só roadmap-sync e signing-preflight). PRs do roadmap-sync abertos com GITHUB_TOKEN não disparam workflows: não marcar o job como status check obrigatório da main sem resolver isso, senão o bot trava.
 - `F0-002` Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS (FR-001, FR-003) · fase 0
 - `F0-003` Workflow GitHub Actions: podman build → testes de imagem → cosign → push :testing diário (ADR-002, NFR-040) · fase 0
 - `F0-004` check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI (FR-002, G4) · fase 0
@@ -70,6 +72,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - `F1-005` Gerador de temas a partir do palette.json (Plasma, SDDM, Plymouth, Konsole, VS Code, GTK) (FR-051) · fase 1
 - `F1-006` Tema Plasma Forja (escuro/claro), layout padrão, wallpapers, atalhos — telas desktop_principal_dock / modo_claro (FR-050, FR-052, FR-055, FR-058) · fase 1
 - `F1-007` Plymouth, SDDM e GRUB temáticos — telas splash_plymouth / sddm_login / bootloader_grub (FR-056, FR-057, FR-002) · fase 1
+- `F1-011` Rebranding mínimo da imagem: ícone ForjaOS (brand/logo/png) no hicolor, LOGO= no os-release e /usr/share/ublue-os/image-info.json apontando para ghcr.io/forjaos-project (FR-002, FR-003, FR-053) · fase 1 — Achados da revisão do PR #9: image-info.json ainda aponta para a imagem Bazzite (lido por ujust e pelas atualizações) e o LOGO foi removido sem substituto. Conferir scripts do Bazzite que testam ID=bazzite.
 - `F1-008` Konsole tema + forja doctor — tela terminal_konsole_dev_forja_doctor (FR-035, FR-036) · fase 1
 - `F1-009` CLI forja: esqueleto Rust, doctor, install unity/claude-code (FR-042, FR-060) · fase 1
 
