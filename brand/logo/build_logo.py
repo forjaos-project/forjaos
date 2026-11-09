@@ -5,8 +5,11 @@ Toda cor vem de brand/palette.json (ADR-027): este arquivo não contém hex.
 
 Uso:
   python3 brand/logo/build_logo.py           # (re)gera os SVGs em brand/logo/
+  python3 brand/logo/build_logo.py --png     # e os PNGs 16–512 em brand/logo/png/
 """
+import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -57,7 +60,7 @@ def color(palette, theme, token):
     return palette["themes"][theme]["colors"][token]
 
 
-def mark_defs(palette, variant, prefix):
+def mark_defs(palette, variant, prefix, small=False):
     """Gradientes e filtro da marca; ids prefixados para reuso no mesmo SVG."""
     spec = VARIANTS[variant]
     if spec["theme"] is None:
@@ -73,7 +76,7 @@ def mark_defs(palette, variant, prefix):
         f'x1="256" y1="240" x2="256" y2="316">'
         f'<stop offset="0" stop-color="{s0}"/><stop offset="1" stop-color="{s1}"/></linearGradient>',
     ]
-    if spec["glow"]:
+    if spec["glow"] and not small:
         out.append(
             f'<filter id="{prefix}glow" x="-20%" y="-20%" width="140%" height="140%">'
             '<feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>'
@@ -83,25 +86,38 @@ def mark_defs(palette, variant, prefix):
     return "".join(out)
 
 
-def mark_body(palette, variant, prefix=""):
-    """Elementos da marca (sem <svg>), no espaço 512x512."""
+SMALL = {"anvil": 38, "spark": 30}
+# Spark da variante pequena: chevrons mais próximos do centro e sem o ponto (≤ 32 px).
+SMALL_SPARK_LEFT = "M240 246L216 280L240 314"
+SMALL_SPARK_RIGHT = "M272 246L296 280L272 314"
+
+
+def mark_body(palette, variant, prefix="", small=False):
+    """Elementos da marca (sem <svg>), no espaço 512x512.
+
+    small=True: traço mais grosso, sem nós e sem brilho (ícone ≤ 32 px).
+    """
     spec = VARIANTS[variant]
     mono = spec["theme"] is None
+    anvil_w = SMALL["anvil"] if small else ANVIL_STROKE
+    spark_w = SMALL["spark"] if small else SPARK_STROKE
     anvil_paint = "currentColor" if mono else f"url(#{prefix}anvil-grad)"
     spark_paint = "currentColor" if mono else f"url(#{prefix}spark-grad)"
     core_paint = "currentColor" if mono else color(palette, spec["theme"], spec["core"])
-    glow = f' filter="url(#{prefix}glow)"' if spec["glow"] else ""
+    glow = f' filter="url(#{prefix}glow)"' if spec["glow"] and not small else ""
     line = 'fill="none" stroke-linecap="round" stroke-linejoin="round"'
     cx, cy, r = CORE
+    left, right = (SMALL_SPARK_LEFT, SMALL_SPARK_RIGHT) if small else (SPARK_LEFT, SPARK_RIGHT)
     parts = [
         f'<g id="{prefix}mark"{glow}>',
-        f'<path id="{prefix}anvil" d="{ANVIL}" {line} stroke="{anvil_paint}" stroke-width="{ANVIL_STROKE}"/>',
-        f'<path id="{prefix}horn" d="{HORN}" {line} stroke="{anvil_paint}" stroke-width="{ANVIL_STROKE}"/>',
-        f'<g id="{prefix}spark" {line} stroke="{spark_paint}" stroke-width="{SPARK_STROKE}">'
-        f'<path d="{SPARK_LEFT}"/><path d="{SPARK_RIGHT}"/></g>',
-        f'<circle id="{prefix}core" cx="{cx}" cy="{cy}" r="{r}" fill="{core_paint}"/>',
+        f'<path id="{prefix}anvil" d="{ANVIL}" {line} stroke="{anvil_paint}" stroke-width="{anvil_w}"/>',
+        f'<path id="{prefix}horn" d="{HORN}" {line} stroke="{anvil_paint}" stroke-width="{anvil_w}"/>',
+        f'<g id="{prefix}spark" {line} stroke="{spark_paint}" stroke-width="{spark_w}">'
+        f'<path d="{left}"/><path d="{right}"/></g>',
     ]
-    if not mono:
+    if not small:
+        parts.append(f'<circle id="{prefix}core" cx="{cx}" cy="{cy}" r="{r}" fill="{core_paint}"/>')
+    if not mono and not small:
         fill = color(palette, spec["theme"], spec["node_fill"])
         nodes = "".join(
             f'<circle cx="{x}" cy="{y}" r="{NODE_R}" fill="{fill}" stroke="{anvil_paint}" stroke-width="4"/>'
@@ -165,19 +181,66 @@ def logo_svg(palette, variant, wm):
     return svg_doc(f"{x0} {y0} {width} {height}", width, height, mark_defs(palette, variant, ""), body)
 
 
+# Ícone de aplicativo: placa escura arredondada + marca (cores do tema escuro).
+ICON = {
+    "forjaos-icon.svg": {"small": False, "inset": 16, "radius": 112, "scale": 0.94},
+    "forjaos-icon-small.svg": {"small": True, "inset": 6, "radius": 104, "scale": 1.14},
+}
+MARK_CENTER = (240, 261)  # centro visual da marca (bigorna + chifre)
+PNG_SIZES = (16, 22, 24, 32, 48, 64, 128, 256, 512)
+
+
+def png_source(size):
+    return "forjaos-icon-small.svg" if size <= 32 else "forjaos-icon.svg"
+
+
+def icon_svg(palette, name):
+    cfg = ICON[name]
+    dark = palette["themes"]["dark"]["colors"]
+    i, size = cfg["inset"], 512 - 2 * cfg["inset"]
+    tile = (
+        f'<rect id="tile" x="{i}" y="{i}" width="{size}" height="{size}" rx="{cfg["radius"]}" '
+        f'fill="{dark["void"]}" stroke="{dark["accent-cyan"]}" stroke-opacity="0.22" stroke-width="4"/>'
+    )
+    mx, my = MARK_CENTER
+    mark = (
+        f'<g transform="translate(256 256) scale({cfg["scale"]}) translate({-mx} {-my})">'
+        f'{mark_body(palette, "on-dark", "", small=cfg["small"])}</g>'
+    )
+    defs = mark_defs(palette, "on-dark", "", small=cfg["small"])
+    return svg_doc("0 0 512 512", 512, 512, defs, tile + mark)
+
+
+def write_pngs(out_dir):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for size in PNG_SIZES:
+        target = out_dir / f"forjaos-{size}.png"
+        subprocess.run(
+            ["rsvg-convert", "-w", str(size), "-h", str(size), str(HERE / png_source(size)), "-o", str(target)],
+            check=True,
+        )
+        print(f"escrito brand/logo/png/{target.name}")
+
+
 def build(palette=None, wordmark=None):
     """Retorna {nome_do_arquivo: conteúdo} de cada SVG gerado."""
     palette = palette or load_palette()
     wm = wordmark or load_wordmark()
     out = {f"forjaos-mark-{v}.svg": mark_svg(palette, v) for v in VARIANTS}
     out.update({f"forjaos-logo-{v}.svg": logo_svg(palette, v, wm) for v in VARIANTS})
+    out.update({name: icon_svg(palette, name) for name in ICON})
     return out
 
 
 def main(argv=None):
+    ap = argparse.ArgumentParser(description="Gera o logo ForjaOS (FR-053).")
+    ap.add_argument("--png", action="store_true", help="exporta também os PNGs do ícone (rsvg-convert)")
+    args = ap.parse_args(argv)
     for name, content in build().items():
         (HERE / name).write_text(content, encoding="utf-8")
         print(f"escrito brand/logo/{name}")
+    if args.png:
+        write_pngs(HERE / "png")
     return 0
 
 

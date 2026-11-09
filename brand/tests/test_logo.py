@@ -108,5 +108,48 @@ class LogoTests(unittest.TestCase, SvgAssertions):
         self.assert_mono(read("forjaos-logo-mono.svg"))
 
 
+class IconTests(unittest.TestCase, SvgAssertions):
+    SIZES = (16, 22, 24, 32, 48, 64, 128, 256, 512)
+
+    def test_svgs(self):
+        dark = PALETTE["themes"]["dark"]["colors"]
+        for name in ("forjaos-icon.svg", "forjaos-icon-small.svg"):
+            with self.subTest(name=name):
+                svg = read(name)
+                self.assertIn('viewBox="0 0 512 512"', svg)
+                tile = re.search(r'<rect id="tile"[^>]*>', svg).group(0)
+                self.assertIn(f'fill="{dark["void"]}"', tile)
+                self.assertIn(f'stroke="{dark["accent-cyan"]}"', tile)
+                self.assertIn("stroke-opacity", tile)
+                self.assert_clean_svg(svg)
+                self.assert_theme_colors(svg, "dark")
+
+    def test_small_variant_is_simplified(self):
+        small = read("forjaos-icon-small.svg")
+        self.assertNotIn('id="nodes"', small)
+        self.assertNotIn("<filter", small)
+        self.assertIn('id="nodes"', read("forjaos-icon.svg"))
+
+    def test_png_sources(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("build_logo", LOGO / "build_logo.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertEqual(tuple(sorted(mod.PNG_SIZES)), self.SIZES)
+        for size in self.SIZES:
+            expected = "forjaos-icon-small.svg" if size <= 32 else "forjaos-icon.svg"
+            self.assertEqual(mod.png_source(size), expected, size)
+
+    def test_pngs(self):
+        from PIL import Image
+        for size in self.SIZES:
+            with self.subTest(size=size):
+                with Image.open(LOGO / "png" / f"forjaos-{size}.png") as img:
+                    self.assertEqual(img.size, (size, size))
+                    self.assertEqual(img.mode, "RGBA")
+                    # cantos transparentes (placa arredondada)
+                    self.assertEqual(img.getpixel((0, 0))[3], 0)
+
+
 if __name__ == "__main__":
     unittest.main()
