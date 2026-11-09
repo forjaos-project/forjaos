@@ -17,9 +17,9 @@ Sistema operacional open source baseado em Linux (Fedora Atomic via Universal Bl
 ## Para agentes (Claude Code, Codex)
 
 1. Leia [`AGENTS.md`](AGENTS.md) — fonte única de regras. `CLAUDE.md` apenas o importa.
-2. Leia [`docs/STATUS.md`](docs/STATUS.md) — a próxima tarefa está lá. Não escolha outra.
+2. Rode `git fetch origin && python3 scripts/roadmap.py available` e pegue um item com `claim` (Claude Code e Codex trabalham em paralelo, cada um no seu item — [METHODOLOGY §6](docs/dev/METHODOLOGY.md)).
 3. Siga os gates: `/plan` → `/code` → `/test` → `/review` → `/ship` (Claude Code) ou as seções equivalentes do `AGENTS.md` (Codex). **Quem implementa não revisa.**
-4. Toda entrega termina com `python3 scripts/roadmap.py add-delivery … && python3 scripts/roadmap.py build`.
+4. Toda entrega termina com `python3 scripts/roadmap.py done <ID> --pr N --summary "…"`. `docs/STATUS.md` e `docs/roadmap/index.html` são regenerados na `main` pelo workflow `roadmap-sync`.
 
 ## Estrutura
 
@@ -34,7 +34,7 @@ scripts/ roadmap.py · gen_tela_specs.py · check-tokens.sh · check-agents-sync
 ```bash
 python3 -m unittest discover -s scripts/tests -p 'test_*.py' && bash scripts/tests/*.sh \
 && scripts/check-tokens.sh && scripts/check-agents-sync.sh \
-&& python3 scripts/roadmap.py build --check && python3 scripts/gen_tela_specs.py --check
+&& python3 scripts/roadmap.py validate --branch && python3 scripts/gen_tela_specs.py --check
 ```
 
 Status do projeto: **Fase 0 — Fundação** (ver `docs/STATUS.md`).

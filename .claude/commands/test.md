@@ -20,7 +20,7 @@
 
 **Verificação**
 ```bash
-python3 -m unittest discover -s scripts/tests -p 'test_*.py' && bash scripts/tests/*.sh && scripts/check-tokens.sh && scripts/check-agents-sync.sh && python3 scripts/roadmap.py build --check && python3 scripts/gen_tela_specs.py --check
+python3 -m unittest discover -s scripts/tests -p 'test_*.py' && bash scripts/tests/*.sh && scripts/check-tokens.sh && scripts/check-agents-sync.sh && python3 scripts/roadmap.py validate --branch && python3 scripts/gen_tela_specs.py --check
 ```
 
 **Saída esperada:** tudo verde; captura lado a lado commitada quando houver tela; pronto para `/review`.

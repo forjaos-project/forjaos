@@ -4,7 +4,7 @@
 
 **Pré-condições**
 - Plano em `docs/superpowers/plans/` com as tarefas a executar.
-- `git switch -c feat/FR-xxx-slug` (ou `fix/`, `adr/NNNN-slug`, `docs/slug`, `chore/slug`) a partir de `main` atualizada.
+- Na branch criada no `/plan` (`<tipo>/<ID>-<slug>`, tipos `feat fix adr docs chore`), com o claim já no remoto e rebaseada em `origin/main`.
 
 **Passos** (`docs/dev/METHODOLOGY.md §2`)
 1. Para cada tarefa do plano, nesta ordem: escreva o teste → rode e veja **falhar** → implemente o mínimo → rode e veja **passar** → refatore → commit.

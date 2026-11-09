@@ -9,7 +9,7 @@ ForjaOS: sistema operacional open source baseado em Linux (Fedora Atomic via Uni
 | Preciso de… | Leia |
 | --- | --- |
 | O que construir (requisitos `FR-`/`NFR-`, ADRs 001–024, roadmap) | `docs/PRD.md` |
-| O que fazer **agora** (próxima tarefa, bloqueios) | `docs/STATUS.md` (gerado) · visual em `docs/roadmap/index.html` |
+| O que fazer **agora** (itens disponíveis, em andamento, bloqueios) | `python3 scripts/roadmap.py available` · `docs/STATUS.md` (gerado) · visual em `docs/roadmap/index.html` |
 | Como trabalhar (5 gates, checklists, comandos) | `docs/dev/METHODOLOGY.md` |
 | Como uma tela é construída (tokens, tradução, DoD visual) | `docs/design-system/DESIGN-RULES.md` + `docs/design-system/telas/<slug>.md` |
 | Tokens (cores, fontes, raio, dimensões) | `brand/palette.json` |
@@ -18,16 +18,16 @@ ForjaOS: sistema operacional open source baseado em Linux (Fedora Atomic via Uni
 
 ## Regras invioláveis
 
-1. **Comece por `docs/STATUS.md`.** A próxima tarefa está lá. Não escolha outra sem pedido explícito do humano.
+1. **Comece por `git fetch origin && python3 scripts/roadmap.py available`.** Pegue um item da lista com `claim` e faça push na hora. Não pegue item fora da lista sem pedido explícito do humano.
 2. **Cinco gates, nenhum pulável:** plan → code → test → review → ship. Hotfix de segurança pula só *plan*.
-3. **Quem implementou não revisa.** Claude Code implementa → Codex revisa, ou o inverso. Se você abriu a branch, não execute o gate *review* nela.
+3. **Quem implementou não revisa.** Claude Code e Codex implementam em paralelo, cada um no seu item; cada um revisa o PR do outro. Se você abriu a branch, não execute o gate *review* nela.
 4. **PRD manda no conteúdo; protótipo manda no layout** (ADR-028). Strings proibidas em código de tela: `Jarvis`, `devos`, `nftables`, `24.04`, `arm64`, `RTX 4070`. Divergência vira issue, não improviso.
 5. **Toda cor vem de `brand/palette.json`** (ADR-027). Fontes: Plus Jakarta Sans (UI), JetBrains Mono (mono), Inter só em corpo denso. Fira Code proibida. `scripts/check-tokens.sh` é juiz.
 6. **Nada de tela genérica:** Breeze/Fedora/Bazzite visível, componente sem estilo, medida "a olho" ou ícone Material Symbols no produto reprovam o PR.
 7. **Nenhuma ação destrutiva fora de tier:** `rm -rf`, `dd`, firewall, SELinux, `/etc` só com confirmação explícita do humano e registro no PR (FR-093, FR-100).
 8. **Toda unit systemd própria declara `MemoryMax`, `CPUQuota`, `Nice`.** Modelos de IA descarregam quando ociosos.
 9. **Chaves só no KWallet.** Nenhum segredo em arquivo, commit, log ou descrição de PR (NFR-024).
-10. **Toda entrega atualiza o roadmap no mesmo PR** (`scripts/roadmap.py add-delivery` + `build`). `docs/STATUS.md` e `docs/roadmap/index.html` nunca são editados à mão.
+10. **Cada PR altera só o próprio item no `roadmap.json`** (`claim` → `done`). `docs/STATUS.md` e `docs/roadmap/index.html` são gerados na `main` pelo workflow `roadmap-sync`: nunca editados à mão, nunca commitados em PR.
 11. **Decisão escrita vence.** Mudar uma decisão = novo ADR que revoga o anterior. Não reabra por opinião.
 12. **Não adicione dependência, repositório de terceiros ou licença** sem justificativa no commit e verificação (G4: Apache/MIT/BSD/OFL/CC-BY).
 
@@ -41,11 +41,18 @@ Os cinco blocos abaixo são idênticos aos comandos `.claude/commands/{plan,code
 **Quando usar:** sempre que uma tarefa nova vai começar. Sem plano aprovado não existe branch.
 
 **Pré-condições**
-- Leu `docs/STATUS.md` e a tarefa é a "Próxima tarefa" (ou foi explicitamente pedida pelo humano).
+- Rodou `git fetch origin && python3 scripts/roadmap.py available` e o item aparece como **disponível** (ou foi pedido explicitamente pelo humano).
 - Existe spec aprovada em `docs/superpowers/specs/` **ou** issue com `FR-`/`NFR-`/`ADR-` e DoD objetivo.
 - Se a tarefa envolve tela: a spec `docs/design-system/telas/<slug>.md` existe e o hash bate (`python3 scripts/gen_tela_specs.py --check`).
 
 **Passos** (`docs/dev/METHODOLOGY.md §1`)
+0. **Reserve a tarefa antes de planejar** (`docs/dev/METHODOLOGY.md §6`):
+   ```bash
+   git fetch origin && git switch -c <tipo>/<ID>-<slug> origin/main
+   python3 scripts/roadmap.py claim <ID> --agent claude|codex [--scope pasta/]
+   git commit -am "chore(roadmap): claim <ID>" && git push -u origin HEAD
+   ```
+   O push imediato é o que avisa o outro agente. Claim recusado (dependência não feita, escopo ocupado, item já pego) → volte ao `available` e escolha outro.
 1. Leia o PRD nos IDs citados e, se houver tela, a spec da tela **antes** do `code.html`.
 2. Escreva `docs/superpowers/plans/AAAA-MM-DD-<slug>.md` com: Goal, Architecture, Tech Stack, mapa de arquivos, tarefas de ≤ 2 h — cada uma com arquivos exatos, o teste que a prova, DoD e mensagem de commit.
 3. Toda tarefa cita um ID do PRD. Nenhuma diz "TBD", "depois", "tratar erros" sem dizer como.
@@ -59,7 +66,7 @@ grep -L 'FR-\|NFR-\|ADR-' "$f"               # vazio
 grep -niE 'TBD|TODO|depois|a definir' "$f"   # vazio
 ```
 
-**Saída esperada:** plano commitado em `docs/superpowers/plans/` com mensagem `docs(plans): <slug>`; branch ainda **não** criada.
+**Saída esperada:** item em `doing` na branch remota (claim) e plano commitado nela em `docs/superpowers/plans/` com mensagem `docs(plans): <slug>`.
 
 # /code — Gate 2: implementar com TDD, um commit por tarefa
 
@@ -67,7 +74,7 @@ grep -niE 'TBD|TODO|depois|a definir' "$f"   # vazio
 
 **Pré-condições**
 - Plano em `docs/superpowers/plans/` com as tarefas a executar.
-- `git switch -c feat/FR-xxx-slug` (ou `fix/`, `adr/NNNN-slug`, `docs/slug`, `chore/slug`) a partir de `main` atualizada.
+- Na branch criada no `/plan` (`<tipo>/<ID>-<slug>`, tipos `feat fix adr docs chore`), com o claim já no remoto e rebaseada em `origin/main`.
 
 **Passos** (`docs/dev/METHODOLOGY.md §2`)
 1. Para cada tarefa do plano, nesta ordem: escreva o teste → rode e veja **falhar** → implemente o mínimo → rode e veja **passar** → refatore → commit.
@@ -109,7 +116,7 @@ git diff origin/main..HEAD | grep -nE 'Jarvis|devos|nftables|24\.04|arm64|RTX 40
 
 **Verificação**
 ```bash
-python3 -m unittest discover -s scripts/tests -p 'test_*.py' && bash scripts/tests/*.sh && scripts/check-tokens.sh && scripts/check-agents-sync.sh && python3 scripts/roadmap.py build --check && python3 scripts/gen_tela_specs.py --check
+python3 -m unittest discover -s scripts/tests -p 'test_*.py' && bash scripts/tests/*.sh && scripts/check-tokens.sh && scripts/check-agents-sync.sh && python3 scripts/roadmap.py validate --branch && python3 scripts/gen_tela_specs.py --check
 ```
 
 **Saída esperada:** tudo verde; captura lado a lado commitada quando houver tela; pronto para `/review`.
@@ -132,7 +139,7 @@ python3 -m unittest discover -s scripts/tests -p 'test_*.py' && bash scripts/tes
    5. Consumo declarado em toda unit systemd; modelos de IA descarregam ociosos.
    6. Nenhum segredo em arquivo (NFR-024).
    7. SELinux, firewalld, `/etc` e tiers do Policy Engine intocados fora do escopo.
-   8. Roadmap: `add-delivery` previsto no PR; `STATUS.md`/`index.html` regenerados, não editados.
+   8. Roadmap: no `roadmap.json` só mudou o item deste PR (`claim` → `done`); `STATUS.md`/`index.html` **fora** do diff (`roadmap.py validate --branch`).
 3. Tela: compare a captura lado a lado com a spec; registre `visual: fiel` ou liste as medidas divergentes.
 4. Cada achado vira **commit na branch** com prefixo `fix(review): …` — não comentário solto.
 5. Feche com um comentário `review: N/8`. Só `8/8` libera `/ship`.
@@ -150,17 +157,16 @@ gh pr view <N> --json comments -q '.comments[].body' | grep -E '^review: 8/8$'
 
 **Pré-condições**
 - `review: 8/8` no PR; CI verde; branch rebased em `main`.
-- Você sabe os IDs do `roadmap.json` que este PR entrega (ex.: `F0-002`).
+- O item deste PR está `doing` na branch (feito no `claim` do `/plan`).
 
 **Passos** (`docs/dev/METHODOLOGY.md §5`)
 1. Na branch:
    ```bash
-   python3 scripts/roadmap.py add-delivery --pr <N> --items <ID1>,<ID2> --summary "<uma frase do que foi entregue>"
-   python3 scripts/roadmap.py build
-   git add docs/roadmap/roadmap.json docs/STATUS.md docs/roadmap/index.html
-   git commit -m "docs(roadmap): deliver PR #<N>"
+   python3 scripts/roadmap.py done <ID> --pr <N> --summary "<uma frase do que foi entregue>"
+   git commit -am "docs(roadmap): deliver <ID> (PR #<N>)"
    git push
    ```
+   Não rode `build` nem commite `STATUS.md`/`index.html`: o workflow `roadmap-sync` regenera os dois na `main` depois do merge.
 2. Se a entrega fecha o DoD de uma fase do PRD §12, mude o `status` da fase em `roadmap.json` no mesmo commit (`doing` → `done`, próxima `todo` → `doing`).
 3. Confira o template do PR: nenhum campo vazio, checklist dos 5 gates marcado.
 4. **Squash merge**; título = primeiro commit `feat/fix` da branch. Apague a branch remota.
@@ -168,10 +174,10 @@ gh pr view <N> --json comments -q '.comments[].body' | grep -E '^review: 8/8$'
 
 **Verificação**
 ```bash
-python3 scripts/roadmap.py build --check && git log -1 --format=%s | grep -q 'docs(roadmap): deliver PR #'
+python3 scripts/roadmap.py validate --branch && git log -1 --format=%s | grep -q 'docs(roadmap): deliver '
 ```
 
-**Saída esperada:** `main` com a entrega; `docs/STATUS.md` aponta a próxima tarefa; `docs/roadmap/index.html` atualizado.
+**Saída esperada:** PR mergeado com o item `done`; o workflow `roadmap-sync` regenera `docs/STATUS.md` e `docs/roadmap/index.html` na `main`.
 <!-- flow:end -->
 
 ## Convenções
@@ -209,9 +215,11 @@ python3 scripts/roadmap.py build --check && git log -1 --format=%s | grep -q 'do
 ## Roadmap e status
 
 - Fonte única: `docs/roadmap/roadmap.json`. Gerados: `docs/STATUS.md` e `docs/roadmap/index.html`.
-- Gate *ship*: `python3 scripts/roadmap.py add-delivery --pr N --items ID1,ID2 --summary "…"` → `python3 scripts/roadmap.py build` → commit `docs(roadmap): deliver PR #N`.
-- Tarefa nova descoberta durante o trabalho → novo item em `roadmap.json`, nunca `TODO` solto no código.
-- `python3 scripts/roadmap.py build --check` roda em todo gate *test* e no CI.
+- Pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available` → `claim <ID> --agent claude|codex [--scope pasta/]` → commit e push imediato da branch.
+- Gate *ship*: `python3 scripts/roadmap.py done <ID> --pr N --summary "…"` → commit `docs(roadmap): deliver <ID> (PR #N)`. Sem `build` na branch.
+- Paralelo só entre escopos diferentes; `claim` recusa dependência não feita e escopo sobreposto (`image/` × `image/build/`; `.` bloqueia tudo). Item pego em outra branch some do `available`. Abandonou? Apague a branch remota.
+- Tarefa nova descoberta durante o trabalho → novo item em `roadmap.json` (com `scope` e `depends_on`), nunca `TODO` solto no código.
+- `python3 scripts/roadmap.py validate --branch` roda em todo gate *test*; `build --check` roda só na `main`, no workflow `roadmap-sync`.
 
 ## Verificações (scripts)
 
@@ -221,5 +229,6 @@ python3 scripts/roadmap.py build --check && git log -1 --format=%s | grep -q 'do
 | `scripts/check-agents-sync.sh` | Falha se o bloco Fluxo deste arquivo ≠ `.claude/commands/*.md` | `/test`, CI |
 | `scripts/check-branding.sh` | Falha se a imagem expõe marca Fedora/Bazzite/Bluefin (FR-002) — **stub até F0-004** | `/test` em `image/`, CI |
 | `scripts/gen_tela_specs.py --check` | Falha se o hash de um `code.html` mudou sem atualizar a spec | `/plan` de tela, `/test` |
-| `scripts/roadmap.py build --check` | Falha se `STATUS.md`/`index.html` foram editados à mão ou estão desatualizados | `/test`, `/ship`, CI |
+| `scripts/roadmap.py validate --branch` | Falha se o `roadmap.json` é inválido ou se a branch alterou `STATUS.md`/`index.html` | `/test`, `/ship` |
+| `scripts/roadmap.py build` (workflow `roadmap-sync`) | Regenera `STATUS.md`/`index.html` na `main` após cada merge | `main` |
 | `python3 -m unittest discover -s scripts/tests -p 'test_*.py'` + `bash scripts/tests/*.sh` | Testes dos próprios scripts | `/test`, CI |
