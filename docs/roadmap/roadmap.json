@@ -249,8 +249,13 @@
       ],
       "phase": "0",
       "title": "Logo ForjaOS v1 em SVG (mono, cor, dark/light, ícone 16–512)",
-      "status": "todo",
-      "scope": "brand/"
+      "status": "done",
+      "scope": "brand/",
+      "agent": "claude",
+      "claimed_at": "2026-11-09",
+      "pr": 8,
+      "merged_at": "2026-11-09",
+      "summary": "Logo ForjaOS v1: marca, logotipo horizontal e ícone de app em SVG (cor sobre escuro, cor sobre claro e mono) e PNG 16–512, gerados de palette.json com wordmark Plus Jakarta Sans em contornos"
     },
     {
       "id": "F0-007",
