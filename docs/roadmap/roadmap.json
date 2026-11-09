@@ -181,9 +181,11 @@
       ],
       "phase": "0",
       "title": "CI de verificação em PR: unittest (scripts/tests, brand/tests), run-shell-tests, check-tokens, check-agents-sync, roadmap validate --branch, gen_tela_specs --check, build_logo --check",
-      "status": "todo",
+      "status": "doing",
       "scope": ".github/",
-      "notes": "Hoje nenhum workflow roda esses testes (só roadmap-sync e signing-preflight). PRs do roadmap-sync abertos com GITHUB_TOKEN não disparam workflows: não marcar o job como status check obrigatório da main sem resolver isso, senão o bot trava."
+      "notes": "Hoje nenhum workflow roda esses testes (só roadmap-sync e signing-preflight). PRs do roadmap-sync abertos com GITHUB_TOKEN não disparam workflows: não marcar o job como status check obrigatório da main sem resolver isso, senão o bot trava.",
+      "agent": "claude",
+      "claimed_at": "2026-11-09"
     },
     {
       "id": "F0-001",
