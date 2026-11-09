@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: roadmap-sync
@@ -31,14 +32,22 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -p "test_roadmap.py"
       - name: Regenera os gerados
         run: python3 scripts/roadmap.py build
-      - name: Commit se mudou
+      - name: PR automático se mudou (main protegida: sem push direto)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if git diff --quiet -- docs/STATUS.md docs/roadmap/index.html; then
             echo "roadmap-sync: gerados já em dia"
             exit 0
           fi
+          branch="bot/roadmap-sync-${GITHUB_RUN_ID}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
           git add docs/STATUS.md docs/roadmap/index.html
-          git commit -m "chore(roadmap): regenerate STATUS.md and index.html [skip ci]"
-          git push
+          git commit -m "chore(roadmap): regenerate STATUS.md and index.html"
+          git push origin "$branch"
+          url=$(gh pr create --base main --head "$branch" \
+            --title "chore(roadmap): regenerate STATUS.md and index.html" \
+            --body "Gerado por roadmap-sync (ADR-029). Só arquivos gerados.")
+          gh pr merge "$url" --squash --delete-branch
