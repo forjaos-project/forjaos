@@ -180,10 +180,13 @@
       ],
       "phase": "0",
       "title": "Org GitHub + GHCR + cosign: segredos e permissões do repositório",
-      "status": "doing",
+      "status": "done",
       "scope": ".github/",
       "agent": "claude",
-      "claimed_at": "2026-11-08"
+      "claimed_at": "2026-11-08",
+      "pr": 4,
+      "merged_at": "2026-11-09",
+      "summary": "Assinatura cosign por par de chaves (ADR-030): cosign.pub versionada, SIGNING_SECRET verificado pelo workflow signing-preflight"
     },
     {
       "id": "F0-002",
