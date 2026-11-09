@@ -143,6 +143,38 @@ class BrandingCheckTests(unittest.TestCase):
         result, report = self.check(packages="forjaos-branding\n")
         self.assertEqual(result.returncode, 0, report)
 
+    def test_scans_directory_links_inside_the_rootfs(self):
+        self.write("opt/theme/banner.qml", 'text: "Bazzite"\n')
+        linked = self.root / "usr/share/plasma/look-and-feel/default"
+        linked.parent.mkdir(parents=True)
+        linked.symlink_to("/opt/theme", target_is_directory=True)
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertTrue(any(f["kind"] == "text" and f.get("line") == 1 for f in report["findings"]))
+
+    def test_resolves_intermediate_absolute_links_in_rootfs(self):
+        self.write("usr/etc/os-release", (self.root / "etc/os-release").read_text())
+        (self.root / "etc/os-release").unlink()
+        (self.root / "etc").rmdir()
+        (self.root / "etc").symlink_to("/usr/etc", target_is_directory=True)
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
+
+    def test_link_loop_is_an_inspection_error(self):
+        linked = self.root / "etc/issue"
+        linked.symlink_to("issue")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 2, report)
+        self.assertEqual(report["status"], "error")
+
+    def test_link_cannot_escape_selected_rootfs(self):
+        linked = self.root / "etc/issue"
+        linked.symlink_to("../../host-issue")
+        (self.base / "host-issue").write_text("Bazzite")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 2, report)
+        self.assertTrue(any("escapes rootfs" in f["value"] for f in report["findings"]))
+
     def test_json_is_deterministic(self):
         self.write("etc/motd", "Bluefin\n")
         first, report = self.check(packages="bazzite-branding\n")

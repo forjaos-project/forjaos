@@ -37,17 +37,31 @@ def finding(kind, path, value, line=None):
     return item
 
 
+def resolve_root_path(root, relative):
+    """Resolve every component using rootfs semantics, including absolute links."""
+    pending = list(Path(relative).parts)
+    current = root
+    hops = 0
+    while pending:
+        part = pending.pop(0)
+        if part == "..":
+            if current == root:
+                raise OSError(f"symlink escapes rootfs: {relative}")
+            current = current.parent
+            continue
+        current = current / part
+        if current.is_symlink():
+            hops += 1
+            if hops > 40:
+                raise OSError(f"symlink exceeds hop limit: {relative}")
+            target = current.readlink()
+            current = root if target.is_absolute() else current.parent
+            pending = list(target.parts[1:] if target.is_absolute() else target.parts) + pending
+    return current
+
+
 def read_root_file(root, relative):
-    """Follow absolute rootfs symlinks inside the selected root, not on the host."""
-    current = root / relative
-    for _ in range(8):
-        if not current.is_symlink():
-            break
-        target = current.readlink()
-        current = root / str(target).lstrip("/") if target.is_absolute() else current.parent / target
-    if current.is_symlink() or not current.resolve(strict=False).is_relative_to(root):
-        raise OSError(f"symlink escapes rootfs or exceeds hop limit: {relative}")
-    return current.read_bytes()
+    return resolve_root_path(root, relative).read_bytes()
 
 
 def check_identity(root, findings):
@@ -98,28 +112,43 @@ def check_packages(root, findings):
         findings.append(finding("package", "/usr/lib/sysimage/rpm", "forjaos-branding missing"))
 
 
-def visible_files(root):
+def visible_files(root, findings):
+    def walk(relative, ancestors, optional=False):
+        try:
+            resolved = resolve_root_path(root, relative)
+            if resolved.is_dir():
+                if resolved in ancestors:
+                    return  # A directory alias must not expand an ancestor indefinitely.
+                for child in sorted(resolved.iterdir()):
+                    yield from walk(relative / child.name, ancestors | {resolved})
+            elif resolved.is_file():
+                yield root / relative
+            elif not optional or (root / relative).is_symlink():
+                raise OSError(f"missing visible link target: {relative}")
+        except OSError as error:
+            findings.append(finding("inspection", "/" + relative.as_posix(), str(error)))
+
     for relative in VISIBLE_PATHS:
-        path = root / relative
-        if (path.is_file() or path.is_symlink()) and not path.is_dir():
-            yield path
-        elif path.is_dir():
-            yield from (
-                candidate for candidate in path.rglob("*")
-                if (candidate.is_file() or candidate.is_symlink()) and not candidate.is_dir()
-            )
+        yield from walk(Path(relative), set(), optional=True)
 
 
 def check_visible(root, findings):
-    for path in visible_files(root):
+    for path in visible_files(root, findings):
         relative = path.relative_to(root)
         if LEGAL_PARTS.intersection(relative.parts):
             continue
         display = "/" + relative.as_posix()
         if BRAND.search(display):
             findings.append(finding("path", display, "inherited brand in visible path"))
-        if path.is_symlink() and BRAND.search(str(path.readlink())):
-            findings.append(finding("path", display, f"inherited brand in link target: {path.readlink()}"))
+        resolved = resolve_root_path(root, relative)
+        # Identity and its ID_LIKE exception were already checked, even via aliases.
+        if resolved == resolve_root_path(root, "etc/os-release"):
+            continue
+        if LEGAL_PARTS.intersection(resolved.relative_to(root).parts):
+            continue
+        target = "/" + resolved.relative_to(root).as_posix()
+        if resolved != path and BRAND.search(target):
+            findings.append(finding("path", display, f"inherited brand in link target: {target}"))
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue
         try:
