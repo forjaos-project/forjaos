@@ -169,7 +169,7 @@ gh pr view <N> --json comments -q '.comments[].body' | grep -E '^review: 8/8$'
    Não rode `build` nem commite `STATUS.md`/`index.html`: o workflow `roadmap-sync` regenera os dois na `main` depois do merge.
 2. Se a entrega fecha o DoD de uma fase do PRD §12, mude o `status` da fase em `roadmap.json` no mesmo commit (`doing` → `done`, próxima `todo` → `doing`).
 3. Confira o template do PR: nenhum campo vazio, checklist dos 5 gates marcado.
-4. **Squash merge**; título = primeiro commit `feat/fix` da branch. Apague a branch remota.
+4. **Squash merge**; título = primeiro commit `feat/fix` da branch. Apague a branch remota e o worktree local (`git worktree remove <caminho> && git worktree prune`), para não acumular clones em disco.
 5. Se surgiu tarefa nova durante o trabalho, adicione-a em `roadmap.json` (`items[]`) — nunca em TODO solto no código.
 
 **Verificação**
