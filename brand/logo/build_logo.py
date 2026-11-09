@@ -207,7 +207,7 @@ def logo_svg(palette, variant, wm):
 
 # Ícone de aplicativo: placa escura arredondada + marca (cores do tema escuro).
 ICON = {
-    "forjaos-icon.svg": {"small": False, "inset": 16, "radius": 112, "scale": 0.94},
+    "forjaos-icon.svg": {"small": False, "inset": 6, "radius": 112, "scale": 0.94},
     "forjaos-icon-small.svg": {"small": True, "inset": 6, "radius": 104, "scale": 1.14},
 }
 MARK_CENTER = (240, 261)  # centro visual da marca (bigorna + chifre)
@@ -224,7 +224,10 @@ def icon_svg(palette, name):
     i, size = cfg["inset"], 512 - 2 * cfg["inset"]
     tile = (
         f'<rect id="tile" x="{i}" y="{i}" width="{size}" height="{size}" rx="{cfg["radius"]}" '
-        f'fill="{dark["void"]}" stroke="{dark["accent-cyan"]}" stroke-opacity="0.22" stroke-width="4"/>'
+        f'fill="{dark["void"]}" stroke="{dark["layer-3"]}" stroke-width="7"/>'
+        f'<rect id="tile-inner" x="{i+16}" y="{i+16}" width="{size-32}" height="{size-32}" '
+        f'rx="{cfg["radius"]-12}" fill="none" stroke="{dark["accent-cyan-deep"]}" '
+        'stroke-opacity="0.35" stroke-width="2"/>'
     )
     mx, my = MARK_CENTER
     mark = (

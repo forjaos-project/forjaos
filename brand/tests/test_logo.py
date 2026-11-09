@@ -121,8 +121,9 @@ class IconTests(unittest.TestCase, SvgAssertions):
                 self.assertIn('viewBox="0 0 512 512"', svg)
                 tile = re.search(r'<rect id="tile"[^>]*>', svg).group(0)
                 self.assertIn(f'fill="{dark["void"]}"', tile)
-                self.assertIn(f'stroke="{dark["accent-cyan"]}"', tile)
-                self.assertIn("stroke-opacity", tile)
+                self.assertIn(f'stroke="{dark["layer-3"]}"', tile)
+                self.assertIn('id="tile-inner"', svg)
+                self.assertIn(f'stroke="{dark["accent-cyan-deep"]}"', svg)
                 self.assert_clean_svg(svg)
                 self.assert_theme_colors(svg, "dark")
 
