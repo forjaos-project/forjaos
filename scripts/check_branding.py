@@ -133,6 +133,10 @@ def visible_files(root, findings):
 
 
 def check_visible(root, findings):
+    try:
+        identity = resolve_root_path(root, "etc/os-release")
+    except OSError:
+        identity = None  # check_identity already recorded this inspection error.
     for path in visible_files(root, findings):
         relative = path.relative_to(root)
         if LEGAL_PARTS.intersection(relative.parts):
@@ -142,7 +146,7 @@ def check_visible(root, findings):
             findings.append(finding("path", display, "inherited brand in visible path"))
         resolved = resolve_root_path(root, relative)
         # Identity and its ID_LIKE exception were already checked, even via aliases.
-        if resolved == resolve_root_path(root, "etc/os-release"):
+        if resolved == identity:
             continue
         if LEGAL_PARTS.intersection(resolved.relative_to(root).parts):
             continue

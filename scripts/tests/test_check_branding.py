@@ -167,6 +167,15 @@ class BrandingCheckTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, report)
         self.assertEqual(report["status"], "error")
 
+    def test_identity_link_loop_preserves_json_error_output(self):
+        identity = self.root / "etc/os-release"
+        identity.unlink()
+        identity.symlink_to("os-release")
+        self.write("etc/issue", "ForjaOS\n")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 2, report)
+        self.assertEqual(report["status"], "error")
+
     def test_link_cannot_escape_selected_rootfs(self):
         linked = self.root / "etc/issue"
         linked.symlink_to("../../host-issue")
