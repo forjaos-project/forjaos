@@ -100,7 +100,7 @@ class ConfigureImageTests(unittest.TestCase):
         self.assertEqual(policy["transports"]["docker"]["ghcr.io/ublue-os"][0]["type"], "sigstoreSigned")
         self.assertEqual(policy["transports"]["oci"][""], [{"type": "insecureAcceptAnything"}])
         self.assertEqual(
-            policy["transports"]["docker"]["ghcr.io/forjaos-project/forjaos-nvidia-open"],
+            policy["transports"]["docker"]["ghcr.io/forjaos-project"],
             [
                 {
                     "type": "sigstoreSigned",
@@ -122,14 +122,23 @@ class ConfigureImageTests(unittest.TestCase):
             "docker:\n  ghcr.io/forjaos-project:\n    use-sigstore-attachments: true\n",
         )
 
-    def test_generic_variant_has_its_own_trust_scope(self):
-        result = self.run_helper("forjaos")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        release = (self.root / "usr/lib/os-release").read_text(encoding="utf-8")
-        self.assertIn("VARIANT_ID=forjaos\n", release)
-        policy = json.loads((self.root / "etc/containers/policy.json").read_text(encoding="utf-8"))
-        self.assertIn("ghcr.io/forjaos-project/forjaos", policy["transports"]["docker"])
-        self.assertNotIn("ghcr.io/forjaos-project/forjaos-nvidia-open", policy["transports"]["docker"])
+    def test_trust_covers_every_variant_of_the_project(self):
+        # A regra fica no namespace: trocar de variante (bootc switch para a outra imagem
+        # ForjaOS) também exige assinatura, em vez de cair no "" insecureAcceptAnything.
+        for image_name in ("forjaos", "forjaos-nvidia-open"):
+            with self.subTest(image_name=image_name):
+                result = self.run_helper(image_name)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                release = (self.root / "usr/lib/os-release").read_text(encoding="utf-8")
+                self.assertIn(f"VARIANT_ID={image_name}\n", release)
+                docker = json.loads(
+                    (self.root / "etc/containers/policy.json").read_text(encoding="utf-8")
+                )["transports"]["docker"]
+                self.assertEqual(docker["ghcr.io/forjaos-project"][0]["type"], "sigstoreSigned")
+                self.assertEqual(
+                    [k for k in docker if k.startswith("ghcr.io/forjaos-project/")], [],
+                    "regra por imagem deixaria a outra variante sem verificação",
+                )
 
     def test_missing_policy_or_key_does_not_change_identity(self):
         before = (self.root / "usr/lib/os-release").read_bytes()

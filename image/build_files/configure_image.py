@@ -64,8 +64,9 @@ def configure(root: Path, public_key: Path, image_name: str) -> None:
     if not isinstance(transports, dict) or not isinstance(transports.get("docker"), dict):
         raise ValueError("base signature policy is missing docker transport rules")
 
-    repository = f"{REGISTRY}/{image_name}"
-    transports["docker"][repository] = [
+    # Escopo de namespace: cobre todas as variantes ForjaOS; matchRepository ainda exige
+    # que a assinatura seja do repositório efetivamente baixado.
+    transports["docker"][REGISTRY] = [
         {
             "type": "sigstoreSigned",
             "keyPath": KEY_DESTINATION,
