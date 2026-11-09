@@ -6,6 +6,7 @@ Toda cor vem de brand/palette.json (ADR-027): este arquivo não contém hex.
 Uso:
   python3 brand/logo/build_logo.py           # (re)gera os SVGs em brand/logo/
   python3 brand/logo/build_logo.py --png     # e os PNGs 16–512 em brand/logo/png/
+  python3 brand/logo/build_logo.py --check   # falha se algum SVG versionado estiver desatualizado
 """
 import argparse
 import json
@@ -235,12 +236,25 @@ def build(palette=None, wordmark=None):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Gera o logo ForjaOS (FR-053).")
     ap.add_argument("--png", action="store_true", help="exporta também os PNGs do ícone (rsvg-convert)")
+    ap.add_argument("--check", action="store_true", help="falha se algum SVG versionado divergir do gerado")
+    ap.add_argument("--dir", type=Path, default=HERE, help="diretório dos SVGs (padrão: brand/logo)")
     args = ap.parse_args(argv)
-    for name, content in build().items():
-        (HERE / name).write_text(content, encoding="utf-8")
+    files = build()
+    if args.check:
+        stale = [
+            name for name, content in files.items()
+            if not (args.dir / name).is_file() or (args.dir / name).read_text(encoding="utf-8") != content
+        ]
+        for name in stale:
+            print(f"build_logo: {name} desatualizado — rode python3 brand/logo/build_logo.py")
+        if not stale:
+            print(f"build_logo: OK ({len(files)} SVGs)")
+        return 1 if stale else 0
+    for name, content in files.items():
+        (args.dir / name).write_text(content, encoding="utf-8")
         print(f"escrito brand/logo/{name}")
     if args.png:
-        write_pngs(HERE / "png")
+        write_pngs(args.dir / "png")
     return 0
 
 

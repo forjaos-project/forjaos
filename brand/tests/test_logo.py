@@ -151,5 +151,41 @@ class IconTests(unittest.TestCase, SvgAssertions):
                     self.assertEqual(img.getpixel((0, 0))[3], 0)
 
 
+class FreshnessTests(unittest.TestCase):
+    def run_check(self, directory):
+        import subprocess
+        import sys
+        return subprocess.run(
+            [sys.executable, str(LOGO / "build_logo.py"), "--check", "--dir", str(directory)],
+            capture_output=True, text=True,
+        )
+
+    def test_committed_svgs_are_fresh(self):
+        result = self.run_check(LOGO)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_detects_stale_svg(self):
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            copy = Path(tmp) / "logo"
+            shutil.copytree(LOGO, copy, ignore=shutil.ignore_patterns("__pycache__"))
+            target = copy / "forjaos-mark-on-dark.svg"
+            target.write_text(target.read_text(encoding="utf-8").replace("<title>", "<title>x"), encoding="utf-8")
+            result = self.run_check(copy)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("forjaos-mark-on-dark.svg", result.stdout + result.stderr)
+
+    def test_licenses_registered(self):
+        text = (ROOT / "brand" / "LICENSES.md").read_text(encoding="utf-8")
+        for needle in ("Plus Jakarta Sans", "OFL-1.1", "CC BY-SA 4.0", "brand/logo/"):
+            self.assertIn(needle, text)
+
+    def test_readme_lists_every_file(self):
+        readme = read("README.md")
+        for path in LOGO.glob("forjaos-*.svg"):
+            self.assertIn(path.name, readme)
+
+
 if __name__ == "__main__":
     unittest.main()
