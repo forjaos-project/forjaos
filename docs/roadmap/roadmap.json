@@ -196,10 +196,13 @@
       ],
       "phase": "0",
       "title": "Containerfile mínimo FROM bazzite-nvidia-open:stable + os-release ForjaOS",
-      "status": "doing",
+      "status": "done",
       "scope": "image/",
       "agent": "codex",
-      "claimed_at": "2026-11-09"
+      "claimed_at": "2026-11-09",
+      "pr": 9,
+      "merged_at": "2026-11-09",
+      "summary": "Containerfile mínimo sobre bazzite-nvidia-open/bazzite (ADR-0032) com os-release ForjaOS, chave cosign pública e política de assinatura no namespace ghcr.io/forjaos-project; build real e bootc container lint verdes nas duas variantes"
     },
     {
       "id": "F0-003",
