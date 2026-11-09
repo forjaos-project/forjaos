@@ -29,16 +29,16 @@ CORE = (256, 278, 11)
 NODES = ((172, 150), (344, 150), (392, 372))
 ANVIL_STROKE = 22
 SPARK_STROKE = 18
-NODE_R = 7
+NODE_R = 6
 
-# Tokens por variante: (gradiente da bigorna, gradiente do spark, núcleo, fundo dos nós)
+# Tokens por variante: gradiente da bigorna, gradiente do spark, núcleo e nós (rebites claros sobre o traço)
 VARIANTS = {
     "on-dark": {
         "theme": "dark",
         "anvil": ("accent-cyan", "accent-violet"),
         "spark": ("accent-orange", "danger"),
         "core": "accent-cyan",
-        "node_fill": "void",
+        "node_fill": "primary",
         "glow": True,
     },
     "on-light": {
@@ -121,7 +121,7 @@ def mark_body(palette, variant, prefix="", small=False):
     if not mono and not small:
         fill = color(palette, spec["theme"], spec["node_fill"])
         nodes = "".join(
-            f'<circle cx="{x}" cy="{y}" r="{NODE_R}" fill="{fill}" stroke="{anvil_paint}" stroke-width="4"/>'
+            f'<circle cx="{x}" cy="{y}" r="{NODE_R}" fill="{fill}"/>'
             for x, y in NODES
         )
         parts.append(f'<g id="{prefix}nodes">{nodes}</g>')

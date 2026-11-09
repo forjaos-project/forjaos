@@ -38,3 +38,7 @@ python3 brand/logo/extract_wordmark.py --font package/files/plus-jakarta-sans-la
 ```
 
 Até 24 px o spark aparece como um núcleo laranja de 3 a 4 px; a leitura `<>` começa em 32 px.
+
+## Conferência visual
+
+`preview/compare-2026-11-09.png`: protótipo à esquerda (`docs/telas/logo/`), implementação à direita — ícone 512 px e logotipo sobre fundo claro.
