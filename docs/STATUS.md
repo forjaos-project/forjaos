@@ -2,7 +2,7 @@
 
 # Status — ForjaOS
 
-**Atualizado em:** 2026-11-09 · **Itens:** 14/54 feitos (26 %) · 0 em andamento · 40 a fazer · 0 bloqueados
+**Atualizado em:** 2026-11-09 · **Itens:** 15/54 feitos (28 %) · 0 em andamento · 39 a fazer · 0 bloqueados
 
 Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`. Antes de pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available`.
 
@@ -23,7 +23,6 @@ Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
 ## Disponíveis agora (trabalho em paralelo)
 
 - `F0-003` Workflow GitHub Actions: podman build → testes de imagem → cosign → push :testing diário · escopo: .github/ · depende de: F0-001, F0-002
-- `F0-004` check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI · escopo: scripts/ · depende de: F0-002
 - `F0-007` Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados) · escopo: brand/ · depende de: —
 
 Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY §6).
@@ -51,6 +50,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - `GOV-011` CI de verificação em PR: unittest (scripts/tests, brand/tests), run-shell-tests, check-tokens, check-agents-sync, roadmap validate --branch, gen_tela_specs --check, build_logo --check (NFR-040, NFR-041, NFR-042) · fase 0 — PR #16 · 2026-11-09 · Hoje nenhum workflow roda esses testes (só roadmap-sync e signing-preflight). PRs do roadmap-sync abertos com GITHUB_TOKEN não disparam workflows: não marcar o job como status check obrigatório da main sem resolver isso, senão o bot trava.
 - `F0-001` Org GitHub + GHCR + cosign: segredos e permissões do repositório (ADR-002, G6) · fase 0 — PR #4 · 2026-11-09
 - `F0-002` Containerfile mínimo FROM bazzite-nvidia-open:stable + os-release ForjaOS (FR-001, FR-003) · fase 0 — PR #9 · 2026-11-09
+- `F0-004` check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI (FR-002, G4) · fase 0 — PR #20 · 2026-11-09
 - `F0-006` Logo ForjaOS v1 em SVG (mono, cor, dark/light, ícone 16–512) (FR-053) · fase 0 — PR #8 · 2026-11-09
 
 ## A fazer (por fase)
@@ -58,7 +58,6 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 ### Fase 0 — Fundação (em andamento)
 
 - `F0-003` Workflow GitHub Actions: podman build → testes de imagem → cosign → push :testing diário (ADR-002, NFR-040) · fase 0
-- `F0-004` check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI (FR-002, G4) · fase 0
 - `F0-005` THIRD_PARTY_LICENSES.md gerado no CI (G4, ADR-007) · fase 0
 - `F0-007` Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados) (FR-054) · fase 0
 - `F0-008` bootc switch para a imagem em VM + upgrade/rollback testados (FR-001, FR-008) · fase 0
@@ -116,6 +115,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 ## Entregas (mais recentes primeiro)
 
 - **2026-11-09** · PR #8 · Logo ForjaOS v1: marca, logotipo horizontal e ícone de app em SVG (cor sobre escuro, cor sobre claro e mono) e PNG 16–512, gerados de palette.json com wordmark Plus Jakarta Sans em contornos · itens: F0-006
+- **2026-11-09** · PR #20 · Checker de branding para rootfs e imagens OCI, com saída JSON e falha verificada nas duas variantes F0-002 · itens: F0-004
 - **2026-11-09** · PR #9 · Containerfile mínimo sobre bazzite-nvidia-open/bazzite (ADR-0032) com os-release ForjaOS, chave cosign pública e política de assinatura no namespace ghcr.io/forjaos-project; build real e bootc container lint verdes nas duas variantes · itens: F0-002
 - **2026-11-09** · PR #4 · Assinatura cosign por par de chaves (ADR-030): cosign.pub versionada, SIGNING_SECRET verificado pelo workflow signing-preflight · itens: F0-001
 - **2026-11-09** · PR #16 · CI de verificação em PR (verify.yml com os 8 comandos do /test), teste do workflow e remoção de worktree no /ship · itens: GOV-011
