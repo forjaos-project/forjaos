@@ -42,7 +42,7 @@
 
 ## Task 4 — Wire the bootc image (FR-001, FR-003, ADR-0032)
 
-- [ ] Add an integration assertion to `scripts/tests/test_configure_image.py` that checks the `Containerfile` has a published NVIDIA default, a build argument for the non-NVIDIA base, invokes the helper with `cosign.pub`, and finishes with `bootc container lint`. Run it and observe failure because the file is absent.
+- [ ] Run `docker build -f image/Containerfile -t forjaos:f0-002 .` and observe the missing-Containerfile failure. This checks the actual build wiring instead of duplicating Containerfile lines in a static test.
 - [ ] Create `image/Containerfile` with `ARG BASE_IMAGE=ghcr.io/ublue-os/bazzite-nvidia-open:stable` before `FROM ${BASE_IMAGE}`, plus `ARG IMAGE_NAME=forjaos-nvidia-open` after `FROM`; the AMD/Intel build overrides the base with `ghcr.io/ublue-os/bazzite:stable`. Copy only the helper and public key from the repository-root build context; execute the helper and `bootc container lint`.
 - [ ] Run the unittest. Build locally with `docker build -f image/Containerfile -t forjaos:f0-002 .` and inspect the resulting `/etc/os-release`, public key, and scoped policy. `docker build --build-arg BASE_IMAGE=ghcr.io/ublue-os/bazzite:stable --build-arg IMAGE_NAME=forjaos` is run when disk space permits; the already verified upstream `skopeo inspect` is the minimum proof for that base in this slice.
 - [ ] Commit: `feat(image): build minimal bootc image`.
