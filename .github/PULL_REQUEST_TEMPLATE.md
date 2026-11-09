@@ -22,13 +22,13 @@
 - [ ] **plan** — plano commitado; toda tarefa cita um ID do PRD
 - [ ] **code** — branch pela convenção; um commit por tarefa; TDD; commits convencionais
 - [ ] **test** — verificação da raiz + da pasta passou (saída abaixo); `check-tokens.sh` OK; `roadmap.py validate --branch` OK
-- [ ] **review** — revisão cruzada concluída com `review: 8/8` (e `visual: fiel` se tela)
+- [ ] **review** — `review: 8/8` de revisor em contexto limpo (ADR-033) (e `visual: fiel` se tela)
 - [ ] **ship** — `scripts/roadmap.py done <ID> --pr N` executado; só o item deste PR mudou no `roadmap.json`; `STATUS.md`/`index.html` fora do diff
 
 ## Quem fez o quê
 
 - Implementado por: ☐ Claude Code ☐ Codex ☐ humano
-- Revisado por (obrigatoriamente **outra** ferramenta/pessoa): ☐ Claude Code ☐ Codex ☐ humano
+- Revisado por (contexto limpo, ADR-033): ☐ Claude Code ☐ Codex ☐ humano
 
 ## Saída da verificação
 

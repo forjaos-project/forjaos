@@ -20,7 +20,7 @@ ForjaOS: sistema operacional open source baseado em Linux (Fedora Atomic via Uni
 
 1. **Comece por `git fetch origin && python3 scripts/roadmap.py available`.** Pegue um item da lista com `claim` e faça push na hora. Não pegue item fora da lista sem pedido explícito do humano.
 2. **Cinco gates, nenhum pulável:** plan → code → test → review → ship. Hotfix de segurança pula só *plan*.
-3. **Quem implementou não revisa.** Claude Code e Codex implementam em paralelo, cada um no seu item; cada um revisa o PR do outro. Se você abriu a branch, não execute o gate *review* nela.
+3. **Quem pega o item leva até o merge** (ADR-033). Claude Code e Codex trabalham em paralelo, cada um no seu item, sem esperar o outro. O gate *review* roda com contexto limpo (subagente/sessão nova da mesma ferramenta) e o merge exige `review: 8/8` + CI verde (sem CI de PR ainda: saída da verificação colada pelo revisor, ADR-033 §5).
 4. **PRD manda no conteúdo; protótipo manda no layout** (ADR-028). Strings proibidas em código de tela: `Jarvis`, `devos`, `nftables`, `24.04`, `arm64`, `RTX 4070`. Divergência vira issue, não improviso.
 5. **Toda cor vem de `brand/palette.json`** (ADR-027). Fontes: Plus Jakarta Sans (UI), JetBrains Mono (mono), Inter só em corpo denso. Fira Code proibida. `scripts/check-tokens.sh` é juiz.
 6. **Nada de tela genérica:** Breeze/Fedora/Bazzite visível, componente sem estilo, medida "a olho" ou ícone Material Symbols no produto reprovam o PR.
@@ -78,7 +78,7 @@ grep -niE 'TBD|TODO|depois|a definir' "$f"   # vazio
 
 **Passos** (`docs/dev/METHODOLOGY.md §2`)
 1. Para cada tarefa do plano, nesta ordem: escreva o teste → rode e veja **falhar** → implemente o mínimo → rode e veja **passar** → refatore → commit.
-2. Commit convencional: `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`; escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents roadmap plans`. Um commit por tarefa.
+2. Commit convencional: `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`; escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents roadmap plans review`. Um commit por tarefa.
 3. Telas: abra a spec `docs/design-system/telas/<slug>.md`, aplique a tabela "Conteúdo (PRD → substituir)" (ADR-028), copie **medidas e tokens** (`brand/palette.json`), nunca hex solto, nunca fonte fora de Plus Jakarta Sans / JetBrains Mono / Inter(dense).
 4. Toda unit systemd própria declara `MemoryMax`, `CPUQuota`, `Nice`.
 5. Nenhum segredo em arquivo; chaves só via KWallet/`secret-tool`.
@@ -87,7 +87,7 @@ grep -niE 'TBD|TODO|depois|a definir' "$f"   # vazio
 
 **Verificação**
 ```bash
-git log --format=%s origin/main..HEAD | grep -vE '^(feat|fix|adr|docs|test|chore|refactor)\((image|cli|hero|hero-mcp|hero-memory|brand|site|docs|scripts|agents|roadmap|plans)\): '   # vazio
+git log --format=%s origin/main..HEAD | grep -vE '^(feat|fix|adr|docs|test|chore|refactor)\((image|cli|hero|hero-mcp|hero-memory|brand|site|docs|scripts|agents|roadmap|plans|review)\): '   # vazio
 scripts/check-tokens.sh
 git diff origin/main..HEAD | grep -nE 'Jarvis|devos|nftables|24\.04|arm64|RTX 4070'   # vazio
 ```
@@ -121,13 +121,13 @@ python3 -m unittest discover -s scripts/tests -p 'test_*.py' && scripts/run-shel
 
 **Saída esperada:** tudo verde; captura lado a lado commitada quando houver tela; pronto para `/review`.
 
-# /review — Gate 4: revisão cruzada (quem implementou não revisa)
+# /review — Gate 4: revisão com contexto limpo (ADR-033)
 
-**Quando usar:** em um PR aberto por **outra** ferramenta. Você está revisando código que outra ferramenta escreveu. Se você escreveu esta branch, pare e peça a outra (Claude Code ↔ Codex).
+**Quando usar:** no PR do item que você pegou, antes do merge. Quem implementou leva o item até o fim; a revisão roda numa instância **sem o contexto da implementação** (Claude Code: subagente novo; Codex: sessão nova), que recebe só o número do PR e estas regras.
 
 **Pré-condições**
-- PR aberto com template preenchido, incluindo "Implementado por".
-- `git log --format=%an origin/main..HEAD` e a descrição do PR confirmam que o autor não é você.
+- PR aberto com template preenchido.
+- Revisor em contexto limpo: não reaproveite a sessão que implementou.
 
 **Passos** (`docs/dev/METHODOLOGY.md §4`)
 1. Rode do zero a verificação do `/test` (raiz + pasta). Não confie na saída colada.
@@ -153,7 +153,7 @@ gh pr view <N> --json comments -q '.comments[].body' | grep -E '^review: 8/8$'
 
 # /ship — Gate 5: registrar a entrega no roadmap e mergear
 
-**Quando usar:** após `review: 8/8` e CI verde.
+**Quando usar:** após `review: 8/8` e CI verde (ADR-033: sem CI de PR ainda, vale a saída da verificação colada pelo revisor).
 
 **Pré-condições**
 - `review: 8/8` no PR; CI verde; branch rebased em `main`.
@@ -183,7 +183,7 @@ python3 scripts/roadmap.py validate --branch && git log -1 --format=%s | grep -q
 ## Convenções
 
 - **Branch:** `feat/FR-xxx-slug` · `fix/FR-xxx-slug` · `adr/NNNN-slug` · `docs/slug` · `chore/slug`. Nunca trabalhe em `main`.
-- **Commit:** `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`. Escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents roadmap plans`. Um commit por tarefa do plano.
+- **Commit:** `tipo(escopo): resumo em inglês no imperativo`. Tipos `feat fix adr docs test chore refactor`. Escopos `image cli hero hero-mcp hero-memory brand site docs scripts agents roadmap plans review`. Um commit por tarefa do plano.
 - **PR:** template em `.github/PULL_REQUEST_TEMPLATE.md`; squash merge; branch apagada.
 - **Idioma:** regras, PRD, ADRs e specs em pt-BR; código, commits, nomes de arquivo e docs técnicas em inglês; strings do produto em pt-BR + en-US via Qt Linguist.
 - **Testes:** Rust `cargo test` + cobertura ≥ 70 % (NFR-041); shell `scripts/tests/*.sh`; Python `unittest`; tela = captura lado a lado.

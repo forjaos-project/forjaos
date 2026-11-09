@@ -1,10 +1,10 @@
-# /review — Gate 4: revisão cruzada (quem implementou não revisa)
+# /review — Gate 4: revisão com contexto limpo (ADR-033)
 
-**Quando usar:** em um PR aberto por **outra** ferramenta. Você está revisando código que outra ferramenta escreveu. Se você escreveu esta branch, pare e peça a outra (Claude Code ↔ Codex).
+**Quando usar:** no PR do item que você pegou, antes do merge. Quem implementou leva o item até o fim; a revisão roda numa instância **sem o contexto da implementação** (Claude Code: subagente novo; Codex: sessão nova), que recebe só o número do PR e estas regras.
 
 **Pré-condições**
-- PR aberto com template preenchido, incluindo "Implementado por".
-- `git log --format=%an origin/main..HEAD` e a descrição do PR confirmam que o autor não é você.
+- PR aberto com template preenchido.
+- Revisor em contexto limpo: não reaproveite a sessão que implementou.
 
 **Passos** (`docs/dev/METHODOLOGY.md §4`)
 1. Rode do zero a verificação do `/test` (raiz + pasta). Não confie na saída colada.

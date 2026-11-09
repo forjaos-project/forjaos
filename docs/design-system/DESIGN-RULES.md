@@ -150,7 +150,7 @@ Uma tarefa de tela só passa no gate *test*/*review* com **todos**:
 4. Tabela de substituições do ADR-028 aplicada; `grep` das strings proibidas vazio.
 5. Tabela de ícones da spec aplicada (nenhum Material Symbol no produto).
 6. Estados previstos na spec implementados (hover/foco/ativo/erro; estados do mascote quando aplicável).
-7. Revisor cruzado registra `visual: fiel` no comentário de review.
+7. O revisor (contexto limpo, ADR-033) registra `visual: fiel` no comentário de review.
 
 ## 11. Como ler uma spec de tela
 

@@ -93,7 +93,7 @@ Protótipo usa Material Symbols; produto usa Breeze recolorido pelos tokens ou S
 - [ ] Captura lado a lado em `docs/design-system/telas/forjaos_visualizador_de_mem_ria_linha_do_tempo_di_ria/compare-AAAA-MM-DD.png` (mesma resolução)
 - [ ] `scripts/check-tokens.sh` OK
 - [ ] `grep -nE 'Jarvis|devos|nftables|24\.04|arm64|RTX 4070'` vazio no código da tela
-- [ ] Revisor cruzado registrou `visual: fiel`
+- [ ] Revisor (contexto limpo, ADR-033) registrou `visual: fiel`
 
 ## Pendências e divergências conhecidas
 
