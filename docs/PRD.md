@@ -80,7 +80,7 @@ Instalador próprio, loja de apps própria, COSMIC como desktop, spin tiling com
 
 | ADR | Decisão | Escolha | Alternativas descartadas e por quê |
 | --- | --- | --- | --- |
-| ADR-001 | Base | Fedora Atomic via Universal Blue, `FROM ghcr.io/ublue-os/bazzite-dx-nvidia-open:stable` | Arch/Omarchy (rolling quebra driver; Omarchy já ocupa o nicho); NixOS (curva, binários proprietários); Debian/Ubuntu (kernel velho para gaming) |
+| ADR-001 | Base | Fedora Atomic via Universal Blue; bases desktop `bazzite-nvidia-open:stable` e `bazzite:stable` (ADR-0032) | Arch/Omarchy (rolling quebra driver; Omarchy já ocupa o nicho); NixOS (curva, binários proprietários); Debian/Ubuntu (kernel velho para gaming) |
 | ADR-002 | Modelo de build | bootc/OCI: Containerfile + GitHub Actions + cosign + GHCR; ISO via bootc-image-builder | ISO artesanal (não reproduzível); live-build (Debian) |
 | ADR-003 | Desktop | KDE Plasma 6 padrão; spin tiling (niri) só no 2.0 | GNOME (gaming fraco, extensões quebram); COSMIC (estável desde 12/2025, mas lacunas de applets — candidato 2.0); Hyprland como padrão (descoberta zero para quem vem do Windows) |
 | ADR-004 | Nome do SO | ForjaOS, sem descritor (ADR-031) | "DeveloperOS" sozinho (genérico, colide com DevOS-Developer-OS no GitHub); Ipê (menos ligado a dev/jogos) |
@@ -130,7 +130,7 @@ Instalador próprio, loja de apps própria, COSMIC como desktop, spin tiling com
 │ Stack dev/jogos: Docker CE + Podman, Godot, Steam/Proton,   │
 │ Ollama, Hermes Agent, Codex CLI, VS Code, distrobox, brew   │
 ├─────────────────────────────────────────────────────────────┤
-│ Base: Universal Blue bazzite-dx-nvidia-open (Fedora Atomic, │
+│ Base: Universal Blue bazzite-nvidia-open (Fedora Atomic,    │
 │ kernel Bazzite, NVIDIA open modules, PipeWire, Plasma 6)    │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -155,8 +155,8 @@ Cada repo tem `LICENSE` (Apache-2.0; `forjaos-brand` CC BY-SA 4.0 para artes + `
 
 | Tag | Base ublue | GPU | Desktop |
 | --- | --- | --- | --- |
-| `forjaos:stable` | `bazzite-dx:stable` | AMD / Intel | Plasma 6 |
-| `forjaos-nvidia-open:stable` | `bazzite-dx-nvidia-open:stable` | NVIDIA Turing+ | Plasma 6 |
+| `forjaos:stable` | `bazzite:stable` | AMD / Intel | Plasma 6 |
+| `forjaos-nvidia-open:stable` | `bazzite-nvidia-open:stable` | NVIDIA Turing+ | Plasma 6 |
 | `forjaos-tiling:stable` (2.0) | `forjaos-nvidia-open` + niri | ambas | niri + Plasma como fallback |
 
 Canais: `:testing` (build diário, sem promessa), `:stable` (promovido semanalmente quando o CI de metas passa), `:vX.Y` (tag fixa por release).
@@ -180,7 +180,7 @@ push/cron ─► GitHub Actions
 
 | ID | Requisito | DoD |
 | --- | --- | --- |
-| FR-001 | Imagem OCI derivada de `bazzite-dx-nvidia-open` e `bazzite-dx`, construída por Containerfile | `podman build` passa no CI; `bootc switch ghcr.io/<org>/forjaos-nvidia-open:stable` funciona a partir de Bazzite |
+| FR-001 | Imagem OCI derivada de `bazzite-nvidia-open` e `bazzite`, construída por Containerfile (ADR-0032) | `podman build` passa no CI; `bootc switch ghcr.io/<org>/forjaos-nvidia-open:stable` funciona a partir de Bazzite |
 | FR-002 | Rebranding total: nenhum texto, ícone ou wallpaper Fedora/Bazzite/Bluefin visível em boot, login, desktop, Configurações, `os-release`, Discover | Script `check-branding.sh` no CI grepa a imagem e falha ao encontrar; inspeção visual nos 2 hardwares de referência |
 | FR-003 | `/etc/os-release`: `NAME="ForjaOS"`, `PRETTY_NAME="ForjaOS X.Y"`, `ID=forjaos`, `ID_LIKE="fedora"`, `HOME_URL`, `BUG_REPORT_URL` | Teste no CI |
 | FR-004 | Pacotes removidos da base que não servem ao público: emuladores pré-instalados, Waydroid, apps de mídia duplicados (lista em `build_files/remove.txt`) | Lista aplicada; tamanho da ISO ≤ 6 GB |
@@ -468,7 +468,7 @@ Fases indicam prioridade de tempo. Não há dependência que impeça iniciar uma
 
 | Fase | Semanas | Entregáveis | DoD objetivo |
 | --- | --- | --- | --- |
-| **0 — Fundação** | 1–2 | Org GitHub, 7 repos com LICENSE/ADR/CI; ADR-001 a 024 commitados; paleta, logo v1, mascote estático v1; Containerfile mínimo `FROM bazzite-dx-nvidia-open`; `check-branding.sh`; `THIRD_PARTY_LICENSES` no CI | Imagem builda no Actions, assinada, no GHCR; `bootc switch` para ela funciona em VM |
+| **0 — Fundação** | 1–2 | Org GitHub, 7 repos com LICENSE/ADR/CI; ADR-001 a 024 commitados; paleta, logo v1, mascote estático v1; Containerfile mínimo sobre `bazzite-nvidia-open` (ADR-0032); `check-branding.sh`; `THIRD_PARTY_LICENSES` no CI | Imagem builda no Actions, assinada, no GHCR; `bootc switch` para ela funciona em VM |
 | **1 — Imagem instalável** | 3–8 | FR-001 a FR-016 (exceto notebook, se não disponível), FR-050 a FR-058, ISO, guia de instalação, recipes `ujust` básicas, `forja doctor` e `forja install unity/claude-code` | Pendrive → instalação em dual boot no desktop de referência → `docker compose up` + Steam em < 15 min; NFR-001, 002, 011, 012 passando |
 | **2 — Experiência dev/gamedev** | 9–12 | FR-020 a FR-044, FR-060 a FR-063; perfis; chaves no KWallet; registro MCP; Trivy no CI | 5 usuários externos instalam e completam o wizard sem issue bloqueante; CVE scan limpo em pacotes próprios |
 | **3 — HERO v0 nativo (texto + sistema)** | 13–22 | FR-070, 071, 085, 090–096, 100–103, 110–112, 120–122, 124–125 em modo texto; spike Hermes (FR-097 → ADR-025); os 4 MCP servers | 10 tarefas do G3 por texto; `herod` ocioso ≤ 120 MB; HERO desligado deixa zero processo |

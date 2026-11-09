@@ -1,0 +1,14 @@
+ARG BASE_IMAGE=ghcr.io/ublue-os/bazzite-nvidia-open:stable
+FROM ${BASE_IMAGE}
+
+ARG IMAGE_NAME=forjaos-nvidia-open
+
+COPY image/build_files/configure_image.py /tmp/configure_image.py
+COPY cosign.pub /tmp/forjaos.pub
+
+RUN python3 /tmp/configure_image.py \
+      --root / \
+      --public-key /tmp/forjaos.pub \
+      --image-name "${IMAGE_NAME}" \
+    && rm /tmp/configure_image.py /tmp/forjaos.pub \
+    && bootc container lint
