@@ -9,7 +9,7 @@ O PRD diz *o quê*. Este documento diz *como* uma tarefa entra e sai do reposit�
 **Regras invioláveis**
 
 1. Nenhum gate é pulado. Hotfix de segurança pode pular *plan* (ver §8), nunca *test* nem *review*.
-2. **Quem pega o item leva até o merge** (ADR-033). Claude Code e Codex trabalham em paralelo, cada um no seu item (§6), sem fila de revisão. O gate *review* roda com contexto limpo e o merge exige CI verde.
+2. **Quem pega o item leva até o merge** (ADR-033). Claude Code e Codex trabalham em paralelo, cada um no seu item (§6), sem fila de revisão. O gate *review* roda com contexto limpo e o merge exige CI verde (provisório: ADR-033 §5).
 3. **PRD manda no conteúdo; protótipo manda no layout** (ADR-028). Divergência vira issue, não improviso.
 4. **Toda cor vem de `brand/palette.json`** (ADR-027). `scripts/check-tokens.sh` é juiz.
 5. **Nenhuma ação destrutiva fora de tier** (FR-093, FR-100): `rm -rf`, `dd`, alteração de firewall, de SELinux ou de `/etc` só com confirmação explícita do humano e registro no PR.
@@ -115,7 +115,7 @@ python3 -m unittest discover -s scripts/tests -p 'test_*.py' && scripts/run-shel
 
 **Entrada:** PR aberto pelo agente que pegou o item.
 
-**Saída:** comentário `review: 8/8` + `revisor: <ferramenta> (contexto limpo)` e zero achados abertos.
+**Saída:** comentário `review: 8/8` e zero achados abertos.
 
 **Protocolo**
 1. O agente abre um revisor sem o contexto da implementação (Claude Code: subagente novo; Codex: sessão nova) e passa só o número do PR.

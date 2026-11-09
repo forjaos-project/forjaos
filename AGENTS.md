@@ -20,7 +20,7 @@ ForjaOS: sistema operacional open source baseado em Linux (Fedora Atomic via Uni
 
 1. **Comece por `git fetch origin && python3 scripts/roadmap.py available`.** Pegue um item da lista com `claim` e faça push na hora. Não pegue item fora da lista sem pedido explícito do humano.
 2. **Cinco gates, nenhum pulável:** plan → code → test → review → ship. Hotfix de segurança pula só *plan*.
-3. **Quem pega o item leva até o merge** (ADR-033). Claude Code e Codex trabalham em paralelo, cada um no seu item, sem esperar o outro. O gate *review* roda com contexto limpo (subagente/sessão nova da mesma ferramenta) e o merge exige `review: 8/8` + CI verde.
+3. **Quem pega o item leva até o merge** (ADR-033). Claude Code e Codex trabalham em paralelo, cada um no seu item, sem esperar o outro. O gate *review* roda com contexto limpo (subagente/sessão nova da mesma ferramenta) e o merge exige `review: 8/8` + CI verde (sem CI de PR ainda: saída da verificação colada pelo revisor, ADR-033 §5).
 4. **PRD manda no conteúdo; protótipo manda no layout** (ADR-028). Strings proibidas em código de tela: `Jarvis`, `devos`, `nftables`, `24.04`, `arm64`, `RTX 4070`. Divergência vira issue, não improviso.
 5. **Toda cor vem de `brand/palette.json`** (ADR-027). Fontes: Plus Jakarta Sans (UI), JetBrains Mono (mono), Inter só em corpo denso. Fira Code proibida. `scripts/check-tokens.sh` é juiz.
 6. **Nada de tela genérica:** Breeze/Fedora/Bazzite visível, componente sem estilo, medida "a olho" ou ícone Material Symbols no produto reprovam o PR.
@@ -142,7 +142,7 @@ python3 -m unittest discover -s scripts/tests -p 'test_*.py' && scripts/run-shel
    8. Roadmap: no `roadmap.json` só mudou o item deste PR (`claim` → `done`); `STATUS.md`/`index.html` **fora** do diff (`roadmap.py validate --branch`).
 3. Tela: compare a captura lado a lado com a spec; registre `visual: fiel` ou liste as medidas divergentes.
 4. Cada achado vira **commit na branch** com prefixo `fix(review): …` — não comentário solto.
-5. Feche com um comentário `review: N/8` e a linha `revisor: <ferramenta> (contexto limpo)`. Só `8/8` libera `/ship`.
+5. Feche com um comentário `review: N/8`. Só `8/8` libera `/ship`.
 
 **Verificação**
 ```bash

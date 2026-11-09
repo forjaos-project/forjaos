@@ -1,6 +1,6 @@
 # ADR-033 — Cada agente leva o item até o merge; revisão com contexto limpo + CI
 
-**Status:** aceito · **Data:** 2026-11-09 · **Revoga:** a revisão cruzada entre ferramentas (regra 3 do `AGENTS.md`, regra 2 e §4 de `docs/dev/METHODOLOGY.md`) · **Relacionados:** ADR-029, NFR-040, NFR-041, NFR-042, GOV-011
+**Status:** aceito · **Data:** 2026-11-09 · **Revoga:** a revisão cruzada entre ferramentas onde ela aparecer (regra 3 do `AGENTS.md`, `README.md`, `CLAUDE.md`, `docs/dev/METHODOLOGY.md` §0/§4/§6/§8, `.claude/commands/review.md`, template do PR, `DESIGN-RULES.md` §10 e `scripts/gen_tela_specs.py`) · **Relacionados:** ADR-029, NFR-040, NFR-041, NFR-042, GOV-011
 
 ## Contexto
 
@@ -15,12 +15,13 @@ A revisão cruzada achou problemas reais (PR #9: assinatura cosign nunca encontr
    - Claude Code: subagente novo (ferramenta Agent), sem o histórico da sessão que implementou.
    - Codex: sessão nova (thread nova ou `codex exec`), aberta só para a revisão.
 3. O revisor roda a verificação do gate *test* do zero e percorre os mesmos 8 itens. Cada achado vira commit `fix(review): …` na branch; o ciclo se repete até `review: 8/8`.
-4. O comentário de fechamento é `review: N/8` seguido da linha `revisor: <ferramenta> (contexto limpo)`.
-5. O gate *ship* exige `review: 8/8` **e CI verde**. Enquanto o CI de verificação em PR (GOV-011) não existir, o revisor cola no comentário a saída da verificação que rodou do zero.
+4. O comentário de fechamento continua `review: N/8`; quem revisou fica no campo "Revisado por" do template do PR.
+5. O gate *ship* exige `review: 8/8` **e CI verde**. Enquanto o CI de verificação em PR (item GOV-011, proposto no PR #12) não existir, o revisor cola no comentário a saída da verificação que rodou do zero.
 6. O mantenedor continua podendo pedir revisão de outra ferramenta ou humana em qualquer PR; isso é opcional.
 
 ## Consequências
 
 - Os dois agentes trabalham em paralelo sem fila de revisão.
 - A independência diminui: os pontos cegos do mesmo modelo podem se repetir. Mitigação: contexto limpo, verificação refeita do zero e CI obrigatório. O GOV-011 passa a ser pré-requisito real do *ship*.
+- Menções a "revisor cruzado" em ADRs anteriores (ADR-028, ADR-029) passam a valer como revisor em contexto limpo; os PRs automáticos do `roadmap-sync` continuam sem revisão (ADR-029).
 - PRs abertos antes deste ADR (#9, #11, #12) seguem a regra nova: cada autor conclui o próprio PR.

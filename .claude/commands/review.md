@@ -19,7 +19,7 @@
    8. Roadmap: no `roadmap.json` só mudou o item deste PR (`claim` → `done`); `STATUS.md`/`index.html` **fora** do diff (`roadmap.py validate --branch`).
 3. Tela: compare a captura lado a lado com a spec; registre `visual: fiel` ou liste as medidas divergentes.
 4. Cada achado vira **commit na branch** com prefixo `fix(review): …` — não comentário solto.
-5. Feche com um comentário `review: N/8` e a linha `revisor: <ferramenta> (contexto limpo)`. Só `8/8` libera `/ship`.
+5. Feche com um comentário `review: N/8`. Só `8/8` libera `/ship`.
 
 **Verificação**
 ```bash

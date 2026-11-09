@@ -18,7 +18,7 @@ Sistema operacional open source baseado em Linux (Fedora Atomic via Universal Bl
 
 1. Leia [`AGENTS.md`](AGENTS.md) — fonte única de regras. `CLAUDE.md` apenas o importa.
 2. Rode `git fetch origin && python3 scripts/roadmap.py available` e pegue um item com `claim` (Claude Code e Codex trabalham em paralelo, cada um no seu item — [METHODOLOGY §6](docs/dev/METHODOLOGY.md)).
-3. Siga os gates: `/plan` → `/code` → `/test` → `/review` → `/ship` (Claude Code) ou as seções equivalentes do `AGENTS.md` (Codex). **Quem implementa não revisa.**
+3. Siga os gates: `/plan` → `/code` → `/test` → `/review` → `/ship` (Claude Code) ou as seções equivalentes do `AGENTS.md` (Codex). **Quem pega o item leva até o merge**; o `/review` roda com contexto limpo (ADR-033).
 4. Toda entrega termina com `python3 scripts/roadmap.py done <ID> --pr N --summary "…"`. `docs/STATUS.md` e `docs/roadmap/index.html` são regenerados na `main` pelo workflow `roadmap-sync`.
 
 ## Estrutura
