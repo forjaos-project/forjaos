@@ -26,7 +26,7 @@ VISIBLE_PATHS = (
     "usr/share/flatpak/remotes.d",
     "var/lib/flatpak/repo/config",
 )
-TEXT_SUFFIXES = {"", ".colors", ".conf", ".css", ".desktop", ".ini", ".js", ".json", ".layout", ".plymouth", ".qml", ".service", ".svg", ".theme", ".txt", ".xml"}
+TEXT_SUFFIXES = {"", ".colors", ".conf", ".css", ".desktop", ".flatpakrepo", ".ini", ".js", ".json", ".layout", ".plymouth", ".qml", ".service", ".svg", ".theme", ".txt", ".xml"}
 LEGAL_PARTS = {"licenses", "doc", "man"}
 
 
@@ -57,17 +57,23 @@ def check_identity(root, findings):
         findings.append(finding("inspection", "/etc/os-release", str(error)))
         return
     fields = {}
-    for line in lines:
+    for number, line in enumerate(lines, 1):
         if "=" in line and not line.startswith("#"):
             key, value = line.split("=", 1)
             fields[key] = value.strip().strip('"\'')
-    expected = {"NAME": "ForjaOS", "ID": "forjaos"}
+            match = BRAND.search(value)
+            if key != "ID_LIKE" and match:
+                findings.append(finding("text", "/etc/os-release", match.group(), number))
+    expected = {"NAME": "ForjaOS", "ID": "forjaos", "ID_LIKE": "fedora"}
     for key, value in expected.items():
         if fields.get(key) != value:
             findings.append(finding("identity", "/etc/os-release", f"{key}={fields.get(key, '<missing>')}"))
     pretty = fields.get("PRETTY_NAME", "")
-    if not (pretty == "ForjaOS" or pretty.startswith("ForjaOS ")):
+    if not re.fullmatch(r"ForjaOS \d+\.\d+(?:\.\d+)?", pretty):
         findings.append(finding("identity", "/etc/os-release", f"PRETTY_NAME={pretty or '<missing>'}"))
+    for key in ("HOME_URL", "BUG_REPORT_URL"):
+        if not re.fullmatch(r"https?://[^\s/]+(?:/[^\s]*)?", fields.get(key, "")):
+            findings.append(finding("identity", "/etc/os-release", f"{key}={fields.get(key) or '<missing>'}"))
 
 
 def check_packages(root, findings):

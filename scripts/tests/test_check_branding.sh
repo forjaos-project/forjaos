@@ -10,6 +10,8 @@ NAME="ForjaOS"
 ID=forjaos
 ID_LIKE=fedora
 PRETTY_NAME="ForjaOS 0.1"
+HOME_URL="https://forjaos.org"
+BUG_REPORT_URL="https://forjaos.org/issues"
 RELEASE
 
 cat > "$TMP/bin/rpm" <<'FAKE_RPM'

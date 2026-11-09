@@ -20,7 +20,8 @@ class BrandingCheckTests(unittest.TestCase):
         self.root = self.base / "rootfs"
         (self.root / "etc").mkdir(parents=True)
         (self.root / "etc/os-release").write_text(
-            'NAME="ForjaOS"\nID=forjaos\nID_LIKE=fedora\nPRETTY_NAME="ForjaOS 0.1"\n',
+            'NAME="ForjaOS"\nID=forjaos\nID_LIKE=fedora\nPRETTY_NAME="ForjaOS 0.1"\n'
+            'HOME_URL="https://forjaos.org"\nBUG_REPORT_URL="https://forjaos.org/issues"\n',
             encoding="utf-8",
         )
         binary = self.base / "bin"
@@ -66,8 +67,28 @@ class BrandingCheckTests(unittest.TestCase):
         result, report = self.check(packages="forjaos-branding\n")
         self.assertEqual(result.returncode, 1)
         self.assertEqual(report["status"], "fail")
-        self.assertEqual({item["kind"] for item in report["findings"]}, {"identity"})
-        self.assertEqual(len(report["findings"]), 3)
+        self.assertEqual({item["kind"] for item in report["findings"]}, {"identity", "text"})
+        self.assertEqual(len([f for f in report["findings"] if f["kind"] == "identity"]), 6)
+
+    def test_rejects_incomplete_fr003_identity(self):
+        self.write("etc/os-release", 'NAME=ForjaOS\nID=forjaos\nPRETTY_NAME=ForjaOS\n')
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertEqual(len(report["findings"]), 4)
+
+    def test_os_release_brand_exception_only_applies_to_id_like(self):
+        path = self.root / "etc/os-release"
+        with path.open("a") as stream:
+            stream.write('LOGO=fedora-logo-icon\n')
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertTrue(any(f.get("line") == 7 for f in report["findings"]))
+
+    def test_scans_discover_remote_descriptors(self):
+        self.write("usr/share/flatpak/remotes.d/default.flatpakrepo", '[Flatpak Repo]\nTitle=Fedora Apps\n')
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertTrue(any(f.get("line") == 2 for f in report["findings"]))
 
     def test_rejects_each_forbidden_package_family(self):
         result, report = self.check(
