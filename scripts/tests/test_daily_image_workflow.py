@@ -55,6 +55,18 @@ class DailyImageWorkflowTest(unittest.TestCase):
         self.assertNotIn(":stable", self.source)
         self.assertNotIn("continue-on-error", self.source)
 
+    def test_license_report_is_uploaded_per_variant_even_after_build_failure(self):
+        self.assertIn("LICENSE_REPORT_DIR: ${{ runner.temp }}/licenses", self.image_job)
+        self.assertRegex(self.image_job, r"uses: actions/upload-artifact@[0-9a-f]{40}")
+        self.assertIn("if: ${{ always() }}", self.image_job)
+        self.assertIn("name: third-party-licenses-${{ matrix.variant }}", self.image_job)
+        self.assertIn(
+            "path: ${{ runner.temp }}/licenses/${{ matrix.variant }}/THIRD_PARTY_LICENSES.md",
+            self.image_job,
+        )
+        self.assertIn("if-no-files-found: error", self.image_job)
+        self.assertNotIn("SIGNING_SECRET", self.image_job.split("actions/upload-artifact@", 1)[-1])
+
 
 if __name__ == "__main__":
     unittest.main()

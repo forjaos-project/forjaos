@@ -269,11 +269,16 @@
       ],
       "phase": "0",
       "title": "THIRD_PARTY_LICENSES.md gerado no CI",
-      "status": "todo",
+      "status": "done",
       "scope": ".github/",
       "depends_on": [
         "F0-003"
-      ]
+      ],
+      "agent": "codex",
+      "claimed_at": "2026-11-09",
+      "pr": 27,
+      "merged_at": "2026-11-09",
+      "summary": "CI gera e anexa inventário de licenças RPM por variante da imagem construída, inclusive quando branding bloqueia a publicação"
     },
     {
       "id": "F0-006",
