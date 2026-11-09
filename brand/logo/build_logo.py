@@ -18,10 +18,10 @@ HERE = Path(__file__).resolve().parent
 PALETTE_PATH = HERE.parent / "palette.json"
 
 # Geometria da marca no espaço 512x512. Corpo simétrico em x = 256.
-ANVIL = (
-    "M150 150H362C392 150 400 176 384 196L332 256V300L400 372H112L180 300V256"
-    "L128 196C112 176 120 150 150 150Z"
-)
+ANVIL_TOP = "M150 150H362"
+ANVIL_LEFT = "M150 150C120 150 112 176 128 196L180 256V300"
+ANVIL_RIGHT = "M362 150C392 150 400 176 384 196L332 256V300"
+ANVIL_BOTTOM = "M180 300L112 372H400L332 300"
 HORN = "M160 150L92 178C68 188 76 206 100 210L144 218"
 SPARK_LEFT = "M238 240L210 278L238 316"
 SPARK_RIGHT = "M274 240L302 278L274 316"
@@ -36,6 +36,7 @@ VARIANTS = {
     "on-dark": {
         "theme": "dark",
         "anvil": ("accent-cyan", "accent-violet"),
+        "anvil_bottom": ("accent-violet", "accent-sky"),
         "spark": ("accent-orange", "danger"),
         "core": "accent-cyan",
         "node_fill": "primary",
@@ -44,6 +45,7 @@ VARIANTS = {
     "on-light": {
         "theme": "light",
         "anvil": ("accent-cyan", "accent-indigo"),
+        "anvil_bottom": ("accent-indigo", "text-strong"),
         "spark": ("accent-orange", "danger"),
         "core": "accent-cyan",
         "node_fill": "layer-1",
@@ -68,11 +70,21 @@ def mark_defs(palette, variant, prefix, small=False):
         return ""
     theme = spec["theme"]
     a0, a1 = (color(palette, theme, t) for t in spec["anvil"])
+    b0, b1 = (color(palette, theme, t) for t in spec["anvil_bottom"])
     s0, s1 = (color(palette, theme, t) for t in spec["spark"])
     out = [
         f'<linearGradient id="{prefix}anvil-grad" gradientUnits="userSpaceOnUse" '
-        f'x1="200" y1="140" x2="290" y2="360">'
+        f'x1="150" y1="150" x2="362" y2="150">'
         f'<stop offset="0" stop-color="{a0}"/><stop offset="1" stop-color="{a1}"/></linearGradient>',
+        f'<linearGradient id="{prefix}anvil-left-grad" gradientUnits="userSpaceOnUse" '
+        f'x1="150" y1="150" x2="180" y2="300">'
+        f'<stop offset="0" stop-color="{a0}"/><stop offset="1" stop-color="{b0}"/></linearGradient>',
+        f'<linearGradient id="{prefix}anvil-right-grad" gradientUnits="userSpaceOnUse" '
+        f'x1="362" y1="150" x2="332" y2="300">'
+        f'<stop offset="0" stop-color="{a1}"/><stop offset="1" stop-color="{b1}"/></linearGradient>',
+        f'<linearGradient id="{prefix}anvil-bottom-grad" gradientUnits="userSpaceOnUse" '
+        f'x1="180" y1="372" x2="332" y2="372">'
+        f'<stop offset="0" stop-color="{b0}"/><stop offset="1" stop-color="{b1}"/></linearGradient>',
         f'<linearGradient id="{prefix}spark-grad" gradientUnits="userSpaceOnUse" '
         f'x1="256" y1="240" x2="256" y2="316">'
         f'<stop offset="0" stop-color="{s0}"/><stop offset="1" stop-color="{s1}"/></linearGradient>',
@@ -103,6 +115,9 @@ def mark_body(palette, variant, prefix="", small=False):
     anvil_w = SMALL["anvil"] if small else ANVIL_STROKE
     spark_w = SMALL["spark"] if small else SPARK_STROKE
     anvil_paint = "currentColor" if mono else f"url(#{prefix}anvil-grad)"
+    left_paint = "currentColor" if mono else f"url(#{prefix}anvil-left-grad)"
+    right_paint = "currentColor" if mono else f"url(#{prefix}anvil-right-grad)"
+    bottom_paint = "currentColor" if mono else f"url(#{prefix}anvil-bottom-grad)"
     spark_paint = "currentColor" if mono else f"url(#{prefix}spark-grad)"
     core_paint = "currentColor" if mono else color(palette, spec["theme"], spec["core"])
     glow = f' filter="url(#{prefix}glow)"' if spec["glow"] and not small else ""
@@ -111,8 +126,13 @@ def mark_body(palette, variant, prefix="", small=False):
     left, right = (SMALL_SPARK_LEFT, SMALL_SPARK_RIGHT) if small else (SPARK_LEFT, SPARK_RIGHT)
     parts = [
         f'<g id="{prefix}mark"{glow}>',
-        f'<path id="{prefix}anvil" d="{ANVIL}" {line} stroke="{anvil_paint}" stroke-width="{anvil_w}"/>',
-        f'<path id="{prefix}horn" d="{HORN}" {line} stroke="{anvil_paint}" stroke-width="{anvil_w}"/>',
+        f'<g id="{prefix}anvil" fill="none" stroke-linecap="round" stroke-linejoin="round" '
+        f'stroke-width="{anvil_w}">'
+        f'<path d="{ANVIL_TOP}" stroke="{anvil_paint}"/>'
+        f'<path d="{ANVIL_LEFT}" stroke="{left_paint}"/>'
+        f'<path d="{ANVIL_RIGHT}" stroke="{right_paint}"/>'
+        f'<path d="{ANVIL_BOTTOM}" stroke="{bottom_paint}"/></g>',
+        f'<path id="{prefix}horn" d="{HORN}" {line} stroke="{bottom_paint}" stroke-width="{anvil_w}"/>',
         f'<g id="{prefix}spark" {line} stroke="{spark_paint}" stroke-width="{spark_w}">'
         f'<path d="{left}"/><path d="{right}"/></g>',
     ]

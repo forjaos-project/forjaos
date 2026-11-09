@@ -66,6 +66,11 @@ class MarkTests(unittest.TestCase, SvgAssertions):
         for token in ("accent-cyan", "accent-violet", "accent-orange"):
             self.assertIn(colors[token].lower(), dark, token)
 
+    def test_lower_anvil_has_its_own_gradient(self):
+        for name in self.VARIANTS:
+            with self.subTest(name=name):
+                self.assertIn('id="anvil-bottom-grad"', read(name))
+
     def test_glow_only_on_dark(self):
         self.assertIn("<filter", read("forjaos-mark-on-dark.svg"))
         self.assertNotIn("<filter", read("forjaos-mark-on-light.svg"))
