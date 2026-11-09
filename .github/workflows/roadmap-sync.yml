@@ -1,0 +1,44 @@
+# Regenera docs/STATUS.md e docs/roadmap/index.html na main depois de cada merge.
+# PRs não commitam esses arquivos (METHODOLOGY §6): assim PRs paralelos não conflitam.
+name: roadmap-sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/roadmap/roadmap.json
+      - scripts/roadmap.py
+      - scripts/roadmap_template.html
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: roadmap-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Testes do roadmap.py
+        run: python3 -m unittest discover -s scripts/tests -p "test_roadmap.py"
+      - name: Regenera os gerados
+        run: python3 scripts/roadmap.py build
+      - name: Commit se mudou
+        run: |
+          if git diff --quiet -- docs/STATUS.md docs/roadmap/index.html; then
+            echo "roadmap-sync: gerados já em dia"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/STATUS.md docs/roadmap/index.html
+          git commit -m "chore(roadmap): regenerate STATUS.md and index.html [skip ci]"
+          git push

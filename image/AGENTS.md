@@ -5,7 +5,7 @@
 
 ## Toolchain e testes
 - `Containerfile` em `image/Containerfile`; `build_files/` (scripts de build), `system_files/` (overlay de `/usr` e `/etc`), `recipes/` (`ujust`), `firstboot/` (wizard QML).
-- Testar: `bash scripts/tests/*.sh`; `podman build -f image/Containerfile .` (CI); `scripts/check-branding.sh`; em VM: `bootc switch`, `systemd-analyze`, `free -m`, `ss -tlnp`.
+- Testar: `scripts/run-shell-tests.sh`; `podman build -f image/Containerfile .` (CI); `scripts/check-branding.sh`; em VM: `bootc switch`, `systemd-analyze`, `free -m`, `ss -tlnp`.
 - Shell: `set -euo pipefail` em todo script; testes em bash puro em `scripts/tests/`.
 
 ## DoD local
@@ -24,6 +24,6 @@
 `forjaos_wizard_de_primeiro_boot`, `forjaos_wizard_de_primeiro_boot_passo_6_resumo_conclus_o` (QML em `image/firstboot/`); layout de painel/dock do desktop em conjunto com `brand/`.
 
 ## Antes de começar aqui
-1. `docs/STATUS.md` → a tarefa é desta pasta? Se não, pare.
+1. `python3 scripts/roadmap.py available` → o item escolhido tem escopo desta pasta? Se não, pare.
 2. `AGENTS.md` da raiz → regras e fluxo valem integralmente.
 3. Telas desta pasta → leia a spec em `docs/design-system/telas/` **antes** do `code.html`.

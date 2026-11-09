@@ -21,9 +21,9 @@
 
 - [ ] **plan** — plano commitado; toda tarefa cita um ID do PRD
 - [ ] **code** — branch pela convenção; um commit por tarefa; TDD; commits convencionais
-- [ ] **test** — verificação da raiz + da pasta passou (saída abaixo); `check-tokens.sh` OK; `roadmap.py build --check` OK
+- [ ] **test** — verificação da raiz + da pasta passou (saída abaixo); `check-tokens.sh` OK; `roadmap.py validate --branch` OK
 - [ ] **review** — revisão cruzada concluída com `review: 8/8` (e `visual: fiel` se tela)
-- [ ] **ship** — `scripts/roadmap.py add-delivery` executado e `build` regenerou `STATUS.md` + `index.html` neste PR
+- [ ] **ship** — `scripts/roadmap.py done <ID> --pr N` executado; só o item deste PR mudou no `roadmap.json`; `STATUS.md`/`index.html` fora do diff
 
 ## Quem fez o quê
 
@@ -33,7 +33,7 @@
 ## Saída da verificação
 
 ```text
-(cole aqui a saída de: python3 -m unittest discover -s scripts/tests -p 'test_*.py' && bash scripts/tests/*.sh && scripts/check-tokens.sh && scripts/check-agents-sync.sh && python3 scripts/roadmap.py build --check  + comando da pasta)
+(cole aqui a saída de: python3 -m unittest discover -s scripts/tests -p 'test_*.py' && scripts/run-shell-tests.sh && scripts/check-tokens.sh && scripts/check-agents-sync.sh && python3 scripts/roadmap.py validate --branch  + comando da pasta)
 ```
 
 ## Segurança e consumo

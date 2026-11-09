@@ -182,7 +182,7 @@ footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--fj-hairline);
             <span class="badge live"><i></i>gerado de roadmap.json</span>
           </div>
           <h1 class="display">Roadmap e histórico da implementação do <span>{{PROJECT}}</span></h1>
-          <p class="lead">O que foi feito, onde estamos e o que falta — por fase e por requisito do PRD. Esta página é regenerada por <code>scripts/roadmap.py build</code> a cada entrega; não é editada à mão.</p>
+          <p class="lead">O que foi feito, onde estamos e o que falta — por fase e por requisito do PRD. Esta página é regenerada na <code>main</code> pelo workflow <code>roadmap-sync</code> a cada merge; não é editada à mão.</p>
         </div>
         <div class="specs">
           <div class="t"><span>Fase atual</span><span style="color:var(--fj-primary)">{{PHASE_ID}}</span></div>
@@ -201,7 +201,7 @@ footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--fj-hairline);
         <section class="section" id="onde-estamos">
           <div class="eyebrow"><i></i>Onde estamos</div>
           <h2>Fase {{PHASE_ID}} — {{PHASE_NAME}}</h2>
-          <p class="desc">Próxima tarefa a entrar no gate <em>plan</em>. Comece por ela, não por outra.</p>
+          <p class="desc">Primeira da fila na fase atual. Com Claude Code e Codex em paralelo, a lista completa sai de <code>roadmap.py available</code>.</p>
           <div class="card next">
             <div>
               <div class="id">{{NEXT_ID}}</div>
@@ -287,7 +287,7 @@ footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--fj-hairline);
         <a href="#falta">6. Falta fazer</a>
         <a href="#entregas">7. Linha do tempo</a>
         <h4 style="margin-top:24px">Como atualizar</h4>
-        <a href="../dev/METHODOLOGY.md">gate ship → add-delivery</a>
+        <a href="../dev/METHODOLOGY.md">gate ship → roadmap.py done</a>
         <a href="../STATUS.md">STATUS.md (gerado)</a>
       </aside>
     </div>

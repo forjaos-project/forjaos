@@ -16,7 +16,7 @@
    5. Consumo declarado em toda unit systemd; modelos de IA descarregam ociosos.
    6. Nenhum segredo em arquivo (NFR-024).
    7. SELinux, firewalld, `/etc` e tiers do Policy Engine intocados fora do escopo.
-   8. Roadmap: `add-delivery` previsto no PR; `STATUS.md`/`index.html` regenerados, não editados.
+   8. Roadmap: no `roadmap.json` só mudou o item deste PR (`claim` → `done`); `STATUS.md`/`index.html` **fora** do diff (`roadmap.py validate --branch`).
 3. Tela: compare a captura lado a lado com a spec; registre `visual: fiel` ou liste as medidas divergentes.
 4. Cada achado vira **commit na branch** com prefixo `fix(review): …` — não comentário solto.
 5. Feche com um comentário `review: N/8`. Só `8/8` libera `/ship`.

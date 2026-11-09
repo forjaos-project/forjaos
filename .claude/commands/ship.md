@@ -4,17 +4,16 @@
 
 **Pré-condições**
 - `review: 8/8` no PR; CI verde; branch rebased em `main`.
-- Você sabe os IDs do `roadmap.json` que este PR entrega (ex.: `F0-002`).
+- O item deste PR está `doing` na branch (feito no `claim` do `/plan`).
 
 **Passos** (`docs/dev/METHODOLOGY.md §5`)
 1. Na branch:
    ```bash
-   python3 scripts/roadmap.py add-delivery --pr <N> --items <ID1>,<ID2> --summary "<uma frase do que foi entregue>"
-   python3 scripts/roadmap.py build
-   git add docs/roadmap/roadmap.json docs/STATUS.md docs/roadmap/index.html
-   git commit -m "docs(roadmap): deliver PR #<N>"
+   python3 scripts/roadmap.py done <ID> --pr <N> --summary "<uma frase do que foi entregue>"
+   git commit -am "docs(roadmap): deliver <ID> (PR #<N>)"
    git push
    ```
+   Não rode `build` nem commite `STATUS.md`/`index.html`: o workflow `roadmap-sync` regenera os dois na `main` depois do merge.
 2. Se a entrega fecha o DoD de uma fase do PRD §12, mude o `status` da fase em `roadmap.json` no mesmo commit (`doing` → `done`, próxima `todo` → `doing`).
 3. Confira o template do PR: nenhum campo vazio, checklist dos 5 gates marcado.
 4. **Squash merge**; título = primeiro commit `feat/fix` da branch. Apague a branch remota.
@@ -22,7 +21,7 @@
 
 **Verificação**
 ```bash
-python3 scripts/roadmap.py build --check && git log -1 --format=%s | grep -q 'docs(roadmap): deliver PR #'
+python3 scripts/roadmap.py validate --branch && git log -1 --format=%s | grep -q 'docs(roadmap): deliver '
 ```
 
-**Saída esperada:** `main` com a entrega; `docs/STATUS.md` aponta a próxima tarefa; `docs/roadmap/index.html` atualizado.
+**Saída esperada:** PR mergeado com o item `done`; o workflow `roadmap-sync` regenera `docs/STATUS.md` e `docs/roadmap/index.html` na `main`.
