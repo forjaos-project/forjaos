@@ -180,8 +180,10 @@
       ],
       "phase": "0",
       "title": "Org GitHub + GHCR + cosign: segredos e permissões do repositório",
-      "status": "todo",
-      "scope": ".github/"
+      "status": "doing",
+      "scope": ".github/",
+      "agent": "claude",
+      "claimed_at": "2026-11-08"
     },
     {
       "id": "F0-002",
