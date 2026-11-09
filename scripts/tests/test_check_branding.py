@@ -82,10 +82,24 @@ class BrandingCheckTests(unittest.TestCase):
     def test_rejects_visible_text_and_branded_path(self):
         self.write("etc/issue", "ForjaOS\nWelcome to Universal Blue\n")
         self.write("usr/share/wallpapers/Bazzite/default.svg", "<svg></svg>")
+        self.write("usr/share/plasma/look-and-feel/org.forjaos.desktop/colors.colors", "Title=Bluefin\n")
         result, report = self.check(packages="forjaos-branding\n")
         self.assertEqual(result.returncode, 1)
         self.assertTrue(any(f["path"] == "/etc/issue" and f["line"] == 2 for f in report["findings"]))
         self.assertTrue(any("Bazzite" in f["path"] and f["kind"] == "path" for f in report["findings"]))
+        self.assertTrue(any(f["path"].endswith("colors.colors") and f["kind"] == "text" for f in report["findings"]))
+
+    def test_rejects_branded_symlink_target(self):
+        target = self.root / "usr/share/icons/hicolor/32x32/apps/start-here.png"
+        target.parent.mkdir(parents=True)
+        self.write("usr/share/icons/hicolor/32x32/apps/fedora-logo.png", "PNG")
+        try:
+            target.symlink_to("fedora-logo.png")
+        except OSError as error:
+            self.skipTest(f"symlinks unavailable: {error}")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1)
+        self.assertTrue(any(f["path"].endswith("start-here.png") and f["kind"] == "path" for f in report["findings"]))
 
     def test_rejects_missing_forjaos_branding_package(self):
         result, report = self.check(packages="some-other-package\n")
@@ -97,6 +111,16 @@ class BrandingCheckTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(report["status"], "error")
         self.assertTrue(any(f["kind"] == "inspection" for f in report["findings"]))
+
+    def test_directory_symlink_is_not_read_as_a_file(self):
+        linked = self.root / "etc/xdg/systemd/user"
+        linked.parent.mkdir(parents=True)
+        try:
+            linked.symlink_to("/etc", target_is_directory=True)
+        except OSError as error:
+            self.skipTest(f"symlinks unavailable: {error}")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
 
     def test_json_is_deterministic(self):
         self.write("etc/motd", "Bluefin\n")

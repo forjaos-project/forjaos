@@ -1,20 +1,44 @@
 #!/usr/bin/env bash
-# check-branding.sh — FR-002 / G4: nenhuma marca Fedora, Bazzite ou Bluefin visível na imagem ForjaOS.
-#
-# ESTADO: STUB. A implementação real é o item F0-004 do roadmap (docs/STATUS.md). Até lá, este script
-# documenta o que vai verificar e sai 0 para não bloquear o CI de documentação.
-#
-# O que a versão real fará (sobre a imagem OCI construída, via `podman run --rm <imagem> …` ou sobre o rootfs extraído):
-#   1. /etc/os-release: NAME="ForjaOS", ID=forjaos, PRETTY_NAME começa com "ForjaOS"; ID_LIKE="fedora" é permitido (FR-003).
-#   2. Pacotes proibidos presentes: fedora-logos, fedora-release-identity-*, bazzite-branding*, bluefin-*; exige forjaos-branding.
-#   3. Strings em superfícies visíveis: /usr/share/plymouth/themes/default.plymouth, /etc/sddm.conf.d/*, /usr/share/wallpapers (default),
-#      /usr/share/plasma/look-and-feel (padrão), /usr/share/kde-settings, /etc/motd, /etc/issue, Discover/Flatpak remotes nomeados.
-#      Falha se encontrar (case-insensitive) "Fedora", "Bazzite", "Bluefin", "Universal Blue" fora de /usr/share/licenses e docs legais.
-#   4. GRUB: /boot/grub2/themes e /etc/default/grub não referenciam tema Fedora; entradas de boot usam "ForjaOS".
-#   5. Ícones: /usr/share/icons/hicolor/*/apps/fedora-logo* ausentes; start-here aponta para o logo ForjaOS.
-#   6. Saída em modo --json para o CI e lista de ocorrências com caminho e linha.
-#
-# Uso previsto: scripts/check-branding.sh [--image ghcr.io/<org>/forjaos-nvidia-open:testing | --rootfs <dir>] [--json]
+# Inspect a ForjaOS rootfs or built OCI image for user-visible inherited branding.
 set -euo pipefail
-echo "check-branding: STUB — implementação real é a tarefa F0-004 (ver docs/STATUS.md). Nada verificado."
-exit 0
+
+usage() {
+  echo "usage: scripts/check-branding.sh (--rootfs DIR | --image IMAGE) [--json]" >&2
+  exit 2
+}
+
+mode=""
+target=""
+json_args=()
+while (($#)); do
+  case "$1" in
+    --rootfs|--image)
+      [[ -z "$mode" && $# -ge 2 && -n "$2" && "$2" != --* ]] || usage
+      mode="$1"
+      target="$2"
+      shift 2
+      ;;
+    --json)
+      ((${#json_args[@]} == 0)) || usage
+      json_args=(--json)
+      shift
+      ;;
+    *) usage ;;
+  esac
+done
+[[ -n "$mode" ]] || usage
+
+checker="$(cd "$(dirname "$0")" && pwd)/check_branding.py"
+if [[ "$mode" == --rootfs ]]; then
+  exec python3 "$checker" --rootfs "$target" "${json_args[@]}"
+fi
+
+if command -v podman >/dev/null 2>&1; then
+  runtime=podman
+elif command -v docker >/dev/null 2>&1; then
+  runtime=docker
+else
+  echo "check-branding: Podman or Docker is required for --image" >&2
+  exit 2
+fi
+exec "$runtime" run --rm -i --entrypoint /usr/bin/python3 "$target" - --rootfs / "${json_args[@]}" < "$checker"

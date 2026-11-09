@@ -26,7 +26,7 @@ VISIBLE_PATHS = (
     "usr/share/flatpak/remotes.d",
     "var/lib/flatpak/repo/config",
 )
-TEXT_SUFFIXES = {"", ".conf", ".desktop", ".ini", ".json", ".plymouth", ".qml", ".svg", ".theme", ".txt", ".xml"}
+TEXT_SUFFIXES = {"", ".colors", ".conf", ".css", ".desktop", ".ini", ".js", ".json", ".layout", ".plymouth", ".qml", ".service", ".svg", ".theme", ".txt", ".xml"}
 LEGAL_PARTS = {"licenses", "doc", "man"}
 
 
@@ -45,6 +45,8 @@ def read_root_file(root, relative):
             break
         target = current.readlink()
         current = root / str(target).lstrip("/") if target.is_absolute() else current.parent / target
+    if current.is_symlink() or not current.resolve(strict=False).is_relative_to(root):
+        raise OSError(f"symlink escapes rootfs or exceeds hop limit: {relative}")
     return current.read_bytes()
 
 
@@ -93,10 +95,13 @@ def check_packages(root, findings):
 def visible_files(root):
     for relative in VISIBLE_PATHS:
         path = root / relative
-        if path.is_file() or path.is_symlink():
+        if (path.is_file() or path.is_symlink()) and not path.is_dir():
             yield path
         elif path.is_dir():
-            yield from (candidate for candidate in path.rglob("*") if candidate.is_file() or candidate.is_symlink())
+            yield from (
+                candidate for candidate in path.rglob("*")
+                if (candidate.is_file() or candidate.is_symlink()) and not candidate.is_dir()
+            )
 
 
 def check_visible(root, findings):
@@ -107,6 +112,8 @@ def check_visible(root, findings):
         display = "/" + relative.as_posix()
         if BRAND.search(display):
             findings.append(finding("path", display, "inherited brand in visible path"))
+        if path.is_symlink() and BRAND.search(str(path.readlink())):
+            findings.append(finding("path", display, f"inherited brand in link target: {path.readlink()}"))
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue
         try:
