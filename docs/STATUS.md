@@ -2,9 +2,9 @@
 
 # Status — ForjaOS
 
-**Atualizado em:** 2026-11-09 · **Itens:** 9/50 feitos (18 %) · 0 em andamento · 41 a fazer · 0 bloqueados
+**Atualizado em:** 2026-11-09 · **Itens:** 10/51 feitos (20 %) · 0 em andamento · 41 a fazer · 0 bloqueados
 
-Regenerar: `python3 scripts/roadmap.py build`. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`.
+Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`. Antes de pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available`.
 
 ## Fase atual
 
@@ -19,6 +19,15 @@ Regenerar: `python3 scripts/roadmap.py build`. Visual: `docs/roadmap/index.html`
 - Estado: a fazer
 
 Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
+
+## Disponíveis agora (trabalho em paralelo)
+
+- `F0-001` Org GitHub + GHCR + cosign: segredos e permissões do repositório · escopo: .github/ · depende de: —
+- `F0-002` Containerfile mínimo FROM bazzite-dx-nvidia-open:stable + os-release ForjaOS · escopo: image/ · depende de: —
+- `F0-006` Logo ForjaOS v1 em SVG (mono, cor, dark/light, ícone 16–512) · escopo: brand/ · depende de: —
+- `F0-007` Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados) · escopo: brand/ · depende de: —
+
+Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY §6).
 
 ## Em andamento
 
@@ -39,6 +48,7 @@ Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
 - `GOV-007` AGENTS.md (fonte única), CLAUDE.md (@AGENTS.md), comandos /plan /code /test /review /ship, AGENTS.md por pasta (NFR-042) · fase 0 — 2026-11-08
 - `GOV-008` PR template, check-agents-sync.sh, stub check-branding.sh, README (NFR-042) · fase 0 — 2026-11-08
 - `GOV-009` Higiene do repositório: .gitignore, .gitattributes (LF), remoção de .pyc e .lnk, nome forjaos-project/forjaos (NFR-042) · fase 0 — 2026-11-09
+- `GOV-010` Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, gerados só na main (NFR-042) · fase 0 — PR #2 · 2026-11-09
 
 ## A fazer (por fase)
 
@@ -103,5 +113,6 @@ Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
 
 ## Entregas (mais recentes primeiro)
 
+- **2026-11-09** · PR #2 · Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, available lendo branches remotas, gerados regenerados na main pelo workflow roadmap-sync · itens: GOV-010
 - **2026-11-09** · sem PR · Higiene do repositório: .gitignore e .gitattributes (LF), .pyc e .lnk fora do índice, nome do repositório corrigido em ADR-026 e PRD; repositório público após scan de segredos sem achados · itens: GOV-009
 - **2026-11-08** · sem PR · Metodologia executável e governança: ADRs, palette canônico, metodologia de 5 gates, design rules, specs das 16 telas, roadmap gerado, AGENTS.md/CLAUDE.md · itens: GOV-001, GOV-002, GOV-003, GOV-004, GOV-005, GOV-006, GOV-007, GOV-008
