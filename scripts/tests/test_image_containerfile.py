@@ -14,6 +14,10 @@ class ImageContainerfileTests(unittest.TestCase):
         self.assertIn("--icons-dir /tmp/forjaos-icons", SOURCE)
         self.assertIn("--image-name \"${IMAGE_NAME}\"", SOURCE)
 
+    def test_branding_rpm_transaction_precedes_identity_rewrite(self):
+        self.assertIn("COPY --from=branding-builder", SOURCE)
+        self.assertLess(SOURCE.index("dnf install"), SOURCE.index("configure_image.py \\"))
+
 
 if __name__ == "__main__":
     unittest.main()
