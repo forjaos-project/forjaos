@@ -409,7 +409,10 @@
       ],
       "phase": "1",
       "title": "Tema Plasma Forja (escuro/claro), layout padrão, wallpapers, atalhos — telas desktop_principal_dock / modo_claro",
-      "status": "todo"
+      "status": "doing",
+      "agent": "codex",
+      "scope": ".",
+      "claimed_at": "2026-11-10"
     },
     {
       "id": "F1-007",
