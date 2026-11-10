@@ -12,11 +12,8 @@
   <path d="M160 187 L132 91 181 132 199 201Z M352 187 L380 91 331 132 313 201Z" fill="#ffe9df"/>
   <path d="M108 46 149 81 130 119Z M404 46 363 81 382 119Z" fill="#0a0d14"/>
 </g>
-<g id="eyes">
-  <path d="M181 299 Q209 280 237 298 Q209 313 181 299Z M331 299 Q303 280 275 298 Q303 313 331 299Z" fill="#0a0d14"/>
-  <circle cx="214" cy="296" r="4" fill="#ffe9df"/><circle cx="298" cy="296" r="4" fill="#ffe9df"/>
-</g>
-<g id="mouth"><path d="M230 423 Q256 435 282 423" fill="none" stroke="#0a0d14" stroke-width="8" stroke-linecap="round"/></g>
-<g id="glow"><circle cx="256" cy="252" r="235" fill="none" stroke="#94a3b8" stroke-width="8" opacity="0.7"/></g>
-<g id="badge"><circle cx="416" cy="110" r="15" fill="#94a3b8" stroke="#0a0d14" stroke-width="5"/></g>
+<g id="eyes"><ellipse cx="209" cy="296" rx="21" ry="15" fill="#0a0d14"/><ellipse cx="303" cy="296" rx="21" ry="15" fill="#0a0d14"/><circle cx="213" cy="291" r="5" fill="#ffe9df"/><circle cx="307" cy="291" r="5" fill="#ffe9df"/></g>
+<g id="mouth"><path d="M237 423 Q256 431 275 423" fill="none" stroke="#0a0d14" stroke-width="7" stroke-linecap="round"/></g>
+<g id="glow"><circle cx="256" cy="252" r="235" fill="none" stroke="#00e5ff" stroke-width="8" opacity="0.7"/></g>
+<g id="badge"><circle cx="416" cy="110" r="11" fill="#00e5ff"/><path d="M394 91 Q379 110 394 129 M438 91 Q453 110 438 129" fill="none" stroke="#00e5ff" stroke-width="7" stroke-linecap="round"/></g>
 </svg>

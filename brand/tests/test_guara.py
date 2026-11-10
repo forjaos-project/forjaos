@@ -6,6 +6,8 @@ import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from brand.mascot.build_guara import render
+
 
 ROOT = Path(__file__).resolve().parents[2]
 MASCOT = ROOT / "brand" / "mascot"
@@ -57,6 +59,27 @@ class GuaraStructureTests(unittest.TestCase):
                 self.assertNotRegex(svg, r"(?:href|url)=[\"']https?://")
                 self.assertLessEqual({color.lower() for color in HEX.findall(svg)}, permitted)
                 self.assertNotIn("#000000", svg.lower())
+
+    def test_state_expressions_are_distinct(self):
+        for layer in ("eyes", "mouth", "glow", "badge"):
+            variants = []
+            for state in STATES:
+                root = ET.fromstring(self.svg(state))
+                variants.append(ET.tostring(root.find(f"{SVG_NS}g[@id='{layer}']")))
+            self.assertEqual(len(set(variants)), len(STATES), layer)
+
+    def test_state_ring_uses_declared_color(self):
+        colors = PALETTE["themes"]["dark"]["colors"]
+        for state, token in PALETTE["mascot"]["state_colors"].items():
+            with self.subTest(state=state):
+                root = ET.fromstring(self.svg(state))
+                glow = root.find(f"{SVG_NS}g[@id='glow']")
+                self.assertIn(colors[token], ET.tostring(glow, encoding="unicode"))
+
+    def test_versioned_svgs_match_generator(self):
+        for state in STATES:
+            with self.subTest(state=state):
+                self.assertEqual(self.svg(state), render(state, PALETTE))
 
 
 if __name__ == "__main__":
