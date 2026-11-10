@@ -123,6 +123,23 @@ class PlasmaImageTests(unittest.TestCase):
             for name in ("default.jxl", "default-dark.jxl"):
                 self.assertEqual((backgrounds / name).readlink(), Path("/usr/share/wallpapers/convergence.jxl"))
 
+    def test_rebrands_active_vapor_first_login_launcher_without_editing_etc(self):
+        spec = importlib.util.spec_from_file_location("configure_plasma", PROFILE)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            setup = root / "usr/share/plasma/look-and-feel/com.valve.vapor.desktop/contents/plasmoidsetupscripts/org.kde.plasma.kickoff.js"
+            setup.parent.mkdir(parents=True)
+            setup.write_text('applet.writeConfig("icon", "distributor-logo-steamdeck")\n', encoding="utf-8")
+            config = root / "etc/xdg/kdeglobals"
+            config.parent.mkdir(parents=True)
+            config.write_text("[KDE]\nLookAndFeelPackage=com.valve.vapor.desktop\n", encoding="utf-8")
+            module.rebrand_first_login_launcher(root)
+            self.assertIn('applet.writeConfig("icon", "start-here")', setup.read_text(encoding="utf-8"))
+            self.assertEqual(config.read_text(encoding="utf-8"),
+                             "[KDE]\nLookAndFeelPackage=com.valve.vapor.desktop\n")
+
 
 if __name__ == "__main__":
     unittest.main()

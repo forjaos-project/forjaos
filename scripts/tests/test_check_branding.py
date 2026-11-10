@@ -129,6 +129,19 @@ class BrandingCheckTests(unittest.TestCase):
         result, report = self.check(packages="forjaos-branding\n")
         self.assertEqual(result.returncode, 0, report)
 
+    def test_rejects_active_first_login_launcher_icon(self):
+        self.write("etc/xdg/kdeglobals", "[KDE]\nLookAndFeelPackage=com.valve.vapor.desktop\n")
+        setup = "usr/share/plasma/look-and-feel/com.valve.vapor.desktop/contents/plasmoidsetupscripts/org.kde.plasma.kickoff.js"
+        self.write(setup, 'applet.writeConfig("icon", "distributor-logo-steamdeck")\n')
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertTrue(any(f["kind"] == "image" and f["path"].endswith("org.kde.plasma.kickoff.js")
+                            for f in report["findings"]), report)
+
+        self.write(setup, 'applet.writeConfig("icon", "start-here")\n')
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
+
     def test_rejects_missing_or_wrong_identity(self):
         (self.root / "etc/os-release").write_text('NAME="Bazzite"\nID=bazzite\n', encoding="utf-8")
         result, report = self.check(packages="forjaos-branding\n")

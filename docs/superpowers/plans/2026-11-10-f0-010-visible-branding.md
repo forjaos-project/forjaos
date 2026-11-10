@@ -56,6 +56,13 @@
 - Replace the unowned legacy `convergence.jxl` artwork with a JPEG XL conversion of the approved ForjaOS dark wallpaper, preserve the existing `/etc/xdg/kscreenlockerrc` path without editing `/etc`, and remove the unowned legacy PNG. Keep Plasma Login's packaged default setting valid; add a checker invariant for its resolved wallpaper.
 - DoD: the login and lock-screen wallpaper paths resolve to ForjaOS artwork in both image variants, the checker detects the previous candidate, and a fresh VM login no longer shows Bazzite art. Commit `fix(image): replace inherited login wallpaper`.
 
+### 8. First-login launcher regression found in VM (FR-002, ADR-033)
+
+- Files: `image/build_files/configure_plasma.py`, `scripts/check_branding.py`, `scripts/tests/test_plasma_image.py`, `scripts/tests/test_check_branding.py`.
+- Test first: an active Plasma look-and-feel preset that writes an inherited launcher icon fails; `start-here` passes. Confirm the original image has the inherited icon.
+- Replace the icon written by the active Vapor first-login script with the ForjaOS `start-here` asset under `/usr/share`, leaving the Steam/Deck application functions and `/etc` untouched.
+- DoD: the checker detects the original image, both rebuilt images pass, and a fresh VM account shows the ForjaOS launcher. Commit `fix(review): rebrand first-login launcher icon`.
+
 ## Scope boundary
 
 F1-006 still owns the complete FR-050/052/058 DoD: instant light/dark switching, all required panel/dock items, all five shortcuts, and matching desktop comparisons. This F0 item only removes the visible inherited brand that blocks the phase-0 image pipeline.
