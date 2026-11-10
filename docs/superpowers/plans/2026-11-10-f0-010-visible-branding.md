@@ -1,6 +1,6 @@
 # F0-010 Visible Branding Gate
 
-**Goal:** Close issue #25 by replacing inherited Fedora/Bazzite desktop art and visible application metadata, then publish both signed `:testing` images with a checker that covers the menu and Discover.
+**Goal:** Close issue #25 by replacing inherited Fedora/Bazzite desktop art and visible application metadata, then publish both signed `:testing` images with a checker that covers the menu and the installed application catalog.
 
 **Architecture:** Ship the approved ForjaOS wallpaper and Guara art in a small Plasma RPM. Preserve the Fedora KDE dependency graph through exact base RPM capabilities and a narrow `/usr/share` overlay. Remove the unneeded Bazzite Portal package; hide or remove branded launcher and AppStream records without changing `/etc` or gaming functionality. Extend the checker to inspect user-visible desktop entries and application metadata. Keep the fuller panel layout, theme switching and HERO shortcuts in F1-006.
 
@@ -29,17 +29,17 @@
 - Build both image variants and run `dnf check`, `rpm -V forjaos-plasma`, `bootc container lint`, and unchanged checker. Mutate a disposable image to prove checker failure.
 - DoD: zero inherited brand findings under existing scanned paths in both images. Commit `feat(image): install Forja desktop branding`.
 
-### 4. Menu and Discover gap from clean review (FR-002, NFR-024)
+### 4. Menu and application catalog gap from clean review (FR-002, NFR-024)
 
 - Files: `scripts/check_branding.py`, `scripts/tests/test_check_branding.py`, `image/build_files/configure_plasma.py`, `image/Containerfile`, `scripts/tests/test_plasma_image.py`.
-- Test first: a visible `.desktop` with branded Name/Comment/Icon and an AppStream desktop-application with branded Name/Summary fail, while hidden/internal command names do not create false positives. Run red.
+- Test first: a visible `.desktop` with branded Name/Comment/Icon and an AppStream desktop-application or operating-system entry with branded Name/Summary fail, while hidden/internal command names do not create false positives. Run red.
 - Remove the unneeded Bazzite Portal RPM, remove unowned documentation/forum launchers, and remove Bazzite Updater AppStream metadata while keeping the CLI and Steam/Deck scripts. No `/etc` changes.
-- DoD: menu/Discover metadata no longer advertises Bazzite/Bluefin/Universal Blue; checker passes on both images and fails against disposable brand regression. Commit `fix(image): remove visible inherited applications`.
+- DoD: menu/AppStream metadata no longer advertises Fedora/Bazzite/Bluefin/Universal Blue; checker passes on both images and fails against disposable brand regression. Remove the unused Fira Code font and Fedora OS catalog component. Commit `fix(image): remove visible inherited applications` and `fix(review): remove inherited OS metadata and font`.
 
 ### 5. Visual proof, review and ship (FR-002, ADR-033)
 
 - Files: `docs/evidence/f0-010/`, `docs/roadmap/roadmap.json` (only F0-010).
-- Run root tests, brand tests, image build/checker, token and spec checks. Publish signed candidate images on the feature branch. In the disposable `ForjaOS-Test` VM, inspect desktop launcher and Discover, capturing actual ForjaOS wallpaper and no visible Bazzite entries; record the exact image digest. Do not claim hardware acceptance from this VM.
+- Run root tests, brand tests, image build/checker, token and spec checks. Publish signed candidate images on the feature branch. In the disposable `ForjaOS-Test` VM, inspect desktop launcher and the installed application catalog, capturing actual ForjaOS wallpaper and no visible Bazzite entries; record the exact image digest. Do not claim hardware acceptance from this VM. The PRD's Discover-vs-Bazaar divergence is tracked in issue #40; the current base installs Bazaar.
 - Open the PR with command outputs, obtain independent clean-context `review: 8/8` and visual evidence, require green CI, mark F0-010 done, squash merge, then run `daily-image` on main and confirm both signed `:testing` digests before closing #25.
 
 ## Scope boundary

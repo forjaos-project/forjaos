@@ -353,14 +353,14 @@
         "FR-055"
       ],
       "phase": "0",
-      "title": "Eliminar branding visível no Plasma, launchers e Discover e publicar imagens testing assinadas",
+      "title": "Eliminar branding visível no Plasma, launchers e metadados de aplicativos e publicar imagens testing assinadas",
       "status": "doing",
       "scope": ".",
       "depends_on": [
         "F0-007",
         "F0-009"
       ],
-      "notes": "Correção objetiva da issue #25. Entrega ativos visuais mínimos e amplia o checker; F1-006 mantém layout, alternância de tema e atalhos completos.",
+      "notes": "Correção objetiva da issue #25. Entrega ativos visuais mínimos e amplia o checker; F1-006 mantém layout, alternância de tema e atalhos completos. A divergência Discover/Bazaar está na issue #40.",
       "agent": "codex",
       "claimed_at": "2026-11-10"
     },
