@@ -8,3 +8,7 @@ Registro exigido pelo DoD de `brand/AGENTS.md`. Política geral no ADR-007: cód
 | Gerador e extrator do logo | `brand/logo/build_logo.py`, `brand/logo/extract_wordmark.py` | Apache-2.0 (ADR-007) | Código próprio |
 | Plus Jakarta Sans 700 (contornos do wordmark em `brand/logo/src/wordmark.json`) | `brand/logo/src/wordmark.json` | OFL-1.1 | The Plus Jakarta Sans Project Authors, https://github.com/tokotype/PlusJakartaSans; obtida via npm `@fontsource/plus-jakarta-sans` 5.3.0. A OFL permite incorporar os contornos em logotipos; o arquivo de fonte não é redistribuído aqui |
 | Ferramentas do extrator (não distribuídas) | — | fontTools: MIT · uharfbuzz: Apache-2.0 | Usadas só para gerar `wordmark.json` |
+| Guará estático v1 (cinco estados SVG) | `brand/mascot/guara-*.svg` | CC BY-SA 4.0 (arte, ADR-007) | Arte vetorial própria, desenhada para o projeto a partir da direção A aprovada pelo mantenedor |
+| Gerador do Guará | `brand/mascot/build_guara.py` | Apache-2.0 (ADR-007) | Código próprio; usa somente a biblioteca padrão Python e `palette.json` |
+| Prévia de conceito do Guará | `brand/mascot/preview/guara-concepts-2026-11-10.png` | Referência visual, não distribuída na imagem | Gerada com OpenAI image_gen para comparar três direções; a opção A foi aprovada e redesenhada em SVG próprio |
+| Comparação dos estados do Guará | `brand/mascot/preview/guara-states-2026-11-10.png` | CC BY-SA 4.0 (arte, ADR-007) | Renderização dos cinco SVGs próprios em 256 e 24 px usando ImageMagick da base Fedora |
