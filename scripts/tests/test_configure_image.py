@@ -86,7 +86,7 @@ class ConfigureImageTests(unittest.TestCase):
             '    export MOTD_TIP_DIRECTORY="${MOTD_TIP_DIRECTORY:-/usr/share/ublue-os/motd/tips/sv}"\n'
             '    ;;\n'
             'esac\n'
-            "GREENBOOT='Boot Status: Healthy'\n",
+            "GREENBOOT='Boot Status: Healthy 󰄳'\n",
             encoding="utf-8",
         )
         self.key = self.root / "source.pub"

@@ -18,6 +18,14 @@ REGISTRIES_D_CONTENT = f"docker:\n  {REGISTRY}:\n    use-sigstore-attachments: t
 MOTD_DIR = "usr/share/ublue-os/motd"
 MOTD_TEMPLATES = {
     "template.md": (
+        "# Bem-vindo ao ForjaOS\n"
+        "󱋩 `${MOTD_IMAGE_NAME}:${MOTD_IMAGE_BRANCH}`\n"
+        "󰟀 `${MOTD_GREENBOOT}`\n\n"
+        "${MOTD_TIP}\n"
+        f"- [Relatar problema]({ISSUES_URL})\n"
+        f"- [Documentação do projeto]({PROJECT_URL})\n"
+    ),
+    "template.en.md": (
         "# Welcome to ForjaOS\n"
         "󱋩 `${MOTD_IMAGE_NAME}:${MOTD_IMAGE_BRANCH}`\n"
         "󰟀 `${MOTD_GREENBOOT}`\n\n"
@@ -35,7 +43,8 @@ MOTD_TEMPLATES = {
     ),
 }
 MOTD_TIPS = {
-    "tips/10-forjaos.md": "ForjaOS: use `bootc status` to inspect the active image and pending update.\n",
+    "tips/10-forjaos.md": "ForjaOS: use `bootc status` para ver a imagem ativa e a atualização pendente.\n",
+    "tips/en/10-forjaos.md": "ForjaOS: use `bootc status` to inspect the active image and pending update.\n",
     "tips/sv/10-forjaos.md": "ForjaOS: använd `bootc status` för att visa aktiv avbild och väntande uppdatering.\n",
 }
 
@@ -79,17 +88,44 @@ def update_os_release(source: str, image_name: str) -> str:
 def configure_motd(root: Path) -> None:
     """Replace unowned inherited login-shell copy without changing the MOTD renderer."""
     motd = root / MOTD_DIR
-    if not motd.is_dir() or any(not (motd / name).is_file() for name in MOTD_TEMPLATES):
+    if not motd.is_dir() or any(not (motd / name).is_file() for name in ("template.md", "template.sv.md")):
         raise ValueError("base terminal banner is missing")
     tips = motd / "tips"
     if not tips.is_dir() or not (tips / "sv").is_dir():
         raise ValueError("base terminal tips are missing")
+    env = motd / "env.sh"
+    source = env.read_text(encoding="utf-8")
+    locale_case = 'case "${LC_MESSAGES:-${LANG:-C}}" in\n'
+    greenboot = "GREENBOOT='Boot Status: Healthy 󰄳'"
+    if "template.en.md" not in source:
+        if source.count(locale_case) != 1 or source.count(greenboot) != 1:
+            raise ValueError("unexpected base terminal locale configuration")
+        source = source.replace(
+            locale_case,
+            locale_case
+            + '  en*)\n'
+            + '    export MOTD_TEMPLATE_FILE="${MOTD_TEMPLATE_FILE:-/usr/share/ublue-os/motd/template.en.md}"\n'
+            + '    export MOTD_TIP_DIRECTORY="${MOTD_TIP_DIRECTORY:-/usr/share/ublue-os/motd/tips/en}"\n'
+            + '    ;;\n',
+        )
+        source = source.replace(
+            greenboot,
+            'case "${LC_MESSAGES:-${LANG:-C}}" in\n'
+            "      en*) GREENBOOT='Boot Status: Healthy 󰄳' ;;\n"
+            "      sv*) GREENBOOT='Startstatus: hälsosam 󰄳' ;;\n"
+            "      *) GREENBOOT='Estado da inicialização: saudável 󰄳' ;;\n"
+            "    esac",
+        )
+    elif source.count("template.en.md") != 1 or "Estado da inicialização: saudável" not in source:
+        raise ValueError("unexpected ForjaOS terminal locale configuration")
     for path in tips.rglob("*.md"):
         path.unlink()
+    (tips / "en").mkdir(exist_ok=True)
     for name, content in MOTD_TEMPLATES.items():
         (motd / name).write_text(content, encoding="utf-8")
     for name, content in MOTD_TIPS.items():
         (motd / name).write_text(content, encoding="utf-8")
+    env.write_text(source, encoding="utf-8")
 
 
 def configure(root: Path, public_key: Path, image_name: str, icons_dir: Path) -> None:
