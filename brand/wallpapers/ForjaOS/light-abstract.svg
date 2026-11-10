@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160" data-theme="light" data-kind="abstract">
+<defs>
+  <linearGradient id="wall-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8fafc"/><stop offset="1" stop-color="#f1f5f9"/></linearGradient>
+</defs>
+<rect width="3840" height="2160" fill="url(#wall-bg)"/>
+<path d="M-200 1610 C680 1060 1180 1880 2160 1290 S3410 900 4050 1270 L4050 2250 H-200Z" fill="#4f46e5" opacity="0.13"/>
+<path d="M-200 1910 C670 1340 1340 2200 2310 1590 S3550 1300 4050 1710 L4050 2250 H-200Z" fill="#0284c7" opacity="0.16"/>
+<path d="M-200 2080 C750 1730 1520 2360 2520 1880 S3500 1680 4050 1940 L4050 2250 H-200Z" fill="#ea580c" opacity="0.08"/>
+<path d="M-100 1530 C760 980 1300 1760 2220 1200 S3480 820 3970 1100" fill="none" stroke="#0284c7" stroke-width="10" opacity="0.28"/>
+<path d="M-100 1770 C740 1230 1430 2020 2370 1480 S3500 1180 3970 1480" fill="none" stroke="#4f46e5" stroke-width="8" opacity="0.24"/>
+
+</svg>
