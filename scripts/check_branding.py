@@ -236,6 +236,35 @@ def check_applications(root, findings):
                 break
 
 
+def check_initramfs_logo(root, findings):
+    """The boot splash uses a copy of the logo baked into each initramfs."""
+    modules = resolve_root_path(root, "usr/lib/modules")
+    if not modules.exists():
+        return
+    try:
+        logo = read_root_file(root, "usr/share/pixmaps/system-logo-white.png")
+        images = sorted(modules.glob("*/initramfs.img"))
+    except OSError as error:
+        findings.append(finding("inspection", "/usr/share/pixmaps/system-logo-white.png", str(error)))
+        return
+    for image in images:
+        display = "/" + image.relative_to(root).as_posix()
+        try:
+            result = subprocess.run(
+                ["lsinitrd", "-f", "usr/share/pixmaps/system-logo-white.png", str(image)],
+                capture_output=True,
+                check=False,
+            )
+        except OSError as error:
+            findings.append(finding("inspection", display, str(error)))
+            continue
+        if result.returncode:
+            detail = result.stderr.decode("utf-8", errors="replace").strip()
+            findings.append(finding("inspection", display, detail or f"lsinitrd exited {result.returncode}"))
+        elif result.stdout != logo:
+            findings.append(finding("image", display, "boot splash logo differs from ForjaOS rootfs logo"))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rootfs", type=Path, required=True)
@@ -250,6 +279,7 @@ def main():
         check_packages(root, findings)
         check_visible(root, findings)
         check_applications(root, findings)
+        check_initramfs_logo(root, findings)
     findings.sort(key=lambda item: (item["path"], item.get("line", 0), item["kind"], item["value"]))
     status = "error" if any(item["kind"] == "inspection" for item in findings) else "fail" if findings else "ok"
     report = {"status": status, "findings": findings}

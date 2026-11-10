@@ -26,6 +26,7 @@ COPY image/build_files/configure_plasma.py /tmp/configure_plasma.py
 COPY cosign.pub /tmp/forjaos.pub
 COPY brand/logo/png/ /tmp/forjaos-icons/
 COPY image/build_files/configure_startup.sh /tmp/configure_startup.sh
+COPY image/build_files/rebuild_initramfs.sh /tmp/rebuild_initramfs.sh
 
 RUN python3 /tmp/configure_image.py \
       --root / \
@@ -34,7 +35,8 @@ RUN python3 /tmp/configure_image.py \
       --icons-dir /tmp/forjaos-icons \
     && python3 /tmp/configure_plasma.py --root / \
     && bash /tmp/configure_startup.sh / \
+    && bash /tmp/rebuild_initramfs.sh \
     && rm /tmp/configure_image.py /tmp/configure_plasma.py /tmp/forjaos.pub /tmp/forjaos-icons/* \
-    && rm /tmp/configure_startup.sh \
+    && rm /tmp/configure_startup.sh /tmp/rebuild_initramfs.sh \
     && rmdir /tmp/forjaos-icons \
     && bootc container lint
