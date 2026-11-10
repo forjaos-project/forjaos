@@ -14,3 +14,4 @@ Registro exigido pelo DoD de `brand/AGENTS.md`. Política geral no ADR-007: cód
 | Comparação dos estados do Guará | `brand/mascot/preview/guara-states-2026-11-10.png` | CC BY-SA 4.0 (arte, ADR-007) | Renderização dos cinco SVGs próprios em 256 e 24 px usando ImageMagick da base Fedora |
 | Wallpapers ForjaOS (quatro variantes 4K) | `brand/wallpapers/ForjaOS/` | CC BY-SA 4.0 (arte, ADR-007) | Ondas vetoriais geradas de `brand/palette.json`; variantes com mascote incorporam os SVGs próprios do Guará |
 | Gerador de wallpapers | `brand/wallpapers/build_wallpapers.py` | Apache-2.0 (ADR-007) | Código próprio; usa somente a biblioteca padrão Python e os recursos versionados do projeto |
+| Tema Plasma Forja (esquemas, painel, layout e splash) | `brand/plasma/` | CC BY-SA 4.0 (arte e tema, ADR-007); gerador Apache-2.0 | Componentes próprios derivados de `brand/palette.json`, sem copiar recursos de temas de terceiros |

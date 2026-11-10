@@ -1,0 +1,13 @@
+{
+  "KPlugin": {
+    "Id": "forja-dark",
+    "Name": "Forja Dark",
+    "Description": "ForjaOS Plasma theme",
+    "License": "CC BY-SA 4.0",
+    "Authors": [
+      {
+        "Name": "ForjaOS project"
+      }
+    ]
+  }
+}
