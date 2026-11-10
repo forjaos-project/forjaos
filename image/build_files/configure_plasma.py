@@ -52,6 +52,16 @@ def remove_directory(root: Path, relative: str) -> None:
     path.rmdir()
 
 
+def remove_inherited_apps(root: Path) -> None:
+    """Drop unowned branded launchers and updater catalog data, retaining executables."""
+    for relative in (
+        "usr/share/applications/bazzite-documentation.desktop",
+        "usr/share/applications/discourse.desktop",
+        "usr/share/metainfo/io.github.rfrench3.bazzite-updater.metainfo.xml",
+    ):
+        remove_file(root, relative)
+
+
 def configure(root: Path) -> None:
     share = f"{PROFILE}/share"
     xdg = f"{PROFILE}/xdg"
@@ -117,6 +127,7 @@ def configure(root: Path) -> None:
     for relative in VISIBLE_WALLPAPERS:
         remove_file(root, relative)
     remove_directory(root, "usr/share/wallpapers/bazzite")
+    remove_inherited_apps(root)
 
 
 def main() -> None:

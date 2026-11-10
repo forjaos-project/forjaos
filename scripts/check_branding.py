@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import xml.etree.ElementTree as ET
 
 
 BRAND = re.compile(r"fedora|bazzite|bluefin|universal[ -]blue", re.IGNORECASE)
@@ -172,6 +173,67 @@ def check_visible(root, findings):
                 findings.append(finding("text", display, match.group(), number))
 
 
+def application_files(root, directory, suffix, findings):
+    """Yield metadata files through the same rootfs link resolution as visible assets."""
+    try:
+        path = resolve_root_path(root, directory)
+        if not path.exists():
+            return
+        if not path.is_dir():
+            raise OSError("application metadata path is not a directory")
+        for child in sorted(path.iterdir()):
+            if child.suffix == suffix:
+                yield Path(directory) / child.name
+    except OSError as error:
+        findings.append(finding("inspection", "/" + directory, str(error)))
+
+
+def check_applications(root, findings):
+    """Inspect labels/icons shown by the launcher and Discover, not internal Exec paths."""
+    for relative in application_files(root, "usr/share/applications", ".desktop", findings):
+        display = "/" + relative.as_posix()
+        try:
+            lines = read_root_file(root, relative).decode("utf-8").splitlines()
+        except (OSError, UnicodeError) as error:
+            findings.append(finding("inspection", display, str(error)))
+            continue
+        in_entry = False
+        hidden = False
+        labels = []
+        for number, line in enumerate(lines, 1):
+            if line.startswith("[") and line.endswith("]"):
+                in_entry = line == "[Desktop Entry]"
+                continue
+            if not in_entry or "=" not in line or line.startswith("#"):
+                continue
+            key, value = line.split("=", 1)
+            if key in ("NoDisplay", "Hidden") and value.strip().lower() == "true":
+                hidden = True
+            if key.split("[", 1)[0] in ("Name", "GenericName", "Comment", "Keywords", "Icon"):
+                match = BRAND.search(value)
+                if match:
+                    labels.append(finding("text", display, match.group(), number))
+        if not hidden:
+            findings.extend(labels)
+
+    for relative in application_files(root, "usr/share/metainfo", ".xml", findings):
+        display = "/" + relative.as_posix()
+        try:
+            component = ET.fromstring(read_root_file(root, relative))
+        except (OSError, ET.ParseError) as error:
+            findings.append(finding("inspection", display, str(error)))
+            continue
+        if component.tag != "component" or component.get("type") not in ("desktop", "desktop-application"):
+            continue
+        for element in component.iter():
+            if element.tag not in ("name", "summary", "description", "icon"):
+                continue
+            match = BRAND.search(" ".join(element.itertext()))
+            if match:
+                findings.append(finding("text", display, match.group()))
+                break
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rootfs", type=Path, required=True)
@@ -185,6 +247,7 @@ def main():
         check_identity(root, findings)
         check_packages(root, findings)
         check_visible(root, findings)
+        check_applications(root, findings)
     findings.sort(key=lambda item: (item["path"], item.get("line", 0), item["kind"], item["value"]))
     status = "error" if any(item["kind"] == "inspection" for item in findings) else "fail" if findings else "ok"
     report = {"status": status, "findings": findings}
