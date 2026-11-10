@@ -1,6 +1,7 @@
 """ForjaOS wallpaper contracts (FR-055, ADR-027)."""
 
 import json
+import base64
 from pathlib import Path
 import re
 import struct
@@ -40,8 +41,15 @@ class WallpaperTests(unittest.TestCase):
                 svg = (WALLPAPERS / f"{stem}.svg").read_text(encoding="utf-8")
                 self.assertIn('viewBox="0 0 3840 2160"', svg)
                 self.assertLessEqual({color.lower() for color in HEX.findall(svg)}, permitted)
-                self.assertNotRegex(svg.lower(), r'fedora|bazzite|bluefin|<image|(?:href|xlink:href)="https?://')
+                self.assertNotRegex(svg.lower(), r'fedora|bazzite|bluefin|(?:href|xlink:href)="https?://')
+                if stem.endswith("abstract"):
+                    self.assertNotIn("<image", svg)
                 self.assertEqual('id="mascot"' in svg, stem.endswith("guara"))
+                if stem.endswith("guara"):
+                    encoded = re.search(r'href="data:image/png;base64,([A-Za-z0-9+/=]+)"', svg)
+                    self.assertIsNotNone(encoded)
+                    self.assertEqual(base64.b64decode(encoded.group(1)),
+                                     (ROOT / "brand/mascot/guara-wallpaper.png").read_bytes())
 
     def test_generated_sources_are_current_and_license_recorded(self):
         result = subprocess.run(
