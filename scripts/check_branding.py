@@ -318,6 +318,20 @@ def check_first_login_launcher(root, findings):
         findings.append(finding("inspection", "/etc/xdg/kdeglobals", str(error)))
 
 
+def check_existing_launcher_icon(root, findings):
+    """Existing Plasma profiles can still point at the old distributor icon name."""
+    icons = "usr/share/icons/hicolor/scalable/places"
+    for name in ("distributor-logo.svg", "distributor-logo-steamdeck.svg"):
+        inherited = f"{icons}/{name}"
+        if not (root / inherited).exists() and not (root / inherited).is_symlink():
+            continue
+        try:
+            if read_root_file(root, inherited) != read_root_file(root, f"{icons}/start-here.svg"):
+                findings.append(finding("image", "/" + inherited, "existing launcher icon differs from ForjaOS"))
+        except OSError as error:
+            findings.append(finding("inspection", "/" + inherited, str(error)))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rootfs", type=Path, required=True)
@@ -335,6 +349,7 @@ def main():
         check_initramfs_logo(root, findings)
         check_login_wallpapers(root, findings)
         check_first_login_launcher(root, findings)
+        check_existing_launcher_icon(root, findings)
     findings.sort(key=lambda item: (item["path"], item.get("line", 0), item["kind"], item["value"]))
     status = "error" if any(item["kind"] == "inspection" for item in findings) else "fail" if findings else "ok"
     report = {"status": status, "findings": findings}

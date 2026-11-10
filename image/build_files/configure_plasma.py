@@ -70,6 +70,15 @@ def rebrand_first_login_launcher(root: Path) -> None:
         'applet.writeConfig("icon", "distributor-logo-steamdeck")':
         'applet.writeConfig("icon", "start-here")',
     })
+    icons = "usr/share/icons/hicolor/scalable/places"
+    forja = within_root(root, f"{icons}/start-here.svg")
+    inherited = within_root(root, f"{icons}/distributor-logo.svg")
+    alias = within_root(root, f"{icons}/distributor-logo-steamdeck.svg")
+    if (not forja.is_file() or not inherited.is_file() or inherited.is_symlink()
+            or not alias.is_symlink() or alias.readlink() != Path("distributor-logo.svg")):
+        raise ValueError("expected ForjaOS launcher icon and unowned inherited icon")
+    inherited.unlink()
+    inherited.symlink_to("start-here.svg")
 
 
 def rebrand_login_art(root: Path) -> None:
