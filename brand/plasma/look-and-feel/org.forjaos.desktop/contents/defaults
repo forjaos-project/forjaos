@@ -1,0 +1,14 @@
+[kdeglobals][General]
+ColorScheme=ForjaDark
+
+[kdeglobals][Icons]
+Theme=breeze
+
+[plasmarc][Theme]
+name=forja-dark
+
+[Wallpaper]
+Image=/usr/share/wallpapers/ForjaOS/dark-abstract.png
+
+[ksplashrc][KSplash]
+Theme=org.forjaos.desktop

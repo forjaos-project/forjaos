@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs><rect id="panel-shape" x="4" y="4" width="56" height="56" rx="12"/></defs>
+  <use href="#panel-shape" fill="#ffffff" fill-opacity="0.84" stroke="#e2e8f0" stroke-width="1"/>
+  <rect id="top" x="24" y="4" width="16" height="20" fill="#ffffff" fill-opacity="0.84"/>
+  <rect id="bottom" x="24" y="40" width="16" height="20" fill="#ffffff" fill-opacity="0.84"/>
+  <rect id="left" x="4" y="24" width="20" height="16" fill="#ffffff" fill-opacity="0.84"/>
+  <rect id="right" x="40" y="24" width="20" height="16" fill="#ffffff" fill-opacity="0.84"/>
+  <rect id="topleft" x="4" y="4" width="20" height="20" fill="#ffffff" fill-opacity="0.84"/>
+  <rect id="topright" x="40" y="4" width="20" height="20" fill="#ffffff" fill-opacity="0.84"/>
+  <rect id="bottomleft" x="4" y="40" width="20" height="20" fill="#ffffff" fill-opacity="0.84"/>
+  <rect id="bottomright" x="40" y="40" width="20" height="20" fill="#ffffff" fill-opacity="0.84"/>
+  <rect id="center" x="24" y="24" width="16" height="16" fill="#ffffff" fill-opacity="0.84"/>
+  <rect id="floating-center" x="24" y="24" width="16" height="16" fill="#ffffff" fill-opacity="0.84"/>
+  <rect id="hint-top-margin" width="1" height="12" fill="#ffffff"/>
+  <rect id="hint-bottom-margin" width="1" height="12" fill="#ffffff"/>
+  <rect id="hint-left-margin" width="12" height="1" fill="#ffffff"/>
+  <rect id="hint-right-margin" width="12" height="1" fill="#ffffff"/>
+  <rect id="floating-hint-top-margin" width="1" height="12" fill="#ffffff"/>
+  <rect id="floating-hint-bottom-margin" width="1" height="12" fill="#ffffff"/>
+  <rect id="floating-hint-left-margin" width="12" height="1" fill="#ffffff"/>
+  <rect id="floating-hint-right-margin" width="12" height="1" fill="#ffffff"/>
+</svg>
