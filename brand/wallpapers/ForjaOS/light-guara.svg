@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160" data-theme="light" data-kind="guara">
+<defs>
+  <linearGradient id="wall-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8fafc"/><stop offset="1" stop-color="#f1f5f9"/></linearGradient>
+  <linearGradient id="fur" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb923c"/><stop offset="1" stop-color="#f97316"/></linearGradient>
+</defs>
+<rect width="3840" height="2160" fill="url(#wall-bg)"/>
+<path d="M-200 1610 C680 1060 1180 1880 2160 1290 S3410 900 4050 1270 L4050 2250 H-200Z" fill="#4f46e5" opacity="0.13"/>
+<path d="M-200 1910 C670 1340 1340 2200 2310 1590 S3550 1300 4050 1710 L4050 2250 H-200Z" fill="#0284c7" opacity="0.16"/>
+<path d="M-200 2080 C750 1730 1520 2360 2520 1880 S3500 1680 4050 1940 L4050 2250 H-200Z" fill="#ea580c" opacity="0.08"/>
+<path d="M-100 1530 C760 980 1300 1760 2220 1200 S3480 820 3970 1100" fill="none" stroke="#0284c7" stroke-width="10" opacity="0.28"/>
+<path d="M-100 1770 C740 1230 1430 2020 2370 1480 S3500 1180 3970 1480" fill="none" stroke="#4f46e5" stroke-width="8" opacity="0.24"/>
+<g id="mascot" transform="translate(2460 320) scale(2.8)" opacity="0.92"><g id="body">
+  <path d="M256 148 C218 150 182 171 160 213 L121 236 148 260 108 285 145 300 119 330 158 345 150 366 191 383 216 431 Q256 456 296 431 L321 383 362 366 354 345 393 330 367 300 404 285 364 260 391 236 352 213 C330 171 294 150 256 148Z" fill="url(#fur)" stroke="#0a0d14" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M256 168 L224 282 256 368 288 282Z" fill="#fb923c" opacity="0.58"/>
+  <path d="M147 338 L208 324 242 368 256 407 216 421Z M365 338 L304 324 270 368 256 407 296 421Z" fill="#ffe9df"/>
+  <path d="M207 357 Q256 329 305 357 L312 411 Q256 451 200 411Z" fill="#ffe9df"/>
+  <path d="M228 390 Q256 379 284 390 L271 411 Q256 421 241 411Z" fill="#0a0d14"/>
+</g>
+<g id="ears">
+  <path d="M157 226 C136 174 122 119 108 46 L178 108 221 207Z M355 226 C376 174 390 119 404 46 L334 108 291 207Z" fill="#f97316" stroke="#0a0d14" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M160 187 L132 91 181 132 199 201Z M352 187 L380 91 331 132 313 201Z" fill="#ffe9df"/>
+  <path d="M108 46 149 81 130 119Z M404 46 363 81 382 119Z" fill="#0a0d14"/>
+</g>
+<g id="eyes"><path d="M181 299 Q209 280 237 298 Q209 313 181 299Z M331 299 Q303 280 275 298 Q303 313 331 299Z" fill="#0a0d14"/><circle cx="214" cy="296" r="4" fill="#ffe9df"/><circle cx="298" cy="296" r="4" fill="#ffe9df"/></g>
+<g id="mouth"><path d="M230 423 Q256 435 282 423" fill="none" stroke="#0a0d14" stroke-width="8" stroke-linecap="round"/></g></g>
+</svg>
