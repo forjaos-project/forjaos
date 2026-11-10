@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Forja Terminal
+Name[pt_BR]=Terminal Forja
+Comment=Open Konsole
+Comment[pt_BR]=Abrir o Konsole
+Exec=konsole
+TryExec=konsole
+Icon=utilities-terminal
+NoDisplay=true
+X-KDE-Shortcuts=Meta+T

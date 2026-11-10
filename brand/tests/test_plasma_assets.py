@@ -103,5 +103,27 @@ class PlasmaThemeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
 
+class FontAndShortcutTests(unittest.TestCase):
+    def test_upstream_ui_font_and_license_are_pinned(self):
+        font = ROOT / "brand/fonts/PlusJakartaSans-VF.ttf"
+        self.assertEqual(font.read_bytes()[:4], b"\x00\x01\x00\x00")
+        self.assertGreater(font.stat().st_size, 100_000)
+        license_text = (ROOT / "brand/fonts/OFL.txt").read_text(encoding="utf-8")
+        self.assertIn("SIL OPEN FONT LICENSE", license_text)
+        licenses = (ROOT / "brand/LICENSES.md").read_text(encoding="utf-8")
+        self.assertIn("brand/fonts/PlusJakartaSans-VF.ttf", licenses)
+        self.assertIn("18d1cd2f7ea10481919d2f05c1f7064b7307fc26", licenses)
+
+    def test_shortcuts_bind_only_available_actions(self):
+        desktop = (ROOT / "brand/shortcuts/org.forjaos.terminal.desktop").read_text(encoding="utf-8")
+        self.assertIn("Exec=konsole", desktop)
+        self.assertIn("TryExec=konsole", desktop)
+        self.assertIn("X-KDE-Shortcuts=Meta+T", desktop)
+        docs = (ROOT / "docs/shortcuts.md").read_text(encoding="utf-8")
+        for key in ("Super+Espaço", "Super+T", "Super+E", "Super+G", "Super+M"):
+            self.assertIn(key, docs)
+        self.assertIn("reservado", docs.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
