@@ -49,6 +49,13 @@
 - Regenerate each installed kernel initramfs after the branding RPM replaces `/usr/share/pixmaps/system-logo-white.png`; do not change the kernel or Secure Boot settings in the distributed image. Compare the embedded and rootfs logo bytes in both rebuilt image variants.
 - DoD: the boot image contains the ForjaOS logo, the checker is green on both variants, and a fresh VM boot no longer shows Bazzite Plymouth artwork. Commit `fix(image): rebuild branded initramfs`.
 
+### 7. Plasma Login wallpaper regression found in VM (FR-002, FR-055, ADR-033)
+
+- Files: `image/build_files/configure_plasma.py`, `scripts/check_branding.py`, `scripts/tests/test_plasma_image.py`, `scripts/tests/test_check_branding.py`.
+- Test first: a rootfs whose Plasma Login default resolves through `default.jxl` to inherited `convergence.jxl` fails; a rootfs whose login and lock-screen wallpaper links resolve to the ForjaOS artwork passes. Confirm the published candidate fails before the image fix.
+- Replace the unowned legacy `convergence.jxl` artwork with a JPEG XL conversion of the approved ForjaOS dark wallpaper, preserve the existing `/etc/xdg/kscreenlockerrc` path without editing `/etc`, and remove the unowned legacy PNG. Keep Plasma Login's packaged default setting valid; add a checker invariant for its resolved wallpaper.
+- DoD: the login and lock-screen wallpaper paths resolve to ForjaOS artwork in both image variants, the checker detects the previous candidate, and a fresh VM login no longer shows Bazzite art. Commit `fix(image): replace inherited login wallpaper`.
+
 ## Scope boundary
 
 F1-006 still owns the complete FR-050/052/058 DoD: instant light/dark switching, all required panel/dock items, all five shortcuts, and matching desktop comparisons. This F0 item only removes the visible inherited brand that blocks the phase-0 image pipeline.
