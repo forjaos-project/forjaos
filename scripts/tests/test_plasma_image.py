@@ -1,7 +1,9 @@
 """F1-006: package the Plasma theme without breaking the Fedora KDE dependency graph."""
 
 from pathlib import Path
+import importlib.util
 import re
+import tempfile
 import unittest
 
 
@@ -59,6 +61,30 @@ class PlasmaImageTests(unittest.TestCase):
 
     def test_identity_rpm_does_not_publish_inherited_icon_aliases(self):
         self.assertNotIn("fedora-logo-icon", IDENTITY_SPEC.read_text(encoding="utf-8"))
+
+    def test_cleanup_removes_only_visible_inherited_apps(self):
+        spec = importlib.util.spec_from_file_location("configure_plasma", PROFILE)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            files = {
+                "usr/share/applications/bazzite-documentation.desktop": "Name=Documentation\nComment=Bazzite docs\n",
+                "usr/share/applications/discourse.desktop": "Name=Discourse\nComment=Universal Blue\n",
+                "usr/share/metainfo/io.github.rfrench3.bazzite-updater.metainfo.xml": "<name>Bazzite Updater</name>",
+                "usr/share/applications/steam.desktop": "Name=Steam\nExec=bazzite-steam\n",
+                "etc/safe": "keep",
+            }
+            for relative, content in files.items():
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            module.remove_inherited_apps(root)
+            for relative in list(files)[:3]:
+                self.assertFalse((root / relative).exists(), relative)
+            self.assertEqual((root / "usr/share/applications/steam.desktop").read_text(), files["usr/share/applications/steam.desktop"])
+            self.assertEqual((root / "etc/safe").read_text(), "keep")
+        self.assertIn("dnf remove -y --no-autoremove bazzite-portal", CONTAINERFILE.read_text())
 
 
 if __name__ == "__main__":
