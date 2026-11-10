@@ -3,6 +3,7 @@
 
 import argparse
 from pathlib import Path
+import subprocess
 
 
 WALLPAPER = "file:///usr/share/wallpapers/ForjaOS/dark-abstract.png"
@@ -62,6 +63,25 @@ def remove_inherited_apps(root: Path) -> None:
         remove_file(root, relative)
 
 
+def rebrand_login_art(root: Path) -> None:
+    """Keep the inherited login paths while replacing their unowned artwork."""
+    source = within_root(root, "usr/share/wallpapers/ForjaOS/dark-abstract.png")
+    legacy = within_root(root, "usr/share/wallpapers/convergence.jxl")
+    output = within_root(root, "usr/share/wallpapers/ForjaOS/dark-abstract.jxl")
+    if not source.is_file() or not legacy.is_file() or legacy.is_symlink() or output.exists():
+        raise ValueError("expected original Plasma Login art and ForjaOS PNG")
+    for name in ("default.jxl", "default-dark.jxl"):
+        link = root / "usr/share/backgrounds" / name
+        if not link.is_symlink() or link.readlink() != Path("/usr/share/wallpapers/convergence.jxl"):
+            raise ValueError(f"unexpected Plasma Login default: {link}")
+    subprocess.run(["magick", str(source), "-strip", "-quality", "100", str(output)], check=True)
+    if not output.is_file() or not output.stat().st_size:
+        raise ValueError("ForjaOS login wallpaper conversion failed")
+    legacy.unlink()
+    legacy.symlink_to("ForjaOS/dark-abstract.jxl")
+    remove_file(root, "usr/share/wallpapers/convergence.png")
+
+
 def configure(root: Path) -> None:
     share = f"{PROFILE}/share"
     xdg = f"{PROFILE}/xdg"
@@ -111,6 +131,7 @@ def configure(root: Path) -> None:
     elif default_wallpaper.exists():
         raise ValueError("expected Default wallpaper link")
     default_wallpaper.symlink_to("ForjaOS")
+    rebrand_login_art(root)
 
     # The inherited updater is retained for CLI compatibility but hidden from the menu.
     updater = "usr/share/applications/io.github.rfrench3.bazzite-updater.desktop"

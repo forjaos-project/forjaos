@@ -2,10 +2,12 @@
 """Inspect a ForjaOS rootfs for inherited branding on user-visible surfaces."""
 
 import argparse
+import configparser
 import json
 from pathlib import Path
 import re
 import subprocess
+from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
 
@@ -265,6 +267,31 @@ def check_initramfs_logo(root, findings):
             findings.append(finding("image", display, "boot splash logo differs from ForjaOS rootfs logo"))
 
 
+def check_login_wallpapers(root, findings):
+    """Plasma Login and the lock screen must resolve to project-owned artwork."""
+    section = "Greeter][Wallpaper][org.kde.image][General"
+    owned = root / "usr/share/wallpapers/ForjaOS"
+    for relative in ("usr/lib/plasmalogin/defaults.conf", "etc/xdg/kscreenlockerrc"):
+        display = "/" + relative
+        try:
+            path = resolve_root_path(root, relative)
+            if not path.exists():
+                continue
+            config = configparser.ConfigParser(interpolation=None)
+            config.read_string(read_root_file(root, relative).decode("utf-8"))
+            for key in ("Image", "PreviewImage"):
+                value = config.get(section, key)
+                uri = urlparse(value)
+                if uri.scheme not in ("", "file") or uri.netloc or not uri.path.startswith("/"):
+                    raise ValueError(f"unsupported {key} path: {value}")
+                target = resolve_root_path(root, uri.path.lstrip("/"))
+                if not target.is_file() or not target.is_relative_to(owned):
+                    findings.append(finding("image", display, f"{key} resolves outside ForjaOS artwork: {value}"))
+                    break
+        except (OSError, UnicodeError, ValueError, configparser.Error) as error:
+            findings.append(finding("inspection", display, str(error)))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rootfs", type=Path, required=True)
@@ -280,6 +307,7 @@ def main():
         check_visible(root, findings)
         check_applications(root, findings)
         check_initramfs_logo(root, findings)
+        check_login_wallpapers(root, findings)
     findings.sort(key=lambda item: (item["path"], item.get("line", 0), item["kind"], item["value"]))
     status = "error" if any(item["kind"] == "inspection" for item in findings) else "fail" if findings else "ok"
     report = {"status": status, "findings": findings}
