@@ -42,6 +42,13 @@
 - Run root tests, brand tests, image build/checker, token and spec checks. Publish signed candidate images on the feature branch. In the disposable `ForjaOS-Test` VM, inspect desktop launcher and the installed application catalog, capturing actual ForjaOS wallpaper and no visible Bazzite entries; record the exact image digest. Do not claim hardware acceptance from this VM. The PRD's Discover-vs-Bazaar divergence is tracked in issue #40; the current base installs Bazaar.
 - Open the PR with command outputs, obtain independent clean-context `review: 8/8` and visual evidence, require green CI, mark F0-010 done, squash merge, then run `daily-image` on main and confirm both signed `:testing` digests before closing #25.
 
+### 6. Boot splash regression found in VM (FR-002, ADR-033)
+
+- Files: `scripts/check_branding.py`, `scripts/tests/test_check_branding.py`, `image/Containerfile`, `image/build_files/rebuild_initramfs.sh`.
+- Test first: a rootfs with a ForjaOS logo but a stale Bazzite logo inside `initramfs.img` must fail the checker; the same logo in both must pass. Verify the current published candidate fails before changing the build.
+- Regenerate each installed kernel initramfs after the branding RPM replaces `/usr/share/pixmaps/system-logo-white.png`; do not change the kernel or Secure Boot settings in the distributed image. Compare the embedded and rootfs logo bytes in both rebuilt image variants.
+- DoD: the boot image contains the ForjaOS logo, the checker is green on both variants, and a fresh VM boot no longer shows Bazzite Plymouth artwork. Commit `fix(image): rebuild branded initramfs`.
+
 ## Scope boundary
 
 F1-006 still owns the complete FR-050/052/058 DoD: instant light/dark switching, all required panel/dock items, all five shortcuts, and matching desktop comparisons. This F0 item only removes the visible inherited brand that blocks the phase-0 image pipeline.
