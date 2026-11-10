@@ -34,6 +34,14 @@ class BrandingCheckTests(unittest.TestCase):
             encoding="utf-8",
         )
         rpm.chmod(0o755)
+        lsinitrd = binary / "lsinitrd"
+        lsinitrd.write_text(
+            "#!/usr/bin/env python3\n"
+            "import os, sys\n"
+            "sys.stdout.buffer.write(open(os.environ['TEST_INITRAMFS_LOGO'], 'rb').read())\n",
+            encoding="utf-8",
+        )
+        lsinitrd.chmod(0o755)
         self.env = os.environ.copy()
         self.env["PATH"] = f"{binary}{os.pathsep}{self.env['PATH']}"
 
@@ -61,6 +69,21 @@ class BrandingCheckTests(unittest.TestCase):
         result, report = self.check(packages="forjaos-branding\n")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(report, {"status": "ok", "findings": []})
+
+    def test_rejects_stale_boot_splash_logo_in_initramfs(self):
+        self.write("usr/share/pixmaps/system-logo-white.png", "ForjaOS logo")
+        self.write("usr/lib/modules/test-kernel/initramfs.img", "initramfs fixture")
+        stale_logo = self.base / "embedded-logo.png"
+        stale_logo.write_text("Bazzite logo", encoding="utf-8")
+        self.env["TEST_INITRAMFS_LOGO"] = str(stale_logo)
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertTrue(any(item["path"].endswith("/initramfs.img") and item["kind"] == "image"
+                            for item in report["findings"]), report)
+
+        stale_logo.write_text("ForjaOS logo", encoding="utf-8")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
 
     def test_rejects_missing_or_wrong_identity(self):
         (self.root / "etc/os-release").write_text('NAME="Bazzite"\nID=bazzite\n', encoding="utf-8")
