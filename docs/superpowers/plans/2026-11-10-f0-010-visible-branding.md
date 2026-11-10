@@ -63,6 +63,13 @@
 - Replace the icon written by the active Vapor first-login script with the ForjaOS `start-here` asset under `/usr/share`, leaving the Steam/Deck application functions and `/etc` untouched.
 - DoD: the checker detects the original image, both rebuilt images pass, and a fresh VM account shows the ForjaOS launcher. Commit `fix(review): rebrand first-login launcher icon`.
 
+### 9. Existing-profile launcher regression found in VM (FR-002, ADR-033)
+
+- Files: `image/build_files/configure_plasma.py`, `scripts/check_branding.py`, `scripts/tests/test_plasma_image.py`, `scripts/tests/test_check_branding.py`.
+- Test first: an existing launcher profile that still references `distributor-logo-steamdeck` resolves to inherited artwork and fails the checker; a ForjaOS alias passes.
+- Redirect the unowned hicolor distributor icon to `start-here.svg` in `/usr/share`; the existing Steam Deck alias follows it without changing user configuration or `/etc`.
+- DoD: both fresh and existing accounts display the ForjaOS icon after reboot; the checker catches the prior image. Commit `fix(review): replace inherited launcher icon asset`.
+
 ## Scope boundary
 
 F1-006 still owns the complete FR-050/052/058 DoD: instant light/dark switching, all required panel/dock items, all five shortcuts, and matching desktop comparisons. This F0 item only removes the visible inherited brand that blocks the phase-0 image pipeline.

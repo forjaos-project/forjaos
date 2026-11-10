@@ -142,6 +142,23 @@ class BrandingCheckTests(unittest.TestCase):
         result, report = self.check(packages="forjaos-branding\n")
         self.assertEqual(result.returncode, 0, report)
 
+    def test_rejects_inherited_icon_used_by_existing_launcher_profiles(self):
+        self.write("usr/share/icons/hicolor/scalable/places/start-here.svg", "ForjaOS icon")
+        alias = "usr/share/icons/hicolor/scalable/places/distributor-logo-steamdeck.svg"
+        generic = "usr/share/icons/hicolor/scalable/places/distributor-logo.svg"
+        self.write(generic, "inherited violet icon")
+        (self.root / alias).symlink_to("distributor-logo.svg")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertTrue(any(f["kind"] == "image" and f["path"].endswith("distributor-logo-steamdeck.svg")
+                            for f in report["findings"]), report)
+
+        legacy = self.root / generic
+        legacy.unlink()
+        legacy.symlink_to("start-here.svg")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
+
     def test_rejects_missing_or_wrong_identity(self):
         (self.root / "etc/os-release").write_text('NAME="Bazzite"\nID=bazzite\n', encoding="utf-8")
         result, report = self.check(packages="forjaos-branding\n")

@@ -135,8 +135,15 @@ class PlasmaImageTests(unittest.TestCase):
             config = root / "etc/xdg/kdeglobals"
             config.parent.mkdir(parents=True)
             config.write_text("[KDE]\nLookAndFeelPackage=com.valve.vapor.desktop\n", encoding="utf-8")
+            icons = root / "usr/share/icons/hicolor/scalable/places"
+            icons.mkdir(parents=True)
+            (icons / "start-here.svg").write_text("ForjaOS icon", encoding="utf-8")
+            (icons / "distributor-logo.svg").write_text("inherited violet icon", encoding="utf-8")
+            (icons / "distributor-logo-steamdeck.svg").symlink_to("distributor-logo.svg")
             module.rebrand_first_login_launcher(root)
             self.assertIn('applet.writeConfig("icon", "start-here")', setup.read_text(encoding="utf-8"))
+            self.assertEqual((icons / "distributor-logo.svg").readlink(), Path("start-here.svg"))
+            self.assertEqual((icons / "distributor-logo-steamdeck.svg").readlink(), Path("distributor-logo.svg"))
             self.assertEqual(config.read_text(encoding="utf-8"),
                              "[KDE]\nLookAndFeelPackage=com.valve.vapor.desktop\n")
 
