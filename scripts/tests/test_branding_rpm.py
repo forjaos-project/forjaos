@@ -37,8 +37,9 @@ class BrandingRpmTests(unittest.TestCase):
         self.assertIn("AS branding-builder", source)
         self.assertIn("build_branding_rpm.sh", source)
         self.assertIn("COPY --from=branding-builder", source)
-        self.assertIn("dnf install", source)
-        self.assertLess(source.index("dnf install"), source.index("configure_image.py \\"))
+        install = "dnf install -y /tmp/forjaos-branding.rpm"
+        self.assertIn(install, source)
+        self.assertLess(source.index(install), source.index("configure_image.py \\"))
 
     @unittest.skipIf(os.name == "nt", "Bash fixture runs in CI/WSL")
     def test_builder_uses_identity_version_from_base_rpm(self):
