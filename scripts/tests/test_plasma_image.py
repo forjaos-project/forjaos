@@ -5,6 +5,7 @@ import importlib.util
 import re
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -86,6 +87,41 @@ class PlasmaImageTests(unittest.TestCase):
             self.assertEqual((root / "etc/safe").read_text(), "keep")
         self.assertIn("dnf remove -y --no-autoremove bazzite-portal", CONTAINERFILE.read_text())
         self.assertIn("dnf remove -y --no-autoremove fedora-appstream-metadata fira-code-fonts", CONTAINERFILE.read_text())
+
+    def test_login_art_replaces_legacy_image_without_editing_etc(self):
+        spec = importlib.util.spec_from_file_location("configure_plasma", PROFILE)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "usr/share/wallpapers/ForjaOS/dark-abstract.png"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"ForjaOS PNG")
+            legacy = root / "usr/share/wallpapers/convergence.jxl"
+            legacy.write_bytes(b"inherited login art")
+            (legacy.parent / "convergence.png").write_bytes(b"inherited wallpaper picker art")
+            backgrounds = root / "usr/share/backgrounds"
+            backgrounds.mkdir(parents=True)
+            for name in ("default.jxl", "default-dark.jxl"):
+                (backgrounds / name).symlink_to("/usr/share/wallpapers/convergence.jxl")
+            etc = root / "etc/xdg/kscreenlockerrc"
+            etc.parent.mkdir(parents=True)
+            etc.write_text("Image=/usr/share/wallpapers/convergence.jxl\n", encoding="utf-8")
+
+            def convert(command, **kwargs):
+                self.assertEqual(command[0], "magick")
+                self.assertEqual(Path(command[1]), source)
+                Path(command[-1]).write_bytes(b"ForjaOS JXL")
+
+            with mock.patch("subprocess.run", side_effect=convert) as run:
+                module.rebrand_login_art(root)
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(legacy.readlink(), Path("ForjaOS/dark-abstract.jxl"))
+            self.assertEqual((source.parent / "dark-abstract.jxl").read_bytes(), b"ForjaOS JXL")
+            self.assertFalse((legacy.parent / "convergence.png").exists())
+            self.assertEqual(etc.read_text(encoding="utf-8"), "Image=/usr/share/wallpapers/convergence.jxl\n")
+            for name in ("default.jxl", "default-dark.jxl"):
+                self.assertEqual((backgrounds / name).readlink(), Path("/usr/share/wallpapers/convergence.jxl"))
 
 
 if __name__ == "__main__":

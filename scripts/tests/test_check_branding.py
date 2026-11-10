@@ -85,6 +85,42 @@ class BrandingCheckTests(unittest.TestCase):
         result, report = self.check(packages="forjaos-branding\n")
         self.assertEqual(result.returncode, 0, report)
 
+    def test_rejects_inherited_login_and_lock_wallpaper(self):
+        self.write(
+            "usr/lib/plasmalogin/defaults.conf",
+            "[Greeter][Wallpaper][org.kde.image][General]\n"
+            "Image=file:///usr/share/backgrounds/default.jxl\n"
+            "PreviewImage=file:///usr/share/backgrounds/default.jxl\n",
+        )
+        self.write(
+            "etc/xdg/kscreenlockerrc",
+            "[Greeter][Wallpaper][org.kde.image][General]\n"
+            "Image=/usr/share/wallpapers/convergence.jxl\n"
+            "PreviewImage=/usr/share/wallpapers/convergence.jxl\n",
+        )
+        self.write("usr/share/wallpapers/convergence.jxl", "inherited login art")
+        self.write("usr/share/wallpapers/ForjaOS/dark-abstract.jxl", "ForjaOS login art")
+        default = self.root / "usr/share/backgrounds/default.jxl"
+        default.parent.mkdir(parents=True)
+        try:
+            default.symlink_to("/usr/share/wallpapers/convergence.jxl")
+        except OSError as error:
+            self.skipTest(f"symlinks unavailable: {error}")
+
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertEqual(
+            {item["path"] for item in report["findings"] if item["kind"] == "image"},
+            {"/usr/lib/plasmalogin/defaults.conf", "/etc/xdg/kscreenlockerrc"},
+            report,
+        )
+
+        legacy = self.root / "usr/share/wallpapers/convergence.jxl"
+        legacy.unlink()
+        legacy.symlink_to("ForjaOS/dark-abstract.jxl")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
+
     def test_rejects_missing_or_wrong_identity(self):
         (self.root / "etc/os-release").write_text('NAME="Bazzite"\nID=bazzite\n', encoding="utf-8")
         result, report = self.check(packages="forjaos-branding\n")
