@@ -70,6 +70,14 @@ class BrandingCheckTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(report, {"status": "ok", "findings": []})
 
+    def test_rejects_inherited_terminal_banner_and_rotating_tip(self):
+        self.write("usr/share/ublue-os/motd/template.md", "# Welcome to Bazzite\n")
+        self.write("usr/share/ublue-os/motd/tips/20-bazzite.md", "Bazzite help\n")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertTrue(any(item["path"].endswith("/template.md") for item in report["findings"]))
+        self.assertTrue(any(item["path"].endswith("/20-bazzite.md") for item in report["findings"]))
+
     def test_rejects_stale_boot_splash_logo_in_initramfs(self):
         self.write("usr/share/pixmaps/system-logo-white.png", "ForjaOS logo")
         self.write("usr/lib/modules/test-kernel/initramfs.img", "initramfs fixture")

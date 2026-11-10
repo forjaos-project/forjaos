@@ -73,6 +73,12 @@ class ConfigureImageTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        motd = self.root / "usr/share/ublue-os/motd"
+        (motd / "tips/sv").mkdir(parents=True)
+        (motd / "template.md").write_text("# Welcome to Bazzite\n", encoding="utf-8")
+        (motd / "template.sv.md").write_text("# Välkommen till Bazzite\n", encoding="utf-8")
+        (motd / "tips/20-bazzite.md").write_text("Bazzite help\n", encoding="utf-8")
+        (motd / "tips/sv/20-bazzite.md").write_text("Bazzite hjälp\n", encoding="utf-8")
         self.key = self.root / "source.pub"
         self.key.write_bytes(PUBLIC_KEY)
         self.icons = self.root / "source-icons"
@@ -119,6 +125,7 @@ class ConfigureImageTests(unittest.TestCase):
         self.assertNotIn("Bazzite", release)
         self.assertNotIn("bazzite", release)
         self.assertEqual((self.root / "etc/pki/containers/forjaos.pub").read_bytes(), PUBLIC_KEY)
+
         policy = json.loads((self.root / "etc/containers/policy.json").read_text(encoding="utf-8"))
         self.assertEqual(policy["default"], [{"type": "reject"}])
         self.assertEqual(policy["transports"]["docker"]["ghcr.io/ublue-os"][0]["type"], "sigstoreSigned")
@@ -133,6 +140,16 @@ class ConfigureImageTests(unittest.TestCase):
                 }
             ],
         )
+
+    def test_terminal_banner_replaces_inherited_brand_and_tips(self):
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        motd = self.root / "usr/share/ublue-os/motd"
+        for path in (motd / "template.md", motd / "template.sv.md"):
+            self.assertIn("ForjaOS", path.read_text(encoding="utf-8"))
+            self.assertNotIn("Bazzite", path.read_text(encoding="utf-8"))
+        self.assertEqual(list((motd / "tips").rglob("*bazzite*")), [])
+        self.assertIn("ForjaOS", (motd / "tips/10-forjaos.md").read_text(encoding="utf-8"))
 
     def test_sigstore_attachments_enabled_for_project_namespace(self):
         # Sem use-sigstore-attachments o containers/image não lê a assinatura cosign
