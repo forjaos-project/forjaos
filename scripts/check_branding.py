@@ -293,6 +293,31 @@ def check_login_wallpapers(root, findings):
             findings.append(finding("inspection", display, str(error)))
 
 
+def check_first_login_launcher(root, findings):
+    """The selected look-and-feel can override the kickoff icon on a new account."""
+    config_path = resolve_root_path(root, "etc/xdg/kdeglobals")
+    if not config_path.is_file():
+        return
+    try:
+        config = configparser.ConfigParser(interpolation=None)
+        config.read_string(read_root_file(root, "etc/xdg/kdeglobals").decode("utf-8"))
+        package = config.get("KDE", "LookAndFeelPackage", fallback="")
+        if not package:
+            return
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", package):
+            raise ValueError(f"unexpected look-and-feel package: {package}")
+        relative = f"usr/share/plasma/look-and-feel/{package}/contents/plasmoidsetupscripts/org.kde.plasma.kickoff.js"
+        setup = resolve_root_path(root, relative)
+        if not setup.is_file():
+            return
+        content = read_root_file(root, relative).decode("utf-8")
+        icon = re.search(r'writeConfig\s*\(\s*["\']icon["\']\s*,\s*["\']([^"\']+)["\']', content)
+        if icon and icon.group(1) != "start-here":
+            findings.append(finding("image", "/" + relative, f"first-login launcher icon: {icon.group(1)}"))
+    except (OSError, UnicodeError, ValueError, configparser.Error) as error:
+        findings.append(finding("inspection", "/etc/xdg/kdeglobals", str(error)))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rootfs", type=Path, required=True)
@@ -309,6 +334,7 @@ def main():
         check_applications(root, findings)
         check_initramfs_logo(root, findings)
         check_login_wallpapers(root, findings)
+        check_first_login_launcher(root, findings)
     findings.sort(key=lambda item: (item["path"], item.get("line", 0), item["kind"], item["value"]))
     status = "error" if any(item["kind"] == "inspection" for item in findings) else "fail" if findings else "ok"
     report = {"status": status, "findings": findings}

@@ -63,6 +63,15 @@ def remove_inherited_apps(root: Path) -> None:
         remove_file(root, relative)
 
 
+def rebrand_first_login_launcher(root: Path) -> None:
+    """Vapor is still the base's active first-login preset; give its launcher our icon."""
+    setup = "usr/share/plasma/look-and-feel/com.valve.vapor.desktop/contents/plasmoidsetupscripts/org.kde.plasma.kickoff.js"
+    replace(root, setup, {
+        'applet.writeConfig("icon", "distributor-logo-steamdeck")':
+        'applet.writeConfig("icon", "start-here")',
+    })
+
+
 def rebrand_login_art(root: Path) -> None:
     """Keep the inherited login paths while replacing their unowned artwork."""
     source = within_root(root, "usr/share/wallpapers/ForjaOS/dark-abstract.png")
@@ -132,6 +141,7 @@ def configure(root: Path) -> None:
         raise ValueError("expected Default wallpaper link")
     default_wallpaper.symlink_to("ForjaOS")
     rebrand_login_art(root)
+    rebrand_first_login_launcher(root)
 
     # The inherited updater is retained for CLI compatibility but hidden from the menu.
     updater = "usr/share/applications/io.github.rfrench3.bazzite-updater.desktop"
