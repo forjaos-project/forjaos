@@ -15,6 +15,29 @@ ISSUES_URL = f"{PROJECT_URL}/issues"
 REGISTRIES_D = "/etc/containers/registries.d/forjaos-project.yaml"
 # cosign guarda a assinatura como anexo OCI; sem isto a regra sigstoreSigned não a encontra.
 REGISTRIES_D_CONTENT = f"docker:\n  {REGISTRY}:\n    use-sigstore-attachments: true\n"
+MOTD_DIR = "usr/share/ublue-os/motd"
+MOTD_TEMPLATES = {
+    "template.md": (
+        "# Welcome to ForjaOS\n"
+        "󱋩 `${MOTD_IMAGE_NAME}:${MOTD_IMAGE_BRANCH}`\n"
+        "󰟀 `${MOTD_GREENBOOT}`\n\n"
+        "${MOTD_TIP}\n"
+        f"- [Report an issue]({ISSUES_URL})\n"
+        f"- [Project documentation]({PROJECT_URL})\n"
+    ),
+    "template.sv.md": (
+        "# Välkommen till ForjaOS\n"
+        "󱋩 `${MOTD_IMAGE_NAME}:${MOTD_IMAGE_BRANCH}`\n"
+        "󰟀 `${MOTD_GREENBOOT}`\n\n"
+        "${MOTD_TIP}\n"
+        f"- [Rapportera ett problem]({ISSUES_URL})\n"
+        f"- [Projektdokumentation]({PROJECT_URL})\n"
+    ),
+}
+MOTD_TIPS = {
+    "tips/10-forjaos.md": "ForjaOS: use `bootc status` to inspect the active image and pending update.\n",
+    "tips/sv/10-forjaos.md": "ForjaOS: använd `bootc status` för att visa aktiv avbild och väntande uppdatering.\n",
+}
 
 
 def update_os_release(source: str, image_name: str) -> str:
@@ -51,6 +74,22 @@ def update_os_release(source: str, image_name: str) -> str:
         result.append(line)
     result.extend(f"{key}={value}" for key, value in replacements.items() if key not in seen)
     return "\n".join(result) + "\n"
+
+
+def configure_motd(root: Path) -> None:
+    """Replace unowned inherited login-shell copy without changing the MOTD renderer."""
+    motd = root / MOTD_DIR
+    if not motd.is_dir() or any(not (motd / name).is_file() for name in MOTD_TEMPLATES):
+        raise ValueError("base terminal banner is missing")
+    tips = motd / "tips"
+    if not tips.is_dir() or not (tips / "sv").is_dir():
+        raise ValueError("base terminal tips are missing")
+    for path in tips.rglob("*.md"):
+        path.unlink()
+    for name, content in MOTD_TEMPLATES.items():
+        (motd / name).write_text(content, encoding="utf-8")
+    for name, content in MOTD_TIPS.items():
+        (motd / name).write_text(content, encoding="utf-8")
 
 
 def configure(root: Path, public_key: Path, image_name: str, icons_dir: Path) -> None:
@@ -110,6 +149,7 @@ def configure(root: Path, public_key: Path, image_name: str, icons_dir: Path) ->
         destination = root / f"usr/share/icons/hicolor/{size}x{size}/apps/forjaos-icon.png"
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(data)
+    configure_motd(root)
 
 
 def main() -> None:

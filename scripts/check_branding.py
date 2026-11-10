@@ -22,6 +22,7 @@ VISIBLE_PATHS = (
     "boot/grub2/themes",
     "usr/share/plymouth/themes/default.plymouth",
     "usr/share/wallpapers",
+    "usr/share/ublue-os/motd",
     "usr/share/plasma/look-and-feel",
     "usr/share/kde-settings",
     "usr/share/icons/hicolor",
@@ -29,7 +30,7 @@ VISIBLE_PATHS = (
     "usr/share/flatpak/remotes.d",
     "var/lib/flatpak/repo/config",
 )
-TEXT_SUFFIXES = {"", ".colors", ".conf", ".css", ".desktop", ".flatpakrepo", ".ini", ".js", ".json", ".layout", ".plymouth", ".qml", ".service", ".svg", ".theme", ".txt", ".xml"}
+TEXT_SUFFIXES = {"", ".colors", ".conf", ".css", ".desktop", ".flatpakrepo", ".ini", ".js", ".json", ".layout", ".md", ".plymouth", ".qml", ".service", ".svg", ".theme", ".txt", ".xml"}
 LEGAL_PARTS = {"licenses", "doc", "man"}
 
 
