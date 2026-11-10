@@ -2,7 +2,7 @@
 
 # Status — ForjaOS
 
-**Atualizado em:** 2026-11-09 · **Itens:** 18/54 feitos (33 %) · 0 em andamento · 36 a fazer · 0 bloqueados
+**Atualizado em:** 2026-11-09 · **Itens:** 19/55 feitos (35 %) · 0 em andamento · 36 a fazer · 0 bloqueados
 
 Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`. Antes de pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available`.
 
@@ -54,6 +54,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - `F0-004` check-branding.sh real: grep da imagem por marca Fedora/Bazzite/Bluefin; falha o CI (FR-002, G4) · fase 0 — PR #20 · 2026-11-09
 - `F0-005` THIRD_PARTY_LICENSES.md gerado no CI (G4, ADR-007) · fase 0 — PR #27 · 2026-11-09
 - `F0-006` Logo ForjaOS v1 em SVG (mono, cor, dark/light, ícone 16–512) (FR-053) · fase 0 — PR #8 · 2026-11-09
+- `F0-009` Substituir pacotes de identidade e entradas herdadas por forjaos-branding sem quebrar dependências (FR-002, G4) · fase 0 — PR #34 · 2026-11-09 · Remedia parte não visual da falha do workflow na issue #25; temas e wallpapers seguem F1-006/F1-007.
 - `F1-011` Rebranding mínimo da imagem: ícone ForjaOS (brand/logo/png) no hicolor, LOGO= no os-release e /usr/share/ublue-os/image-info.json apontando para ghcr.io/forjaos-project (FR-002, FR-003, FR-053) · fase 1 — PR #31 · 2026-11-09 · Achados da revisão do PR #9: image-info.json ainda aponta para a imagem Bazzite (lido por ujust e pelas atualizações) e o LOGO foi removido sem substituto. Conferir scripts do Bazzite que testam ID=bazzite.
 
 ## A fazer (por fase)
@@ -115,6 +116,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 ## Entregas (mais recentes primeiro)
 
 - **2026-11-09** · PR #31 · Identidade ForjaOS nas duas imagens com ícones hicolor, LOGO no os-release e image-info.json próprio por variante · itens: F1-011
+- **2026-11-09** · PR #34 · RPM forjaos-branding substitui identidade herdada e entradas de startup nas duas variantes, preservando dependências e serviços. · itens: F0-009
 - **2026-11-09** · PR #8 · Logo ForjaOS v1: marca, logotipo horizontal e ícone de app em SVG (cor sobre escuro, cor sobre claro e mono) e PNG 16–512, gerados de palette.json com wordmark Plus Jakarta Sans em contornos · itens: F0-006
 - **2026-11-09** · PR #27 · CI gera e anexa inventário de licenças RPM por variante da imagem construída, inclusive quando branding bloqueia a publicação · itens: F0-005
 - **2026-11-09** · PR #20 · Checker de branding para rootfs e imagens OCI, com saída JSON e falha verificada nas duas variantes F0-002 · itens: F0-004
@@ -123,4 +125,3 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - **2026-11-09** · PR #4 · Assinatura cosign por par de chaves (ADR-030): cosign.pub versionada, SIGNING_SECRET verificado pelo workflow signing-preflight · itens: F0-001
 - **2026-11-09** · PR #16 · CI de verificação em PR (verify.yml com os 8 comandos do /test), teste do workflow e remoção de worktree no /ship · itens: GOV-011
 - **2026-11-09** · PR #2 · Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, available lendo branches remotas, gerados regenerados na main pelo workflow roadmap-sync · itens: GOV-010
-- **2026-11-09** · sem PR · Higiene do repositório: .gitignore e .gitattributes (LF), .pyc e .lnk fora do índice, nome do repositório corrigido em ADR-026 e PRD; repositório público após scan de segredos sem achados · itens: GOV-009
