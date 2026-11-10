@@ -223,7 +223,9 @@ def check_applications(root, findings):
         except (OSError, ET.ParseError) as error:
             findings.append(finding("inspection", display, str(error)))
             continue
-        if component.tag != "component" or component.get("type") not in ("desktop", "desktop-application"):
+        if component.tag != "component" or component.get("type") not in (
+            "desktop", "desktop-application", "operating-system"
+        ):
             continue
         for element in component.iter():
             if element.tag not in ("name", "summary", "description", "icon"):
