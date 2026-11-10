@@ -19,6 +19,7 @@ for name in dynamic-fixes user-setup; do
   test ! -e "$root/etc/xdg/systemd/user/default.target.wants/bazzite-$name.service"
   test "$(readlink "$root/etc/xdg/systemd/user/default.target.wants/forjaos-$name.service")" = "/usr/lib/systemd/user/forjaos-$name.service"
   grep -q "^ExecStart=/usr/libexec/forjaos-$name$" "$root/usr/lib/systemd/user/forjaos-$name.service"
+  grep -q '^Type=simple$' "$root/usr/lib/systemd/user/forjaos-$name.service"
   grep -q "^exec /usr/libexec/bazzite-$name" "$root/usr/libexec/forjaos-$name"
   grep -q '^MemoryMax=' "$root/usr/lib/systemd/user/forjaos-$name.service"
   grep -q '^CPUQuota=' "$root/usr/lib/systemd/user/forjaos-$name.service"

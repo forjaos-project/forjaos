@@ -29,7 +29,7 @@ Description=ForjaOS $name user setup
 ConditionUser=!@system
 
 [Service]
-Type=oneshot
+Type=simple
 ExecStart=/usr/libexec/forjaos-$name
 MemoryMax=$memory
 CPUQuota=$quota
