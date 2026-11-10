@@ -90,6 +90,29 @@ class BrandingCheckTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, report)
         self.assertTrue(any(f.get("line") == 2 for f in report["findings"]))
 
+    def test_scans_visible_application_labels_but_not_internal_commands(self):
+        self.write("usr/share/applications/portal.desktop",
+                   "[Desktop Entry]\nName=Bazzite Portal\nExec=/usr/bin/yafti\nIcon=/usr/share/ublue-os/bazzite/portal.svg\n")
+        self.write("usr/share/applications/steam.desktop",
+                   "[Desktop Entry]\nName=Steam\nExec=/usr/bin/bazzite-steam\nIcon=steam\n")
+        self.write("usr/share/applications/hidden.desktop",
+                   "[Desktop Entry]\nNoDisplay=true\nName=Bazzite Updater\n")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertEqual({f["path"] for f in report["findings"]},
+                         {"/usr/share/applications/portal.desktop"})
+        self.assertEqual({f["line"] for f in report["findings"]}, {2, 4})
+
+    def test_scans_discover_desktop_application_metadata(self):
+        self.write("usr/share/metainfo/portal.xml",
+                   '<component type="desktop-application"><id>portal</id><name>Bazzite Portal</name></component>')
+        self.write("usr/share/metainfo/font.xml",
+                   '<component type="font"><id>font</id><name>Fedora Font</name></component>')
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertEqual({f["path"] for f in report["findings"]},
+                         {"/usr/share/metainfo/portal.xml"})
+
     def test_rejects_each_forbidden_package_family(self):
         result, report = self.check(
             packages="forjaos-branding\nfedora-logos\nfedora-release-identity-kinoite\nbazzite-branding\nbluefin-branding\n"
