@@ -108,10 +108,12 @@ class BrandingCheckTests(unittest.TestCase):
                    '<component type="desktop-application"><id>portal</id><name>Bazzite Portal</name></component>')
         self.write("usr/share/metainfo/font.xml",
                    '<component type="font"><id>font</id><name>Fedora Font</name></component>')
+        self.write("usr/share/metainfo/os.xml",
+                   '<component type="operating-system"><id>os</id><name>Fedora Linux</name></component>')
         result, report = self.check(packages="forjaos-branding\n")
         self.assertEqual(result.returncode, 1, report)
         self.assertEqual({f["path"] for f in report["findings"]},
-                         {"/usr/share/metainfo/portal.xml"})
+                         {"/usr/share/metainfo/portal.xml", "/usr/share/metainfo/os.xml"})
 
     def test_rejects_each_forbidden_package_family(self):
         result, report = self.check(

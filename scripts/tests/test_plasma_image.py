@@ -85,6 +85,7 @@ class PlasmaImageTests(unittest.TestCase):
             self.assertEqual((root / "usr/share/applications/steam.desktop").read_text(), files["usr/share/applications/steam.desktop"])
             self.assertEqual((root / "etc/safe").read_text(), "keep")
         self.assertIn("dnf remove -y --no-autoremove bazzite-portal", CONTAINERFILE.read_text())
+        self.assertIn("dnf remove -y --no-autoremove fedora-appstream-metadata fira-code-fonts", CONTAINERFILE.read_text())
 
 
 if __name__ == "__main__":
