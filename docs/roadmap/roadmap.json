@@ -302,10 +302,13 @@
       ],
       "phase": "0",
       "title": "Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados)",
-      "status": "doing",
+      "status": "done",
       "scope": "brand/",
       "agent": "codex",
-      "claimed_at": "2026-11-10"
+      "claimed_at": "2026-11-10",
+      "pr": 36,
+      "merged_at": "2026-11-10",
+      "summary": "Five layered Guara SVG states generated from palette.json with 24 px preview and verified tests"
     },
     {
       "id": "F0-008",
