@@ -327,7 +327,7 @@
       ],
       "phase": "0",
       "title": "Substituir pacotes de identidade e entradas herdadas por forjaos-branding sem quebrar dependências",
-      "status": "doing",
+      "status": "done",
       "scope": "image/",
       "depends_on": [
         "F0-002",
@@ -336,7 +336,10 @@
       ],
       "notes": "Remedia parte não visual da falha do workflow na issue #25; temas e wallpapers seguem F1-006/F1-007.",
       "agent": "codex",
-      "claimed_at": "2026-11-09"
+      "claimed_at": "2026-11-09",
+      "pr": 34,
+      "merged_at": "2026-11-09",
+      "summary": "RPM forjaos-branding substitui identidade herdada e entradas de startup nas duas variantes, preservando dependências e serviços."
     },
     {
       "id": "F1-001",
