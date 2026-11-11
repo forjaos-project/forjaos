@@ -28,7 +28,7 @@ class BootcVmWorkflowTests(unittest.TestCase):
 
     def test_pinned_tools_and_real_vm_cycle(self):
         source = WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("runs-on: ubuntu-26.04", source)
+        self.assertIn("runs-on: ubuntu-24.04", source)
         self.assertNotIn("bootc-host-setup@", source)
         self.assertIn("podman skopeo libvirt-daemon-system libvirt-clients virtinst", source)
         self.assertIn("timeout 30s getent hosts azure.archive.ubuntu.com", source)
@@ -53,7 +53,7 @@ class BootcVmWorkflowTests(unittest.TestCase):
         self.assertRegex(source, r"actions/upload-artifact@[0-9a-f]{40}")
         self.assertIn("quay.io/centos-bootc/bootc-image-builder@sha256:dab86ee6b46dcade411b37f4e70b07d93b6a06da0dbfec6fe89247a220e0d9f8", source)
         self.assertIn("--rootfs btrfs", source)
-        self.assertIn("minsize = \"70 GiB\"", source)
+        self.assertNotIn("customizations.filesystem", source)
         self.assertNotIn("bcvk-x86_64-unknown-linux-gnu.tar.gz", source)
         self.assertIn("test -e /dev/kvm", source)
         self.assertIn(BASELINE, source)
