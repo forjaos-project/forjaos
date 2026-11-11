@@ -64,7 +64,7 @@ class BootcVmWorkflowTests(unittest.TestCase):
         self.assertIn("sudo partx -a /dev/nbd0", source)
         self.assertIn("sudo udevadm settle", source)
         self.assertIn("sudo journalctl --file", source)
-        self.assertIn('path = "/var/log/journal"', (ROOT / "image/tests/ci-guest-agent.toml").read_text())
+        self.assertNotIn('path = "/var/log/journal"', (ROOT / "image/tests/ci-guest-agent.toml").read_text())
         self.assertIn("podman info", source)
         self.assertIn("podman run --rm --entrypoint /usr/bin/true ghcr.io/ublue-os/bazzite:stable", source)
         self.assertIn('podman exec "$probe_id" /usr/bin/true', source)

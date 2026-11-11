@@ -3,9 +3,6 @@
 [[customizations.directories]]
 path = "/etc/systemd/system/qemu-guest-agent.service.d"
 
-[[customizations.directories]]
-path = "/var/log/journal"
-
 [[customizations.files]]
 path = "/etc/systemd/system/qemu-guest-agent.service.d/90-forja-vm-ci.conf"
 data = """[Service]
