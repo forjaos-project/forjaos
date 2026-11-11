@@ -70,6 +70,13 @@
 - Redirect the unowned hicolor distributor icon to `start-here.svg` in `/usr/share`; the existing Steam Deck alias follows it without changing user configuration or `/etc`.
 - DoD: both fresh and existing accounts display the ForjaOS icon after reboot; the checker catches the prior image. Commit `fix(review): replace inherited launcher icon asset`.
 
+### 10. KRunner Yafti search actions found in a fresh VM account (FR-002, ADR-033)
+
+- Files: `scripts/check_branding.py`, `scripts/tests/test_check_branding.py`, `scripts/tests/test_plasma_image.py`, `image/Containerfile`, `docs/evidence/f0-010/`.
+- Test first: when the Yafti KRunner plugin and its YAML are both present, visible `title`, `description`, and `label` fields containing Bazzite fail the checker; internal action IDs and scripts alone do not. Confirm the published candidate fails before changing the build.
+- Remove only the unneeded `krunner-yafti` RPM, which has no reverse RPM dependency; preserve the Yafti data and gaming recipes. Rebuild both image variants and run the checker plus a new first-login menu search in the VM. Do not edit `/etc`.
+- DoD: searching for Bazzite from a fresh account shows no Yafti actions; both image variants pass the checker and `dnf check`; record the image digest and VM evidence. Commit `fix(review): remove inherited Yafti search actions`.
+
 ## Scope boundary
 
 F1-006 still owns the complete FR-050/052/058 DoD: instant light/dark switching, all required panel/dock items, all five shortcuts, and matching desktop comparisons. This F0 item only removes the visible inherited brand that blocks the phase-0 image pipeline.
