@@ -107,12 +107,21 @@ class BootcVmCycleTests(unittest.TestCase):
             raise RuntimeError("probe denied")
 
         transport.guest_exec = guest_exec
-        transport.agent = Mock(side_effect=[{"handle": 7}, {"buf-b64": "c3lzdGVtX3U6c3lzdGVtX3I6dmlydF9xZW11X2dhX3Q6czA=", "count": 38}, {}])
+        transport.agent = Mock(side_effect=[7, {"buf-b64": "c3lzdGVtX3U6c3lzdGVtX3I6dmlydF9xZW11X2dhX3Q6czA=", "count": 38}, {}])
         with self.assertRaisesRegex(RuntimeError, "bootc execution denied") as caught:
             transport.status()
         self.assertIn("virt_qemu_ga_t", str(caught.exception))
         self.assertIn("/usr/bin/true: ok", str(caught.exception))
         self.assertIn("systemd-run bootc status: probe denied", str(caught.exception))
+
+    def test_diagnostic_failure_does_not_hide_original_bootc_error(self):
+        module = load_controller()
+        transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+        transport.guest_exec = Mock(side_effect=RuntimeError("bootc execution denied"))
+        transport.agent = Mock(return_value=None)
+        with self.assertRaisesRegex(RuntimeError, "bootc execution denied") as caught:
+            transport.status()
+        self.assertIn("guest agent SELinux context:", str(caught.exception))
 
     def test_full_cycle_checks_three_booted_digests(self):
         module = load_controller()

@@ -178,8 +178,9 @@ class LibvirtTransport:
         raise RuntimeError(f"guest {Path(path).name} timed out")
 
     def guest_read_file(self, path):
-        result = self.agent({"execute": "guest-file-open", "arguments": {"path": path, "mode": "r"}})
-        handle = result["handle"]
+        handle = self.agent({"execute": "guest-file-open", "arguments": {"path": path, "mode": "r"}})
+        if not isinstance(handle, int):
+            raise RuntimeError("guest-file-open did not return a handle")
         try:
             data = self.agent({"execute": "guest-file-read", "arguments": {"handle": handle, "count": 256}})
             return base64.b64decode(data["buf-b64"]).decode("utf-8", errors="replace").strip()
@@ -204,7 +205,7 @@ class LibvirtTransport:
                 try:
                     value = probe()
                     diagnostics.append(f"{label}: {(value or 'ok')[:200]}")
-                except (RuntimeError, KeyError, ValueError, subprocess.TimeoutExpired) as probe_failure:
+                except Exception as probe_failure:
                     diagnostics.append(f"{label}: {str(probe_failure)[:200]}")
             raise RuntimeError(f"{failure}; guest diagnostics: {'; '.join(diagnostics)}") from failure
 
