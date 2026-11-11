@@ -3,9 +3,10 @@
 import importlib.util
 import json
 import tempfile
+import traceback
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -80,6 +81,31 @@ GOOD_STATES = [
 
 
 class BootcVmCycleTests(unittest.TestCase):
+    def test_registry_timeout_never_exposes_credentials_in_traceback(self):
+        module = load_controller()
+        token = "synthetic-review-token"
+        transport = module.LibvirtTransport("vm-cycle-test", "actor", token, "disk.qcow2")
+
+        def timed_out(args, **kwargs):
+            raise module.subprocess.TimeoutExpired(
+                args, kwargs["timeout"], output=token, stderr=token,
+            )
+
+        for operation in (
+            lambda: transport.verify_signature("ghcr.io/forjaos-project/forjaos", OLD),
+            lambda: transport.publish_tag("ghcr.io/forjaos-project/forjaos", OLD, "vm-cycle-test"),
+        ):
+            with self.subTest(operation=operation), patch.object(module.subprocess, "run", side_effect=timed_out):
+                try:
+                    operation()
+                except Exception as failure:
+                    rendered = "".join(traceback.format_exception(failure))
+                    self.assertNotIn(token, rendered)
+                    self.assertIsInstance(failure, RuntimeError)
+                    self.assertIn("timed out", str(failure))
+                else:
+                    self.fail("registry timeout must stop the cycle")
+
     def test_libvirt_transport_imports_built_bazzite_disk(self):
         module = load_controller()
         with tempfile.TemporaryDirectory() as directory:

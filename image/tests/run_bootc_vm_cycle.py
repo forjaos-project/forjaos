@@ -108,7 +108,11 @@ class LibvirtTransport:
         self.disk = Path(disk)
 
     def command(self, args, *, timeout=1800):
-        result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
+        try:
+            result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
+        except subprocess.TimeoutExpired:
+            # TimeoutExpired includes argv, which can contain registry credentials.
+            raise RuntimeError(f"{Path(args[0]).name} timed out after {timeout} seconds") from None
         if result.returncode:
             detail = (result.stderr or result.stdout).replace(self.token, "***").strip()
             raise RuntimeError(f"{Path(args[0]).name} failed ({result.returncode}): {detail[:1000]}")
