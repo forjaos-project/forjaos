@@ -44,6 +44,20 @@ jobs:
           Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
           SOURCES
           test -r /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          if ! timeout 15s getent hosts archive.ubuntu.com || \
+             ! timeout 15s getent hosts security.ubuntu.com; then
+            resolver_target="$(readlink -f /etc/resolv.conf)"
+            test "$resolver_target" = /run/systemd/resolve/stub-resolv.conf
+            dig +short +time=2 +tries=1 @1.1.1.1 archive.ubuntu.com | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'
+            dig +short +time=2 +tries=1 @1.1.1.1 security.ubuntu.com | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'
+            dns_iface="$(ip -o -4 route show default | awk 'NR == 1 {print $5}')"
+            test -n "$dns_iface"
+            sudo resolvectl dns "$dns_iface" 1.1.1.1
+            trap 'sudo resolvectl revert "$dns_iface"' EXIT
+            sudo resolvectl flush-caches
+            timeout 15s getent hosts archive.ubuntu.com
+            timeout 15s getent hosts security.ubuntu.com
+          fi
           apt_opts=(-o "Dir::Etc::sourcelist=$source_file" -o "Dir::Etc::sourceparts=/dev/null" -o APT::Update::Error-Mode=any)
           timeout 300s sudo apt-get "${apt_opts[@]}" update
           timeout 600s sudo apt-get "${apt_opts[@]}" install -y --no-install-recommends \
