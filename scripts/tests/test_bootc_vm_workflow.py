@@ -28,11 +28,12 @@ class BootcVmWorkflowTests(unittest.TestCase):
 
     def test_pinned_tools_and_real_vm_cycle(self):
         source = WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("runs-on: ubuntu-26.04", source)
+        self.assertIn("runs-on: ubuntu-24.04", source)
         self.assertNotIn("bootc-host-setup@", source)
         self.assertIn("podman skopeo libvirt-daemon-system libvirt-clients", source)
         self.assertIn("uidmap fuse-overlayfs slirp4netns", source)
         self.assertIn("podman info", source)
+        self.assertIn("podman run --rm --entrypoint /usr/bin/true ghcr.io/ublue-os/bazzite:stable", source)
         self.assertNotIn("CONTAINERS_CONF", source)
         self.assertNotIn("rm -rf", source)
         self.assertNotIn("/etc/", source)

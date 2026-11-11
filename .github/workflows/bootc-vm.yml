@@ -20,7 +20,7 @@ concurrency:
 jobs:
   vm-cycle:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 180
     permissions:
       contents: read
@@ -53,6 +53,8 @@ jobs:
           free_kib="$(df -Pk / | awk 'NR==2 {print $4}')"
           test "$free_kib" -ge 8388608
           df -h /
+          podman pull ghcr.io/ublue-os/bazzite:stable
+          podman run --rm --entrypoint /usr/bin/true ghcr.io/ublue-os/bazzite:stable
       - name: Resolve current signed target
         run: |
           target="$(skopeo inspect --format '{{.Digest}}' docker://ghcr.io/forjaos-project/forjaos:testing)"
