@@ -177,6 +177,33 @@ class LibvirtTransport:
             time.sleep(3)
         raise RuntimeError(f"guest {Path(path).name} timed out")
 
+    def guest_read_file(self, path):
+        result = self.agent({"execute": "guest-file-open", "arguments": {"path": path, "mode": "r"}})
+        handle = result["handle"]
+        try:
+            data = self.agent({"execute": "guest-file-read", "arguments": {"handle": handle, "count": 256}})
+            return base64.b64decode(data["buf-b64"]).decode("utf-8", errors="replace").strip()
+        finally:
+            self.agent({"execute": "guest-file-close", "arguments": {"handle": handle}})
+
+    def bootc_command(self, *args):
+        try:
+            return self.guest_exec("/usr/bin/bootc", *args)
+        except RuntimeError as failure:
+            diagnostics = []
+            for label, probe in (
+                ("guest agent SELinux context", lambda: self.guest_read_file("/proc/self/attr/current")),
+                ("/usr/bin/true", lambda: self.guest_exec("/usr/bin/true", timeout=15)),
+                ("/usr/bin/id", lambda: self.guest_exec("/usr/bin/id", timeout=15)),
+                ("/usr/bin/cat", lambda: self.guest_exec("/usr/bin/cat", "/proc/self/attr/current", timeout=15)),
+            ):
+                try:
+                    value = probe()
+                    diagnostics.append(f"{label}: {value or 'ok'}")
+                except (RuntimeError, KeyError, ValueError, subprocess.TimeoutExpired) as probe_failure:
+                    diagnostics.append(f"{label}: {str(probe_failure)[:200]}")
+            raise RuntimeError(f"{failure}; guest diagnostics: {'; '.join(diagnostics)}") from failure
+
     def start_vm(self):
         if not self.disk.is_file():
             raise RuntimeError(f"Bazzite VM disk missing: {self.disk}")
@@ -191,10 +218,10 @@ class LibvirtTransport:
         self.wait_agent()
 
     def status(self):
-        return self.guest_exec("/usr/bin/bootc", "status", "--json")
+        return self.bootc_command("status", "--json")
 
     def bootc(self, *args):
-        self.guest_exec("/usr/bin/bootc", *args)
+        self.bootc_command(*args)
 
     def reboot(self):
         previous = self.guest_exec("/usr/bin/cat", "/proc/sys/kernel/random/boot_id").strip()

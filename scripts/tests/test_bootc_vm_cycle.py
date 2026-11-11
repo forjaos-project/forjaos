@@ -95,6 +95,24 @@ class BootcVmCycleTests(unittest.TestCase):
             self.assertIn("org.qemu.guest_agent.0", " ".join(command))
             self.assertNotIn("bcvk", " ".join(command))
 
+    def test_status_failure_preserves_error_and_reports_guest_agent_context(self):
+        module = load_controller()
+        transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+
+        def guest_exec(path, *args, **_kwargs):
+            if path == "/usr/bin/bootc":
+                raise RuntimeError("bootc execution denied")
+            if path == "/usr/bin/true":
+                return ""
+            raise RuntimeError("probe denied")
+
+        transport.guest_exec = guest_exec
+        transport.agent = Mock(side_effect=[{"handle": 7}, {"buf-b64": "c3lzdGVtX3U6c3lzdGVtX3I6dmlydF9xZW11X2dhX3Q6czA=", "count": 38}, {}])
+        with self.assertRaisesRegex(RuntimeError, "bootc execution denied") as caught:
+            transport.status()
+        self.assertIn("virt_qemu_ga_t", str(caught.exception))
+        self.assertIn("/usr/bin/true: ok", str(caught.exception))
+
     def test_full_cycle_checks_three_booted_digests(self):
         module = load_controller()
         transport = FakeTransport(GOOD_STATES)
