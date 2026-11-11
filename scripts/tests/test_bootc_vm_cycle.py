@@ -128,6 +128,20 @@ class BootcVmCycleTests(unittest.TestCase):
                 module.run_cycle(transport, "ghcr.io/forjaos-project/forjaos", OLD, OLD, "vm-cycle-5", Path(output))
         self.assertEqual(transport.events, [])
 
+    def test_cleanup_failure_does_not_hide_start_failure(self):
+        module = load_controller()
+
+        class FailedStart(FakeTransport):
+            def start_vm(self):
+                raise RuntimeError("original VM start failure")
+
+            def close_vm(self):
+                raise RuntimeError("VM cleanup failure")
+
+        with tempfile.TemporaryDirectory() as output:
+            with self.assertRaisesRegex(RuntimeError, "original VM start failure"):
+                module.run_cycle(FailedStart([]), "ghcr.io/forjaos-project/forjaos", OLD, NEW, "vm-cycle-6", Path(output))
+
 
 if __name__ == "__main__":
     unittest.main()

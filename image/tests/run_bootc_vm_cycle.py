@@ -90,7 +90,13 @@ def run_cycle(transport, image, baseline, target, tag, output):
         observe("07-rollback-booted", booted=baseline, rollback=target, no_staged=True)
     finally:
         if started:
-            transport.close_vm()
+            original_failure = sys.exc_info()[1]
+            try:
+                transport.close_vm()
+            except Exception as cleanup_failure:
+                if original_failure is None:
+                    raise
+                print(f"vm-cycle: cleanup also failed: {cleanup_failure}", file=sys.stderr)
 
 
 class LibvirtTransport:

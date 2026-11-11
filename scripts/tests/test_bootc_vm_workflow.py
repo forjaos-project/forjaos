@@ -30,6 +30,8 @@ class BootcVmWorkflowTests(unittest.TestCase):
         source = WORKFLOW.read_text(encoding="utf-8")
         self.assertNotIn("bootc-host-setup@", source)
         self.assertIn("podman skopeo libvirt-daemon-system libvirt-clients", source)
+        self.assertIn("runc", source)
+        self.assertIn("CONTAINERS_CONF", source)
         self.assertNotIn("rm -rf", source)
         self.assertNotIn("/etc/", source)
         self.assertRegex(source, r"actions/checkout@[0-9a-f]{40}")
@@ -44,7 +46,7 @@ class BootcVmWorkflowTests(unittest.TestCase):
         self.assertIn("--target", source)
         self.assertIn("--baseline", source)
         self.assertIn("--connect qemu:///system", source)
-        self.assertIn('env "PATH=$PATH" python3', source)
+        self.assertIn('env "PATH=$PATH" CONTAINERS_CONF="$RUNNER_TEMP/containers.conf" python3', source)
         self.assertIn("if: always()", source)
         self.assertNotRegex(source, re.compile(r"skopeo copy[^\n]*:stable"))
 

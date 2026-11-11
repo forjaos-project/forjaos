@@ -32,7 +32,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             podman skopeo libvirt-daemon-system libvirt-clients \
-            qemu-system-x86 qemu-utils virtiofsd ovmf btrfs-progs xfsprogs
+            qemu-system-x86 qemu-utils virtiofsd ovmf btrfs-progs xfsprogs runc
           sudo systemctl start libvirtd
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3, Apache-2.0
         with:
@@ -61,7 +61,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          sudo --preserve-env=GH_TOKEN,GITHUB_ACTOR env "PATH=$PATH" python3 image/tests/run_bootc_vm_cycle.py \
+          printf '[engine]\nruntime = "runc"\n' > "$RUNNER_TEMP/containers.conf"
+          test "$(sudo env CONTAINERS_CONF="$RUNNER_TEMP/containers.conf" podman info --format '{{.Host.OCIRuntime.Name}}')" = runc
+          sudo --preserve-env=GH_TOKEN,GITHUB_ACTOR env "PATH=$PATH" CONTAINERS_CONF="$RUNNER_TEMP/containers.conf" python3 image/tests/run_bootc_vm_cycle.py \
             --variant forjaos \
             --baseline sha256:cfe6a9791e5bd2226acc48c82cad0e3dcc887662bb9c9ba782a69b646a24f744 \
             --target "$TARGET_DIGEST" \
