@@ -4,7 +4,7 @@
 
 **Architecture:** Keep image publication and VM validation separate. The validation controller creates a dedicated mutable GHCR test tag from two already signed ForjaOS digests, runs a Bazzite VM, executes bootc through the QEMU guest agent, and checks the booted digest after every reboot. A manual Hyper-V run records the same transitions. The CI test tag is never a release channel. `:stable` remains subject to the weekly promotion gates in PRD 5.4 and NFR-040.
 
-**Tech Stack:** Python standard library for status assertions, Bash for VM orchestration, GitHub Actions, Podman, Skopeo, libvirt/QEMU, and the bootc project's `bcvk` (Apache-2.0/MIT) on an ephemeral runner. No package or repository is added to the ForjaOS image (ADR-002, G4).
+**Tech Stack:** Python standard library for status assertions and VM orchestration, GitHub Actions, Podman, Skopeo, libvirt/QEMU, and the bootc project's `bcvk` (Apache-2.0/MIT) on an ephemeral runner. No package or repository is added to the ForjaOS image (ADR-002, G4).
 
 **Entry:** Issue #44 states the FR-001/FR-008 acceptance criteria; roadmap F0-008 is claimed on `feat/F0-008-bootc-vm-validation`. Issue #43 tracks the latest daily build failure and must be resolved before a current image is used as a successful upgrade target.
 
@@ -12,8 +12,8 @@
 
 - `image/tests/assert_bootc_state.py` — validate the booted, staged, and rollback digest from `bootc status --json`.
 - `scripts/tests/test_assert_bootc_state.py` — success and failure cases for each transition.
-- `image/tests/run_bootc_vm_cycle.sh` — host-side VM, registry tag, reboot, and guest-agent controller.
-- `scripts/tests/test_bootc_vm_cycle.sh` — fake external commands to prove order and fail-closed behavior.
+- `image/tests/run_bootc_vm_cycle.py` — host-side VM, registry tag, reboot, and guest-agent controller.
+- `scripts/tests/test_bootc_vm_cycle.py` — fake external commands to prove order and fail-closed behavior.
 - `.github/workflows/bootc-vm.yml` — manual and weekly VM job with pinned tools, limited permissions, and archived evidence.
 - `scripts/tests/test_bootc_vm_workflow.py` — workflow structure and security checks.
 - `docs/evidence/f0-008/vm-cycle-2026-11-11.md` — observed local and CI digests, commands, and limits.
@@ -28,8 +28,8 @@
 
 ## Task 2 — Drive the real VM cycle (FR-001, FR-008, ADR-030)
 
-- Write `scripts/tests/test_bootc_vm_cycle.sh` first with fake registry, libvirt, and guest-agent commands. Observe red before the controller exists. Assert signature verification occurs before tag publication and that any guest command or digest mismatch stops the cycle.
-- Implement `image/tests/run_bootc_vm_cycle.sh`: verify two distinct signed digests, create one dedicated test tag, boot a Bazzite VM, switch, reboot, advance the tag, upgrade, reboot, rollback, reboot, and collect `bootc status --json` at each state. Keep credentials in process memory and mask them from logs (NFR-024).
+- Write `scripts/tests/test_bootc_vm_cycle.py` first with fake registry, libvirt, and guest-agent command responses. Observe red before the controller exists. Assert signature verification occurs before tag publication and that any guest command or digest mismatch stops the cycle.
+- Implement `image/tests/run_bootc_vm_cycle.py`: verify two distinct signed digests, create one dedicated test tag, boot a Bazzite VM, switch, reboot, advance the tag, upgrade, reboot, rollback, reboot, and collect `bootc status --json` at each state. Keep credentials in process memory and mask them from logs (NFR-024).
 - Run the fake tests green and remove the rollback assertion temporarily to prove the test fails. DoD: no successful exit without three observed booted digests and an actual rollback reboot.
 - Commit `feat(image): exercise bootc switch upgrade and rollback in VM`.
 
