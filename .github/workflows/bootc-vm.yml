@@ -120,6 +120,8 @@ jobs:
           sudo qemu-nbd --read-only --connect=/dev/nbd0 "$RUNNER_TEMP/bazzite-qcow2/qcow2/disk.qcow2"
           mount_dir="$(mktemp -d "$RUNNER_TEMP/bazzite-inspect.XXXXXX")"
           trap 'sudo umount "$mount_dir" 2>/dev/null || true; sudo qemu-nbd --disconnect /dev/nbd0' EXIT
+          sudo partx -a /dev/nbd0 || sudo partx -u /dev/nbd0
+          sudo udevadm settle
           lsblk -f /dev/nbd0
           btrfs_device="$(lsblk -nrpo NAME,FSTYPE /dev/nbd0 | awk '$2 == "btrfs" {print $1; exit}')"
           test -n "$btrfs_device"
