@@ -86,6 +86,7 @@ class PlasmaImageTests(unittest.TestCase):
             self.assertEqual((root / "usr/share/applications/steam.desktop").read_text(), files["usr/share/applications/steam.desktop"])
             self.assertEqual((root / "etc/safe").read_text(), "keep")
         self.assertIn("dnf remove -y --no-autoremove bazzite-portal", CONTAINERFILE.read_text())
+        self.assertIn("dnf remove -y --no-autoremove krunner-yafti", CONTAINERFILE.read_text())
         self.assertIn("dnf remove -y --no-autoremove fedora-appstream-metadata fira-code-fonts", CONTAINERFILE.read_text())
 
     def test_login_art_replaces_legacy_image_without_editing_etc(self):

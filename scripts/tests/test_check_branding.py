@@ -212,6 +212,21 @@ class BrandingCheckTests(unittest.TestCase):
         self.assertEqual({f["path"] for f in report["findings"]},
                          {"/usr/share/metainfo/portal.xml", "/usr/share/metainfo/os.xml"})
 
+    def test_scans_yafti_actions_only_when_krunner_plugin_exposes_them(self):
+        yaml = "usr/share/yafti/yafti.yml"
+        self.write(yaml, "title: Bazzite Portal\n"
+                         "description: Configure Bazzite\n"
+                         "label: Enable Bazzite CLI\n"
+                         "id: bazzite-internal\n"
+                         "script: ujust bazzite-cli enable\n")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
+        self.write("usr/lib64/qt6/plugins/kf6/krunner/krunner-yafti.so", "plugin")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertEqual({f["path"] for f in report["findings"]}, {"/" + yaml})
+        self.assertEqual({f["line"] for f in report["findings"]}, {1, 2, 3})
+
     def test_rejects_each_forbidden_package_family(self):
         result, report = self.check(
             packages="forjaos-branding\nfedora-logos\nfedora-release-identity-kinoite\nbazzite-branding\nbluefin-branding\n"
