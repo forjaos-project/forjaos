@@ -318,11 +318,13 @@
       ],
       "phase": "0",
       "title": "bootc switch para a imagem em VM + upgrade/rollback testados",
-      "status": "todo",
+      "status": "doing",
       "scope": "image/",
       "depends_on": [
         "F0-003"
-      ]
+      ],
+      "agent": "codex",
+      "claimed_at": "2026-11-11"
     },
     {
       "id": "F0-009",
