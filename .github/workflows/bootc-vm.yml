@@ -29,24 +29,24 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, MIT
       - name: Install VM host tools from Ubuntu
         run: |
-          if ! timeout 30s getent hosts azure.archive.ubuntu.com; then
-            echo 'Ubuntu mirror DNS unavailable through runner resolver' >&2
-            resolver_target="$(readlink -f /etc/resolv.conf)"
-            echo "$resolver_target"
-            resolvectl status || true
-            if [ "$resolver_target" != /run/systemd/resolve/stub-resolv.conf ] || \
-               ! dig +short +time=2 +tries=1 @1.1.1.1 azure.archive.ubuntu.com | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
-              exit 1
-            fi
-            dns_iface="$(ip -o -4 route show default | awk 'NR == 1 {print $5}')"
-            test -n "$dns_iface"
-            sudo resolvectl dns "$dns_iface" 1.1.1.1
-            trap 'sudo resolvectl revert "$dns_iface"' EXIT
-            sudo resolvectl flush-caches
-            timeout 30s getent hosts azure.archive.ubuntu.com
-          fi
-          timeout 300s sudo apt-get update
-          timeout 600s sudo apt-get install -y --no-install-recommends \
+          source_file="$RUNNER_TEMP/forja-ubuntu.sources"
+          cat > "$source_file" <<'SOURCES'
+          Types: deb
+          URIs: https://archive.ubuntu.com/ubuntu
+          Suites: noble noble-updates
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: https://security.ubuntu.com/ubuntu
+          Suites: noble-security
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          SOURCES
+          test -r /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          apt_opts=(-o "Dir::Etc::sourcelist=$source_file" -o "Dir::Etc::sourceparts=/dev/null" -o APT::Update::Error-Mode=any)
+          timeout 300s sudo apt-get "${apt_opts[@]}" update
+          timeout 600s sudo apt-get "${apt_opts[@]}" install -y --no-install-recommends \
             podman skopeo libvirt-daemon-system libvirt-clients virtinst \
             qemu-system-x86 qemu-utils virtiofsd ovmf btrfs-progs xfsprogs \
             uidmap fuse-overlayfs slirp4netns
