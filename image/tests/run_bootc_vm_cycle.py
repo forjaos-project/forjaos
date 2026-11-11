@@ -191,16 +191,21 @@ class LibvirtTransport:
         try:
             return self.guest_exec("/usr/bin/bootc", *args)
         except RuntimeError as failure:
-            diagnostics = []
+            if "Failed to execute child process" not in str(failure) or "Permission denied" not in str(failure):
+                raise
+            try:
+                return self.guest_exec(
+                    "/usr/bin/systemd-run", "--system", "--wait", "--pipe", "--collect", "--quiet",
+                    "--property=MemoryMax=3G", "--property=CPUQuota=200%", "--property=Nice=5",
+                    "--", "/usr/bin/bootc", *args,
+                )
+            except (RuntimeError, subprocess.TimeoutExpired) as service_failure:
+                diagnostics = [f"systemd-run bootc: {str(service_failure)[:200]}"]
             for label, probe in (
                 ("guest agent SELinux context", lambda: self.guest_read_file("/proc/self/attr/current")),
                 ("/usr/bin/true", lambda: self.guest_exec("/usr/bin/true", timeout=15)),
                 ("/usr/bin/id", lambda: self.guest_exec("/usr/bin/id", timeout=15)),
                 ("/usr/bin/cat", lambda: self.guest_exec("/usr/bin/cat", "/proc/self/attr/current", timeout=15)),
-                ("systemd-run bootc status", lambda: self.guest_exec(
-                    "/usr/bin/systemd-run", "--system", "--wait", "--pipe", "--collect", "--quiet",
-                    "--", "/usr/bin/bootc", "status", "--json", timeout=60,
-                )),
             ):
                 try:
                     value = probe()
@@ -229,13 +234,13 @@ class LibvirtTransport:
         self.bootc_command(*args)
 
     def reboot(self):
-        previous = self.guest_exec("/usr/bin/cat", "/proc/sys/kernel/random/boot_id").strip()
+        previous = self.guest_read_file("/proc/sys/kernel/random/boot_id")
         self.virsh("reboot", self.vm_name)
         deadline = time.monotonic() + 1200
         while time.monotonic() < deadline:
             try:
                 self.wait_agent(timeout=15)
-                current = self.guest_exec("/usr/bin/cat", "/proc/sys/kernel/random/boot_id", timeout=15).strip()
+                current = self.guest_read_file("/proc/sys/kernel/random/boot_id")
                 if current and current != previous:
                     return
             except (RuntimeError, subprocess.TimeoutExpired):

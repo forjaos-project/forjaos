@@ -101,27 +101,65 @@ class BootcVmCycleTests(unittest.TestCase):
 
         def guest_exec(path, *args, **_kwargs):
             if path == "/usr/bin/bootc":
-                raise RuntimeError("bootc execution denied")
+                raise RuntimeError("Failed to execute child process /usr/bin/bootc (Permission denied)")
             if path == "/usr/bin/true":
                 return ""
             raise RuntimeError("probe denied")
 
         transport.guest_exec = guest_exec
         transport.agent = Mock(side_effect=[7, {"buf-b64": "c3lzdGVtX3U6c3lzdGVtX3I6dmlydF9xZW11X2dhX3Q6czA=", "count": 38}, {}])
-        with self.assertRaisesRegex(RuntimeError, "bootc execution denied") as caught:
+        with self.assertRaisesRegex(RuntimeError, "Permission denied") as caught:
             transport.status()
         self.assertIn("virt_qemu_ga_t", str(caught.exception))
         self.assertIn("/usr/bin/true: ok", str(caught.exception))
-        self.assertIn("systemd-run bootc status: probe denied", str(caught.exception))
+        self.assertIn("systemd-run bootc: probe denied", str(caught.exception))
 
     def test_diagnostic_failure_does_not_hide_original_bootc_error(self):
         module = load_controller()
         transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
-        transport.guest_exec = Mock(side_effect=RuntimeError("bootc execution denied"))
+        transport.guest_exec = Mock(side_effect=RuntimeError("Failed to execute child process /usr/bin/bootc (Permission denied)"))
         transport.agent = Mock(return_value=None)
-        with self.assertRaisesRegex(RuntimeError, "bootc execution denied") as caught:
+        with self.assertRaisesRegex(RuntimeError, "Permission denied") as caught:
             transport.status()
         self.assertIn("guest agent SELinux context:", str(caught.exception))
+
+    def test_bootc_uses_transient_service_when_guest_agent_denies_direct_exec(self):
+        module = load_controller()
+        transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+        expected = state(BASE)
+
+        def guest_exec(path, *args, **_kwargs):
+            if path == "/usr/bin/bootc":
+                raise RuntimeError("Failed to execute child process /usr/bin/bootc (Permission denied)")
+            if path == "/usr/bin/systemd-run":
+                self.assertIn("--pipe", args)
+                self.assertIn("--property=MemoryMax=3G", args)
+                self.assertIn("--property=CPUQuota=200%", args)
+                self.assertIn("--property=Nice=5", args)
+                self.assertEqual(args[-3:], ("/usr/bin/bootc", "status", "--json"))
+                return expected
+            raise AssertionError(f"unexpected command {path}")
+
+        transport.guest_exec = guest_exec
+        self.assertEqual(transport.status(), expected)
+
+    def test_bootc_command_failure_is_not_retried_as_a_second_mutation(self):
+        module = load_controller()
+        transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+        transport.guest_exec = Mock(side_effect=RuntimeError("guest bootc failed (1): registry timeout"))
+        with self.assertRaisesRegex(RuntimeError, "registry timeout"):
+            transport.bootc("switch", "ghcr.io/forjaos-project/forjaos:vm-cycle-f0-008")
+        transport.guest_exec.assert_called_once()
+
+    def test_reboot_reads_boot_id_through_guest_file_api(self):
+        module = load_controller()
+        transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+        transport.guest_read_file = Mock(side_effect=["old-boot-id", "new-boot-id"])
+        transport.virsh = Mock()
+        transport.wait_agent = Mock()
+        transport.guest_exec = Mock(side_effect=AssertionError("boot-id must not use guest-exec"))
+        transport.reboot()
+        transport.virsh.assert_called_once_with("reboot", "vm-cycle-test")
 
     def test_full_cycle_checks_three_booted_digests(self):
         module = load_controller()
