@@ -1,6 +1,9 @@
 """Guard the VM CI workflow's authority and real bootc execution path."""
 
+import configparser
 import re
+import shlex
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -12,6 +15,34 @@ BASELINE = "sha256:cfe6a9791e5bd2226acc48c82cad0e3dcc887662bb9c9ba782a69b646a24f
 
 
 class BootcVmWorkflowTests(unittest.TestCase):
+    def test_guest_agent_uses_generic_entrypoint_and_explicit_virtio_channel(self):
+        config = tomllib.loads(GUEST_CONFIG.read_text(encoding="utf-8"))
+        files = config["customizations"]["files"]
+        self.assertEqual(len(files), 1)
+        self.assertEqual(
+            files[0]["path"],
+            "/etc/systemd/system/qemu-guest-agent.service.d/90-forja-vm-ci.conf",
+        )
+        drop_in = files[0]["data"]
+        unit = configparser.RawConfigParser(strict=False)
+        unit.read_string(drop_in)
+        self.assertEqual(unit.sections(), ["Service"])
+        starts = [
+            line.partition("=")[2].strip()
+            for line in drop_in.splitlines() if line.startswith("ExecStart=")
+        ]
+        self.assertEqual(len(starts), 2, "reset inherited ExecStart before adding the wrapper")
+        self.assertEqual(starts[0], "")
+        self.assertEqual(shlex.split(starts[1]), [
+            "/usr/bin/env", "/usr/bin/qemu-ga", "--method=virtio-serial",
+            "--path=/dev/virtio-ports/org.qemu.guest_agent.0",
+        ])
+        for key, expected in (
+            ("SELinuxContext", "system_u:system_r:unconfined_service_t:s0"),
+            ("MemoryMax", "3G"), ("CPUQuota", "200%"), ("Nice", "5"),
+        ):
+            self.assertEqual(unit["Service"][key], expected)
+
     def test_guest_agent_override_is_confined_to_disposable_vm_disk(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         config = GUEST_CONFIG.read_text(encoding="utf-8")

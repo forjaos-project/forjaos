@@ -7,6 +7,8 @@ path = "/etc/systemd/system/qemu-guest-agent.service.d"
 path = "/etc/systemd/system/qemu-guest-agent.service.d/90-forja-vm-ci.conf"
 data = """[Service]
 SELinuxContext=system_u:system_r:unconfined_service_t:s0
+ExecStart=
+ExecStart=/usr/bin/env /usr/bin/qemu-ga --method=virtio-serial --path=/dev/virtio-ports/org.qemu.guest_agent.0
 MemoryMax=3G
 CPUQuota=200%
 Nice=5
