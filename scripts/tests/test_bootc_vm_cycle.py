@@ -1,10 +1,12 @@
 """VM lifecycle tests with a simulated guest and real status assertions."""
 
 import importlib.util
+import io
 import json
 import tempfile
 import traceback
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -81,6 +83,98 @@ GOOD_STATES = [
 
 
 class BootcVmCycleTests(unittest.TestCase):
+    def test_guest_preflight_reports_space_and_accepts_registry_auth_challenge(self):
+        module = load_controller()
+        for status in ("200", "401"):
+            with self.subTest(status=status):
+                transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+                transport.guest_exec = Mock(side_effect=["Filesystem available: 8G\n", status])
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    transport.preflight()
+                self.assertIn("Filesystem available: 8G", output.getvalue())
+                calls = transport.guest_exec.call_args_list
+                self.assertEqual(calls[0].args, ("/usr/bin/df", "-h", "/", "/var"))
+                curl = calls[1]
+                self.assertEqual(curl.args[0], "/usr/bin/curl")
+                self.assertIn("https://ghcr.io/v2/", curl.args)
+                self.assertIn("--max-time", curl.args)
+                self.assertEqual(curl.args[curl.args.index("--max-time") + 1], "30")
+                self.assertIn("--connect-timeout", curl.args)
+                self.assertNotIn("--fail", curl.args)
+                self.assertLessEqual(curl.kwargs["timeout"], 45)
+
+    def test_guest_preflight_rejects_unreachable_or_unexpected_registry(self):
+        module = load_controller()
+        for failure in ("000", "500", RuntimeError("curl DNS resolution failed")):
+            with self.subTest(failure=failure):
+                transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+                transport.guest_exec = Mock(side_effect=["Filesystem\n", failure])
+                with redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError):
+                    transport.preflight()
+
+    def test_mutations_log_output_and_keep_arguments_out_of_shell_source(self):
+        module = load_controller()
+        for operation, timeout in (("switch", 3600), ("upgrade", 3600), ("rollback", 300)):
+            with self.subTest(operation=operation):
+                transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+                transport.guest_exec = Mock(return_value="")
+                argument = 'image:tag;$(echo injected) "with spaces"'
+                transport.bootc(operation, argument)
+                call = transport.guest_exec.call_args
+                self.assertEqual(call.args[:2], ("/usr/bin/bash", "-c"))
+                self.assertEqual(call.args[2], 'exec /usr/bin/bootc "$@" > /run/forja-vm-bootc.log 2>&1')
+                self.assertEqual(call.args[4:], (operation, argument))
+                self.assertEqual(call.kwargs["timeout"], timeout)
+
+    def test_mutation_failure_collects_bounded_tail_and_preserves_original_error(self):
+        module = load_controller()
+        for diagnostic in ("downloading layer 1/4", RuntimeError("diagnostic unavailable")):
+            with self.subTest(diagnostic=diagnostic):
+                transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+                failure = RuntimeError("original transfer timed out")
+                transport.guest_exec = Mock(side_effect=[failure, diagnostic])
+                with patch("sys.stderr", new_callable=io.StringIO) as output:
+                    with self.assertRaises(RuntimeError) as caught:
+                        transport.bootc("upgrade")
+                self.assertIs(caught.exception, failure)
+                tail = transport.guest_exec.call_args_list[1]
+                self.assertEqual(tail.args, ("/usr/bin/tail", "-c", "16384", "/run/forja-vm-bootc.log"))
+                self.assertLessEqual(tail.kwargs["timeout"], 30)
+                self.assertIn(str(diagnostic), output.getvalue())
+
+    def test_status_json_uses_direct_command_with_short_timeout(self):
+        module = load_controller()
+        transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+        expected = state(BASE)
+        transport.guest_exec = Mock(return_value=expected)
+        self.assertEqual(transport.status(), expected)
+        transport.guest_exec.assert_called_once_with("/usr/bin/bootc", "status", "--json", timeout=60)
+
+    def test_mutation_tail_redacts_signed_urls_and_authentication(self):
+        module = load_controller()
+        transport = module.LibvirtTransport("vm-cycle-test", "actor", "synthetic-token", "disk.qcow2")
+        log = (
+            'fetch https://pkg.example/blob/layer?signature=private-query&expires=123\n'
+            'Authorization: Bearer private-header\nBearer private-bearer\nsynthetic-token\n'
+        )
+        transport.guest_exec = Mock(side_effect=[RuntimeError("transfer timed out"), log])
+        with patch("sys.stderr", new_callable=io.StringIO) as output:
+            with self.assertRaisesRegex(RuntimeError, "transfer timed out"):
+                transport.bootc("upgrade")
+        rendered = output.getvalue()
+        self.assertIn("https://pkg.example/blob/layer", rendered)
+        for secret in ("private-query", "expires=123", "private-header", "private-bearer", "synthetic-token"):
+            self.assertNotIn(secret, rendered)
+
+    def test_guest_exec_rpc_timeout_respects_remaining_command_budget(self):
+        module = load_controller()
+        transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+        transport.agent = Mock(side_effect=[{"pid": 1}, {"exited": True, "exitcode": 0}])
+        with patch.object(module.time, "monotonic", side_effect=[0, 29]):
+            transport.guest_exec("/usr/bin/true", timeout=30)
+        self.assertEqual([call.kwargs["timeout"] for call in transport.agent.call_args_list], [30, 1])
+
     def test_registry_timeout_never_exposes_credentials_in_traceback(self):
         module = load_controller()
         token = "synthetic-review-token"
@@ -114,6 +208,7 @@ class BootcVmCycleTests(unittest.TestCase):
             transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", disk=disk)
             transport.command = Mock(return_value="")
             transport.wait_agent = Mock()
+            transport.preflight = Mock()
             transport.guest_read_file = Mock(side_effect=["1", "system_u:system_r:unconfined_service_t:s0"])
             transport.start_vm()
             command = transport.command.call_args_list[0].args[0]
@@ -121,6 +216,7 @@ class BootcVmCycleTests(unittest.TestCase):
             self.assertIn(str(disk), " ".join(command))
             self.assertIn("org.qemu.guest_agent.0", " ".join(command))
             self.assertNotIn("bcvk", " ".join(command))
+            transport.preflight.assert_called_once()
 
     def test_vm_rejects_disabled_selinux_before_bootc_cycle(self):
         module = load_controller()
@@ -188,7 +284,7 @@ class BootcVmCycleTests(unittest.TestCase):
         transport.guest_exec = Mock(side_effect=RuntimeError("guest bootc failed (1): registry timeout"))
         with self.assertRaisesRegex(RuntimeError, "registry timeout"):
             transport.bootc("switch", "ghcr.io/forjaos-project/forjaos:vm-cycle-f0-008")
-        transport.guest_exec.assert_called_once()
+        self.assertEqual([call.args[0] for call in transport.guest_exec.call_args_list], ["/usr/bin/bash", "/usr/bin/tail"])
 
     def test_reboot_reads_boot_id_through_guest_file_api(self):
         module = load_controller()

@@ -107,6 +107,12 @@ class LibvirtTransport:
         self.connect = connect
         self.disk = Path(disk)
 
+    def redact_diagnostic(self, text):
+        text = text.replace(self.token, "***")
+        text = re.sub(r'''(?i)(https?://[^\s?<>"']+)\?[^\s<>"']+''', r"\1?***", text)
+        text = re.sub(r"(?im)(authorization\s*[:=]\s*)[^\r\n]+", r"\1***", text)
+        return re.sub(r"(?i)\bbearer\s+[a-z0-9._~+/=-]+", "Bearer ***", text)
+
     def command(self, args, *, timeout=1800):
         try:
             result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
@@ -114,7 +120,7 @@ class LibvirtTransport:
             # TimeoutExpired includes argv, which can contain registry credentials.
             raise RuntimeError(f"{Path(args[0]).name} timed out after {timeout} seconds") from None
         if result.returncode:
-            detail = (result.stderr or result.stdout).replace(self.token, "***").strip()
+            detail = self.redact_diagnostic(result.stderr or result.stdout).strip()
             raise RuntimeError(f"{Path(args[0]).name} failed ({result.returncode}): {detail[:1000]}")
         return result.stdout
 
@@ -162,23 +168,24 @@ class LibvirtTransport:
         raise RuntimeError("QEMU guest agent did not become ready")
 
     def guest_exec(self, path, *args, timeout=1800):
+        deadline = time.monotonic() + timeout
         response = self.agent({
             "execute": "guest-exec",
             "arguments": {"path": path, "arg": list(args), "capture-output": True},
-        })
+        }, timeout=min(60, timeout))
         if not isinstance(response, dict) or not isinstance(response.get("pid"), int):
             raise RuntimeError("guest-exec did not return a process ID")
         pid = response["pid"]
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            status = self.agent({"execute": "guest-exec-status", "arguments": {"pid": pid}})
+        while (remaining := deadline - time.monotonic()) > 0:
+            status = self.agent({"execute": "guest-exec-status", "arguments": {"pid": pid}}, timeout=min(60, remaining))
             if status.get("exited"):
                 stdout = base64.b64decode(status.get("out-data", "")).decode("utf-8", errors="replace")
                 stderr = base64.b64decode(status.get("err-data", "")).decode("utf-8", errors="replace")
                 if status.get("exitcode") != 0:
-                    raise RuntimeError(f"guest {Path(path).name} failed ({status.get('exitcode')}): {stderr[:1000]}")
+                    detail = self.redact_diagnostic(stderr)[:1000]
+                    raise RuntimeError(f"guest {Path(path).name} failed ({status.get('exitcode')}): {detail}")
                 return stdout
-            time.sleep(3)
+            time.sleep(max(0, min(3, deadline - time.monotonic())))
         raise RuntimeError(f"guest {Path(path).name} timed out")
 
     def guest_read_file(self, path):
@@ -193,7 +200,7 @@ class LibvirtTransport:
 
     def bootc_command(self, *args):
         try:
-            return self.guest_exec("/usr/bin/bootc", *args)
+            return self.guest_exec("/usr/bin/bootc", *args, timeout=60)
         except RuntimeError as failure:
             if "Failed to execute child process" not in str(failure) or "Permission denied" not in str(failure):
                 raise
@@ -201,7 +208,7 @@ class LibvirtTransport:
                 return self.guest_exec(
                     "/usr/bin/systemd-run", "--system", "--wait", "--pipe", "--collect", "--quiet",
                     "--property=MemoryMax=3G", "--property=CPUQuota=200%", "--property=Nice=5",
-                    "--", "/usr/bin/bootc", *args,
+                    "--", "/usr/bin/bootc", *args, timeout=60,
                 )
             except (RuntimeError, subprocess.TimeoutExpired) as service_failure:
                 diagnostics = [f"systemd-run bootc: {str(service_failure)[:200]}"]
@@ -234,12 +241,42 @@ class LibvirtTransport:
             raise RuntimeError("SELinux must remain enforcing in the Bazzite test VM")
         if self.guest_read_file("/proc/self/attr/current") != "system_u:system_r:unconfined_service_t:s0":
             raise RuntimeError("test-only guest agent SELinux context was not applied")
+        self.preflight()
+
+    def preflight(self):
+        usage = self.guest_exec("/usr/bin/df", "-h", "/", "/var", timeout=30)
+        print(f"vm-cycle: guest disk usage:\n{self.redact_diagnostic(usage).strip()}", flush=True)
+        status = self.guest_exec(
+            "/usr/bin/curl", "--silent", "--show-error", "--output", "/dev/null",
+            "--write-out", "%{http_code}", "--connect-timeout", "10", "--max-time", "30",
+            "https://ghcr.io/v2/", timeout=45,
+        ).strip()
+        if status not in ("200", "401"):
+            raise RuntimeError(f"guest registry preflight expected HTTP 200/401, got {status}")
+        print(f"vm-cycle: guest registry preflight: HTTP {status}", flush=True)
 
     def status(self):
         return self.bootc_command("status", "--json")
 
     def bootc(self, *args):
-        self.bootc_command(*args)
+        if not args or args[0] not in ("switch", "upgrade", "rollback"):
+            raise ValueError("expected a bootc switch, upgrade, or rollback mutation")
+        timeout = 300 if args[0] == "rollback" else 3600
+        print(f"vm-cycle: bootc {args[0]} started (timeout={timeout}s)", flush=True)
+        try:
+            self.guest_exec(
+                "/usr/bin/bash", "-c", 'exec /usr/bin/bootc "$@" > /run/forja-vm-bootc.log 2>&1',
+                "bootc-vm", *args, timeout=timeout,
+            )
+        except Exception:
+            try:
+                tail = self.guest_exec("/usr/bin/tail", "-c", "16384", "/run/forja-vm-bootc.log", timeout=30)
+                print(f"vm-cycle: bootc log tail:\n{self.redact_diagnostic(tail)}", file=sys.stderr, flush=True)
+            except Exception as diagnostic_failure:
+                detail = self.redact_diagnostic(str(diagnostic_failure))
+                print(f"vm-cycle: bootc log unavailable: {detail}", file=sys.stderr, flush=True)
+            raise
+        print(f"vm-cycle: bootc {args[0]} completed", flush=True)
 
     def reboot(self):
         previous = self.guest_read_file("/proc/sys/kernel/random/boot_id")
