@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -79,6 +80,21 @@ GOOD_STATES = [
 
 
 class BootcVmCycleTests(unittest.TestCase):
+    def test_libvirt_transport_imports_built_bazzite_disk(self):
+        module = load_controller()
+        with tempfile.TemporaryDirectory() as directory:
+            disk = Path(directory) / "disk.qcow2"
+            disk.write_bytes(b"qcow2")
+            transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", disk=disk)
+            transport.command = Mock(return_value="")
+            transport.wait_agent = Mock()
+            transport.start_vm()
+            command = transport.command.call_args_list[0].args[0]
+            self.assertEqual(command[0], "virt-install")
+            self.assertIn(str(disk), " ".join(command))
+            self.assertIn("org.qemu.guest_agent.0", " ".join(command))
+            self.assertNotIn("bcvk", " ".join(command))
+
     def test_full_cycle_checks_three_booted_digests(self):
         module = load_controller()
         transport = FakeTransport(GOOD_STATES)

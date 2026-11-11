@@ -8,7 +8,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -17,7 +16,6 @@ DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 IMAGE = re.compile(r"ghcr\.io/forjaos-project/forjaos(?:-nvidia-open)?\Z")
 TAG = re.compile(r"vm-cycle-[a-z0-9-]+\Z")
 ASSERT_SCRIPT = Path(__file__).with_name("assert_bootc_state.py")
-BASE_IMAGE = "ghcr.io/ublue-os/bazzite:stable"
 
 
 def digest_at(status_text, slot):
@@ -102,11 +100,12 @@ def run_cycle(transport, image, baseline, target, tag, output):
 class LibvirtTransport:
     """Run VM operations without changing the host or image configuration."""
 
-    def __init__(self, vm_name, actor, token, connect="qemu:///session"):
+    def __init__(self, vm_name, actor, token, disk, connect="qemu:///session"):
         self.vm_name = vm_name
         self.actor = actor
         self.token = token
         self.connect = connect
+        self.disk = Path(disk)
 
     def command(self, args, *, timeout=1800):
         result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
@@ -179,22 +178,16 @@ class LibvirtTransport:
         raise RuntimeError(f"guest {Path(path).name} timed out")
 
     def start_vm(self):
-        self.command(["podman", "pull", BASE_IMAGE])
+        if not self.disk.is_file():
+            raise RuntimeError(f"Bazzite VM disk missing: {self.disk}")
         self.command([
-            "bcvk", "libvirt", "run", "--connect", self.connect, "--name", self.vm_name,
-            "--memory", "4G", "--cpus", "4", "--disk-size", "70G",
-            "--firmware", "uefi-insecure", "--disable-tpm", "--detach", BASE_IMAGE,
-        ], timeout=3600)
-        xml = self.virsh("dumpxml", self.vm_name)
-        if "org.qemu.guest_agent.0" not in xml:
-            channel = (
-                "<channel type='unix'><source mode='bind'/>"
-                "<target type='virtio' name='org.qemu.guest_agent.0'/></channel>"
-            )
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", encoding="utf-8") as source:
-                source.write(channel)
-                source.flush()
-                self.virsh("attach-device", self.vm_name, source.name, "--live", "--config")
+            "virt-install", "--connect", self.connect, "--name", self.vm_name,
+            "--memory", "4096", "--vcpus", "4", "--import",
+            "--disk", f"path={self.disk},format=qcow2,bus=virtio",
+            "--osinfo", "detect=off,require=off", "--boot", "uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no",
+            "--network", "user", "--graphics", "none", "--noautoconsole",
+            "--channel", "unix,target.type=virtio,target.name=org.qemu.guest_agent.0",
+        ], timeout=300)
         self.wait_agent()
 
     def status(self):
@@ -219,7 +212,15 @@ class LibvirtTransport:
         raise RuntimeError("VM did not boot a new kernel session")
 
     def close_vm(self):
-        self.command(["bcvk", "libvirt", "rm", "--connect", self.connect, "-f", self.vm_name], timeout=180)
+        try:
+            state = self.virsh("domstate", self.vm_name).strip()
+        except RuntimeError as exc:
+            if "not found" in str(exc) or "failed to get domain" in str(exc):
+                return
+            raise
+        if state != "shut off":
+            self.virsh("destroy", self.vm_name)
+        self.virsh("undefine", self.vm_name, "--nvram")
 
 
 def main():
@@ -229,6 +230,7 @@ def main():
     parser.add_argument("--target", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--connect", default="qemu:///session")
+    parser.add_argument("--disk", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     actor = os.environ.get("GITHUB_ACTOR")
@@ -239,7 +241,7 @@ def main():
     if not run_id:
         parser.error("invalid run ID")
     tag = f"vm-cycle-{run_id}"
-    transport = LibvirtTransport(tag, actor, token, connect=args.connect)
+    transport = LibvirtTransport(tag, actor, token, args.disk, connect=args.connect)
     run_cycle(transport, f"ghcr.io/forjaos-project/{args.variant}", args.baseline, args.target, tag, args.output)
 
 
