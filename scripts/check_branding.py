@@ -2,13 +2,17 @@
 """Inspect a ForjaOS rootfs for inherited branding on user-visible surfaces."""
 
 import argparse
+import configparser
 import json
 from pathlib import Path
 import re
 import subprocess
+from urllib.parse import urlparse
+import xml.etree.ElementTree as ET
 
 
 BRAND = re.compile(r"fedora|bazzite|bluefin|universal[ -]blue", re.IGNORECASE)
+YAFTI_LABEL = re.compile(r"^\s*(?:title|description|label)\s*:\s*(.*)$")
 PACKAGE = re.compile(r"^(fedora-logos|fedora-release-identity-.*|bazzite-branding.*|bluefin-.*)$", re.IGNORECASE)
 VISIBLE_PATHS = (
     "etc/motd",
@@ -19,6 +23,7 @@ VISIBLE_PATHS = (
     "boot/grub2/themes",
     "usr/share/plymouth/themes/default.plymouth",
     "usr/share/wallpapers",
+    "usr/share/ublue-os/motd",
     "usr/share/plasma/look-and-feel",
     "usr/share/kde-settings",
     "usr/share/icons/hicolor",
@@ -26,7 +31,7 @@ VISIBLE_PATHS = (
     "usr/share/flatpak/remotes.d",
     "var/lib/flatpak/repo/config",
 )
-TEXT_SUFFIXES = {"", ".colors", ".conf", ".css", ".desktop", ".flatpakrepo", ".ini", ".js", ".json", ".layout", ".plymouth", ".qml", ".service", ".svg", ".theme", ".txt", ".xml"}
+TEXT_SUFFIXES = {"", ".colors", ".conf", ".css", ".desktop", ".flatpakrepo", ".ini", ".js", ".json", ".layout", ".md", ".plymouth", ".qml", ".service", ".svg", ".theme", ".txt", ".xml"}
 LEGAL_PARTS = {"licenses", "doc", "man"}
 
 
@@ -172,6 +177,183 @@ def check_visible(root, findings):
                 findings.append(finding("text", display, match.group(), number))
 
 
+def application_files(root, directory, suffix, findings):
+    """Yield metadata files through the same rootfs link resolution as visible assets."""
+    try:
+        path = resolve_root_path(root, directory)
+        if not path.exists():
+            return
+        if not path.is_dir():
+            raise OSError("application metadata path is not a directory")
+        for child in sorted(path.iterdir()):
+            if child.suffix == suffix:
+                yield Path(directory) / child.name
+    except OSError as error:
+        findings.append(finding("inspection", "/" + directory, str(error)))
+
+
+def check_applications(root, findings):
+    """Inspect labels/icons shown by the launcher and Discover, not internal Exec paths."""
+    for relative in application_files(root, "usr/share/applications", ".desktop", findings):
+        display = "/" + relative.as_posix()
+        try:
+            lines = read_root_file(root, relative).decode("utf-8").splitlines()
+        except (OSError, UnicodeError) as error:
+            findings.append(finding("inspection", display, str(error)))
+            continue
+        in_entry = False
+        hidden = False
+        labels = []
+        for number, line in enumerate(lines, 1):
+            if line.startswith("[") and line.endswith("]"):
+                in_entry = line == "[Desktop Entry]"
+                continue
+            if not in_entry or "=" not in line or line.startswith("#"):
+                continue
+            key, value = line.split("=", 1)
+            if key in ("NoDisplay", "Hidden") and value.strip().lower() == "true":
+                hidden = True
+            if key.split("[", 1)[0] in ("Name", "GenericName", "Comment", "Keywords", "Icon"):
+                match = BRAND.search(value)
+                if match:
+                    labels.append(finding("text", display, match.group(), number))
+        if not hidden:
+            findings.extend(labels)
+
+    for relative in application_files(root, "usr/share/metainfo", ".xml", findings):
+        display = "/" + relative.as_posix()
+        try:
+            component = ET.fromstring(read_root_file(root, relative))
+        except (OSError, ET.ParseError) as error:
+            findings.append(finding("inspection", display, str(error)))
+            continue
+        if component.tag != "component" or component.get("type") not in (
+            "desktop", "desktop-application", "operating-system"
+        ):
+            continue
+        for element in component.iter():
+            if element.tag not in ("name", "summary", "description", "icon"):
+                continue
+            match = BRAND.search(" ".join(element.itertext()))
+            if match:
+                findings.append(finding("text", display, match.group()))
+                break
+
+
+def check_yafti_actions(root, findings):
+    """KRunner exposes Yafti YAML labels in the application launcher search."""
+    plugin = "usr/lib64/qt6/plugins/kf6/krunner/krunner-yafti.so"
+    config = "usr/share/yafti/yafti.yml"
+    try:
+        if not resolve_root_path(root, plugin).is_file():
+            return
+        if not resolve_root_path(root, config).is_file():
+            return
+        lines = read_root_file(root, config).decode("utf-8").splitlines()
+    except (OSError, UnicodeError) as error:
+        findings.append(finding("inspection", "/" + config, str(error)))
+        return
+    for number, line in enumerate(lines, 1):
+        label = YAFTI_LABEL.match(line)
+        if label:
+            match = BRAND.search(label.group(1))
+            if match:
+                findings.append(finding("text", "/" + config, match.group(), number))
+
+
+def check_initramfs_logo(root, findings):
+    """The boot splash uses a copy of the logo baked into each initramfs."""
+    modules = resolve_root_path(root, "usr/lib/modules")
+    if not modules.exists():
+        return
+    try:
+        logo = read_root_file(root, "usr/share/pixmaps/system-logo-white.png")
+        images = sorted(modules.glob("*/initramfs.img"))
+    except OSError as error:
+        findings.append(finding("inspection", "/usr/share/pixmaps/system-logo-white.png", str(error)))
+        return
+    for image in images:
+        display = "/" + image.relative_to(root).as_posix()
+        try:
+            result = subprocess.run(
+                ["lsinitrd", "-f", "usr/share/pixmaps/system-logo-white.png", str(image)],
+                capture_output=True,
+                check=False,
+            )
+        except OSError as error:
+            findings.append(finding("inspection", display, str(error)))
+            continue
+        if result.returncode:
+            detail = result.stderr.decode("utf-8", errors="replace").strip()
+            findings.append(finding("inspection", display, detail or f"lsinitrd exited {result.returncode}"))
+        elif result.stdout != logo:
+            findings.append(finding("image", display, "boot splash logo differs from ForjaOS rootfs logo"))
+
+
+def check_login_wallpapers(root, findings):
+    """Plasma Login and the lock screen must resolve to project-owned artwork."""
+    section = "Greeter][Wallpaper][org.kde.image][General"
+    owned = root / "usr/share/wallpapers/ForjaOS"
+    for relative in ("usr/lib/plasmalogin/defaults.conf", "etc/xdg/kscreenlockerrc"):
+        display = "/" + relative
+        try:
+            path = resolve_root_path(root, relative)
+            if not path.exists():
+                continue
+            config = configparser.ConfigParser(interpolation=None)
+            config.read_string(read_root_file(root, relative).decode("utf-8"))
+            for key in ("Image", "PreviewImage"):
+                value = config.get(section, key)
+                uri = urlparse(value)
+                if uri.scheme not in ("", "file") or uri.netloc or not uri.path.startswith("/"):
+                    raise ValueError(f"unsupported {key} path: {value}")
+                target = resolve_root_path(root, uri.path.lstrip("/"))
+                if not target.is_file() or not target.is_relative_to(owned):
+                    findings.append(finding("image", display, f"{key} resolves outside ForjaOS artwork: {value}"))
+                    break
+        except (OSError, UnicodeError, ValueError, configparser.Error) as error:
+            findings.append(finding("inspection", display, str(error)))
+
+
+def check_first_login_launcher(root, findings):
+    """The selected look-and-feel can override the kickoff icon on a new account."""
+    config_path = resolve_root_path(root, "etc/xdg/kdeglobals")
+    if not config_path.is_file():
+        return
+    try:
+        config = configparser.ConfigParser(interpolation=None)
+        config.read_string(read_root_file(root, "etc/xdg/kdeglobals").decode("utf-8"))
+        package = config.get("KDE", "LookAndFeelPackage", fallback="")
+        if not package:
+            return
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", package):
+            raise ValueError(f"unexpected look-and-feel package: {package}")
+        relative = f"usr/share/plasma/look-and-feel/{package}/contents/plasmoidsetupscripts/org.kde.plasma.kickoff.js"
+        setup = resolve_root_path(root, relative)
+        if not setup.is_file():
+            return
+        content = read_root_file(root, relative).decode("utf-8")
+        icon = re.search(r'writeConfig\s*\(\s*["\']icon["\']\s*,\s*["\']([^"\']+)["\']', content)
+        if icon and icon.group(1) != "start-here":
+            findings.append(finding("image", "/" + relative, f"first-login launcher icon: {icon.group(1)}"))
+    except (OSError, UnicodeError, ValueError, configparser.Error) as error:
+        findings.append(finding("inspection", "/etc/xdg/kdeglobals", str(error)))
+
+
+def check_existing_launcher_icon(root, findings):
+    """Existing Plasma profiles can still point at the old distributor icon name."""
+    icons = "usr/share/icons/hicolor/scalable/places"
+    for name in ("distributor-logo.svg", "distributor-logo-steamdeck.svg"):
+        inherited = f"{icons}/{name}"
+        if not (root / inherited).exists() and not (root / inherited).is_symlink():
+            continue
+        try:
+            if read_root_file(root, inherited) != read_root_file(root, f"{icons}/start-here.svg"):
+                findings.append(finding("image", "/" + inherited, "existing launcher icon differs from ForjaOS"))
+        except OSError as error:
+            findings.append(finding("inspection", "/" + inherited, str(error)))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rootfs", type=Path, required=True)
@@ -185,6 +367,12 @@ def main():
         check_identity(root, findings)
         check_packages(root, findings)
         check_visible(root, findings)
+        check_applications(root, findings)
+        check_yafti_actions(root, findings)
+        check_initramfs_logo(root, findings)
+        check_login_wallpapers(root, findings)
+        check_first_login_launcher(root, findings)
+        check_existing_launcher_icon(root, findings)
     findings.sort(key=lambda item: (item["path"], item.get("line", 0), item["kind"], item["value"]))
     status = "error" if any(item["kind"] == "inspection" for item in findings) else "fail" if findings else "ok"
     report = {"status": status, "findings": findings}

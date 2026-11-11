@@ -34,6 +34,14 @@ class BrandingCheckTests(unittest.TestCase):
             encoding="utf-8",
         )
         rpm.chmod(0o755)
+        lsinitrd = binary / "lsinitrd"
+        lsinitrd.write_text(
+            "#!/usr/bin/env python3\n"
+            "import os, sys\n"
+            "sys.stdout.buffer.write(open(os.environ['TEST_INITRAMFS_LOGO'], 'rb').read())\n",
+            encoding="utf-8",
+        )
+        lsinitrd.chmod(0o755)
         self.env = os.environ.copy()
         self.env["PATH"] = f"{binary}{os.pathsep}{self.env['PATH']}"
 
@@ -62,6 +70,95 @@ class BrandingCheckTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(report, {"status": "ok", "findings": []})
 
+    def test_rejects_inherited_terminal_banner_and_rotating_tip(self):
+        self.write("usr/share/ublue-os/motd/template.md", "# Welcome to Bazzite\n")
+        self.write("usr/share/ublue-os/motd/tips/20-bazzite.md", "Bazzite help\n")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertTrue(any(item["path"].endswith("/template.md") for item in report["findings"]))
+        self.assertTrue(any(item["path"].endswith("/20-bazzite.md") for item in report["findings"]))
+
+    def test_rejects_stale_boot_splash_logo_in_initramfs(self):
+        self.write("usr/share/pixmaps/system-logo-white.png", "ForjaOS logo")
+        self.write("usr/lib/modules/test-kernel/initramfs.img", "initramfs fixture")
+        stale_logo = self.base / "embedded-logo.png"
+        stale_logo.write_text("Bazzite logo", encoding="utf-8")
+        self.env["TEST_INITRAMFS_LOGO"] = str(stale_logo)
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertTrue(any(item["path"].endswith("/initramfs.img") and item["kind"] == "image"
+                            for item in report["findings"]), report)
+
+        stale_logo.write_text("ForjaOS logo", encoding="utf-8")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
+
+    def test_rejects_inherited_login_and_lock_wallpaper(self):
+        self.write(
+            "usr/lib/plasmalogin/defaults.conf",
+            "[Greeter][Wallpaper][org.kde.image][General]\n"
+            "Image=file:///usr/share/backgrounds/default.jxl\n"
+            "PreviewImage=file:///usr/share/backgrounds/default.jxl\n",
+        )
+        self.write(
+            "etc/xdg/kscreenlockerrc",
+            "[Greeter][Wallpaper][org.kde.image][General]\n"
+            "Image=/usr/share/wallpapers/convergence.jxl\n"
+            "PreviewImage=/usr/share/wallpapers/convergence.jxl\n",
+        )
+        self.write("usr/share/wallpapers/convergence.jxl", "inherited login art")
+        self.write("usr/share/wallpapers/ForjaOS/dark-abstract.jxl", "ForjaOS login art")
+        default = self.root / "usr/share/backgrounds/default.jxl"
+        default.parent.mkdir(parents=True)
+        try:
+            default.symlink_to("/usr/share/wallpapers/convergence.jxl")
+        except OSError as error:
+            self.skipTest(f"symlinks unavailable: {error}")
+
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertEqual(
+            {item["path"] for item in report["findings"] if item["kind"] == "image"},
+            {"/usr/lib/plasmalogin/defaults.conf", "/etc/xdg/kscreenlockerrc"},
+            report,
+        )
+
+        legacy = self.root / "usr/share/wallpapers/convergence.jxl"
+        legacy.unlink()
+        legacy.symlink_to("ForjaOS/dark-abstract.jxl")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
+
+    def test_rejects_active_first_login_launcher_icon(self):
+        self.write("etc/xdg/kdeglobals", "[KDE]\nLookAndFeelPackage=com.valve.vapor.desktop\n")
+        setup = "usr/share/plasma/look-and-feel/com.valve.vapor.desktop/contents/plasmoidsetupscripts/org.kde.plasma.kickoff.js"
+        self.write(setup, 'applet.writeConfig("icon", "distributor-logo-steamdeck")\n')
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertTrue(any(f["kind"] == "image" and f["path"].endswith("org.kde.plasma.kickoff.js")
+                            for f in report["findings"]), report)
+
+        self.write(setup, 'applet.writeConfig("icon", "start-here")\n')
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
+
+    def test_rejects_inherited_icon_used_by_existing_launcher_profiles(self):
+        self.write("usr/share/icons/hicolor/scalable/places/start-here.svg", "ForjaOS icon")
+        alias = "usr/share/icons/hicolor/scalable/places/distributor-logo-steamdeck.svg"
+        generic = "usr/share/icons/hicolor/scalable/places/distributor-logo.svg"
+        self.write(generic, "inherited violet icon")
+        (self.root / alias).symlink_to("distributor-logo.svg")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertTrue(any(f["kind"] == "image" and f["path"].endswith("distributor-logo-steamdeck.svg")
+                            for f in report["findings"]), report)
+
+        legacy = self.root / generic
+        legacy.unlink()
+        legacy.symlink_to("start-here.svg")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
+
     def test_rejects_missing_or_wrong_identity(self):
         (self.root / "etc/os-release").write_text('NAME="Bazzite"\nID=bazzite\n', encoding="utf-8")
         result, report = self.check(packages="forjaos-branding\n")
@@ -89,6 +186,46 @@ class BrandingCheckTests(unittest.TestCase):
         result, report = self.check(packages="forjaos-branding\n")
         self.assertEqual(result.returncode, 1, report)
         self.assertTrue(any(f.get("line") == 2 for f in report["findings"]))
+
+    def test_scans_visible_application_labels_but_not_internal_commands(self):
+        self.write("usr/share/applications/portal.desktop",
+                   "[Desktop Entry]\nName=Bazzite Portal\nExec=/usr/bin/yafti\nIcon=/usr/share/ublue-os/bazzite/portal.svg\n")
+        self.write("usr/share/applications/steam.desktop",
+                   "[Desktop Entry]\nName=Steam\nExec=/usr/bin/bazzite-steam\nIcon=steam\n")
+        self.write("usr/share/applications/hidden.desktop",
+                   "[Desktop Entry]\nNoDisplay=true\nName=Bazzite Updater\n")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertEqual({f["path"] for f in report["findings"]},
+                         {"/usr/share/applications/portal.desktop"})
+        self.assertEqual({f["line"] for f in report["findings"]}, {2, 4})
+
+    def test_scans_discover_desktop_application_metadata(self):
+        self.write("usr/share/metainfo/portal.xml",
+                   '<component type="desktop-application"><id>portal</id><name>Bazzite Portal</name></component>')
+        self.write("usr/share/metainfo/font.xml",
+                   '<component type="font"><id>font</id><name>Fedora Font</name></component>')
+        self.write("usr/share/metainfo/os.xml",
+                   '<component type="operating-system"><id>os</id><name>Fedora Linux</name></component>')
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertEqual({f["path"] for f in report["findings"]},
+                         {"/usr/share/metainfo/portal.xml", "/usr/share/metainfo/os.xml"})
+
+    def test_scans_yafti_actions_only_when_krunner_plugin_exposes_them(self):
+        yaml = "usr/share/yafti/yafti.yml"
+        self.write(yaml, "title: Bazzite Portal\n"
+                         "description: Configure Bazzite\n"
+                         "label: Enable Bazzite CLI\n"
+                         "id: bazzite-internal\n"
+                         "script: ujust bazzite-cli enable\n")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 0, report)
+        self.write("usr/lib64/qt6/plugins/kf6/krunner/krunner-yafti.so", "plugin")
+        result, report = self.check(packages="forjaos-branding\n")
+        self.assertEqual(result.returncode, 1, report)
+        self.assertEqual({f["path"] for f in report["findings"]}, {"/" + yaml})
+        self.assertEqual({f["line"] for f in report["findings"]}, {1, 2, 3})
 
     def test_rejects_each_forbidden_package_family(self):
         result, report = self.check(
