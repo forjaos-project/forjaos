@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 
 
 BRAND = re.compile(r"fedora|bazzite|bluefin|universal[ -]blue", re.IGNORECASE)
+YAFTI_LABEL = re.compile(r"^\s*(?:title|description|label)\s*:\s*(.*)$")
 PACKAGE = re.compile(r"^(fedora-logos|fedora-release-identity-.*|bazzite-branding.*|bluefin-.*)$", re.IGNORECASE)
 VISIBLE_PATHS = (
     "etc/motd",
@@ -239,6 +240,27 @@ def check_applications(root, findings):
                 break
 
 
+def check_yafti_actions(root, findings):
+    """KRunner exposes Yafti YAML labels in the application launcher search."""
+    plugin = "usr/lib64/qt6/plugins/kf6/krunner/krunner-yafti.so"
+    config = "usr/share/yafti/yafti.yml"
+    try:
+        if not resolve_root_path(root, plugin).is_file():
+            return
+        if not resolve_root_path(root, config).is_file():
+            return
+        lines = read_root_file(root, config).decode("utf-8").splitlines()
+    except (OSError, UnicodeError) as error:
+        findings.append(finding("inspection", "/" + config, str(error)))
+        return
+    for number, line in enumerate(lines, 1):
+        label = YAFTI_LABEL.match(line)
+        if label:
+            match = BRAND.search(label.group(1))
+            if match:
+                findings.append(finding("text", "/" + config, match.group(), number))
+
+
 def check_initramfs_logo(root, findings):
     """The boot splash uses a copy of the logo baked into each initramfs."""
     modules = resolve_root_path(root, "usr/lib/modules")
@@ -346,6 +368,7 @@ def main():
         check_packages(root, findings)
         check_visible(root, findings)
         check_applications(root, findings)
+        check_yafti_actions(root, findings)
         check_initramfs_logo(root, findings)
         check_login_wallpapers(root, findings)
         check_first_login_launcher(root, findings)
