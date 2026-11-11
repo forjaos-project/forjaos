@@ -354,7 +354,7 @@
       ],
       "phase": "0",
       "title": "Eliminar branding visível no Plasma, launchers e metadados de aplicativos e publicar imagens testing assinadas",
-      "status": "doing",
+      "status": "done",
       "scope": ".",
       "depends_on": [
         "F0-007",
@@ -362,7 +362,10 @@
       ],
       "notes": "Correção objetiva da issue #25. Entrega ativos visuais mínimos e amplia o checker; F1-006 mantém layout, alternância de tema e atalhos completos. A divergência Discover/Bazaar está na issue #40.",
       "agent": "codex",
-      "claimed_at": "2026-11-10"
+      "claimed_at": "2026-11-10",
+      "pr": 39,
+      "merged_at": "2026-11-10",
+      "summary": "Branding visível ForjaOS validado no primeiro login; imagens testing assinadas e checker sem achados."
     },
     {
       "id": "F1-001",
