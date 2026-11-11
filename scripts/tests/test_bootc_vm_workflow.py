@@ -44,6 +44,7 @@ class BootcVmWorkflowTests(unittest.TestCase):
         self.assertIn("--target", source)
         self.assertIn("--baseline", source)
         self.assertIn("--connect qemu:///system", source)
+        self.assertIn('env "PATH=$PATH" python3', source)
         self.assertIn("if: always()", source)
         self.assertNotRegex(source, re.compile(r"skopeo copy[^\n]*:stable"))
 

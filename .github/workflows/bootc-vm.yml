@@ -61,7 +61,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          sudo --preserve-env=GH_TOKEN,GITHUB_ACTOR python3 image/tests/run_bootc_vm_cycle.py \
+          sudo --preserve-env=GH_TOKEN,GITHUB_ACTOR env "PATH=$PATH" python3 image/tests/run_bootc_vm_cycle.py \
             --variant forjaos \
             --baseline sha256:cfe6a9791e5bd2226acc48c82cad0e3dcc887662bb9c9ba782a69b646a24f744 \
             --target "$TARGET_DIGEST" \
