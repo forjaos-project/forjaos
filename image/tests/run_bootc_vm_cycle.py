@@ -196,10 +196,14 @@ class LibvirtTransport:
                 ("/usr/bin/true", lambda: self.guest_exec("/usr/bin/true", timeout=15)),
                 ("/usr/bin/id", lambda: self.guest_exec("/usr/bin/id", timeout=15)),
                 ("/usr/bin/cat", lambda: self.guest_exec("/usr/bin/cat", "/proc/self/attr/current", timeout=15)),
+                ("systemd-run bootc status", lambda: self.guest_exec(
+                    "/usr/bin/systemd-run", "--system", "--wait", "--pipe", "--collect", "--quiet",
+                    "--", "/usr/bin/bootc", "status", "--json", timeout=60,
+                )),
             ):
                 try:
                     value = probe()
-                    diagnostics.append(f"{label}: {value or 'ok'}")
+                    diagnostics.append(f"{label}: {(value or 'ok')[:200]}")
                 except (RuntimeError, KeyError, ValueError, subprocess.TimeoutExpired) as probe_failure:
                     diagnostics.append(f"{label}: {str(probe_failure)[:200]}")
             raise RuntimeError(f"{failure}; guest diagnostics: {'; '.join(diagnostics)}") from failure

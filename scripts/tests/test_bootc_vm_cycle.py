@@ -112,6 +112,7 @@ class BootcVmCycleTests(unittest.TestCase):
             transport.status()
         self.assertIn("virt_qemu_ga_t", str(caught.exception))
         self.assertIn("/usr/bin/true: ok", str(caught.exception))
+        self.assertIn("systemd-run bootc status: probe denied", str(caught.exception))
 
     def test_full_cycle_checks_three_booted_digests(self):
         module = load_controller()
