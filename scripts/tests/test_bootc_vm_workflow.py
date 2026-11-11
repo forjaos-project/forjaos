@@ -16,7 +16,7 @@ class BootcVmWorkflowTests(unittest.TestCase):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         config = GUEST_CONFIG.read_text(encoding="utf-8")
         self.assertIn('image/tests/ci-guest-agent.toml:/config.toml:ro', workflow)
-        self.assertIn('--config /config.toml', workflow)
+        self.assertNotIn('--config /config.toml', workflow)
         self.assertIn('/etc/systemd/system/qemu-guest-agent.service.d/', config)
         self.assertIn('SELinuxContext=system_u:system_r:unconfined_service_t:s0', config)
         self.assertIn('MemoryMax=3G', config)
