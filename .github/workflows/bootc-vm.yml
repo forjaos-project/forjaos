@@ -31,6 +31,8 @@ jobs:
         run: |
           if ! timeout 30s getent hosts azure.archive.ubuntu.com; then
             echo 'Ubuntu mirror DNS unavailable through runner resolver' >&2
+            readlink -f /etc/resolv.conf
+            resolvectl status || true
             dig +short +time=2 +tries=1 @1.1.1.1 azure.archive.ubuntu.com || true
             exit 1
           fi
