@@ -29,7 +29,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, MIT
       - name: Install VM host tools from Ubuntu
         run: |
-          timeout 30s getent hosts azure.archive.ubuntu.com
+          if ! timeout 30s getent hosts azure.archive.ubuntu.com; then
+            echo 'Ubuntu mirror DNS unavailable through runner resolver' >&2
+            dig +short +time=2 +tries=1 @1.1.1.1 azure.archive.ubuntu.com || true
+            exit 1
+          fi
           timeout 300s sudo apt-get update
           timeout 600s sudo apt-get install -y --no-install-recommends \
             podman skopeo libvirt-daemon-system libvirt-clients \

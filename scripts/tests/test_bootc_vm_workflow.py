@@ -32,6 +32,7 @@ class BootcVmWorkflowTests(unittest.TestCase):
         self.assertNotIn("bootc-host-setup@", source)
         self.assertIn("podman skopeo libvirt-daemon-system libvirt-clients", source)
         self.assertIn("timeout 30s getent hosts azure.archive.ubuntu.com", source)
+        self.assertIn("dig +short +time=2 +tries=1 @1.1.1.1 azure.archive.ubuntu.com", source)
         self.assertIn("timeout 300s sudo apt-get update", source)
         self.assertIn("timeout 600s sudo apt-get install", source)
         self.assertIn("uidmap fuse-overlayfs slirp4netns", source)
