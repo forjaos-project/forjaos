@@ -233,7 +233,7 @@ class LibvirtTransport:
             "--memory", "4096", "--vcpus", "4", "--import",
             "--disk", f"path={self.disk},format=qcow2,bus=virtio",
             "--osinfo", "detect=off,require=off", "--boot", "uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no",
-            "--network", "user", "--graphics", "none", "--noautoconsole",
+            "--network", "user,model=virtio", "--graphics", "none", "--noautoconsole",
             "--channel", "unix,target.type=virtio,target.name=org.qemu.guest_agent.0",
         ], timeout=300)
         self.wait_agent()
@@ -246,14 +246,40 @@ class LibvirtTransport:
     def preflight(self):
         usage = self.guest_exec("/usr/bin/df", "-h", "/", "/var", timeout=30)
         print(f"vm-cycle: guest disk usage:\n{self.redact_diagnostic(usage).strip()}", flush=True)
-        status = self.guest_exec(
-            "/usr/bin/curl", "--silent", "--show-error", "--output", "/dev/null",
-            "--write-out", "%{http_code}", "--connect-timeout", "10", "--max-time", "30",
-            "https://ghcr.io/v2/", timeout=45,
-        ).strip()
-        if status not in ("200", "401"):
-            raise RuntimeError(f"guest registry preflight expected HTTP 200/401, got {status}")
-        print(f"vm-cycle: guest registry preflight: HTTP {status}", flush=True)
+        deadline = time.monotonic() + 120
+        while True:
+            try:
+                status = self.guest_exec(
+                    "/usr/bin/curl", "--silent", "--show-error", "--output", "/dev/null",
+                    "--write-out", "%{http_code}", "--connect-timeout", "10", "--max-time", "30",
+                    "https://ghcr.io/v2/", timeout=45,
+                ).strip()
+                if status in ("200", "401"):
+                    print(f"vm-cycle: guest registry preflight: HTTP {status}", flush=True)
+                    return
+                last_error = f"unexpected HTTP {status}"
+            except (RuntimeError, subprocess.TimeoutExpired) as failure:
+                last_error = str(failure)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(10, remaining))
+
+        diagnostics = []
+        for name, path, args in (
+            ("interfaces", "/usr/bin/ip", ("-brief", "addr")),
+            ("routes", "/usr/bin/ip", ("-4", "route")),
+            ("resolver", "/usr/bin/cat", ("/etc/resolv.conf",)),
+        ):
+            try:
+                value = self.guest_exec(path, *args, timeout=15)
+                diagnostics.append(f"{name}: {self.redact_diagnostic(value).strip()[:300]}")
+            except (RuntimeError, subprocess.TimeoutExpired) as failure:
+                diagnostics.append(f"{name}: {self.redact_diagnostic(str(failure))[:150]}")
+        raise RuntimeError(
+            f"guest registry preflight failed: {self.redact_diagnostic(last_error)[:300]}; "
+            + "; ".join(diagnostics)
+        )
 
     def status(self):
         return self.bootc_command("status", "--json")

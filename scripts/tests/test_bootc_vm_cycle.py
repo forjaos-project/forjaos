@@ -109,9 +109,21 @@ class BootcVmCycleTests(unittest.TestCase):
         for failure in ("000", "500", RuntimeError("curl DNS resolution failed")):
             with self.subTest(failure=failure):
                 transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
-                transport.guest_exec = Mock(side_effect=["Filesystem\n", failure])
-                with redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError):
+                transport.guest_exec = Mock(side_effect=["Filesystem\n", failure, "eth0 UP", "default via 10.0.2.2", "nameserver 10.0.2.3"])
+                with patch.object(module.time, "monotonic", side_effect=[0, 120]):
+                    with redirect_stdout(io.StringIO()), self.assertRaisesRegex(RuntimeError, "registry preflight"):
+                        transport.preflight()
+                self.assertEqual(transport.guest_exec.call_count, 5)
+
+    def test_guest_preflight_retries_dns_until_network_is_ready(self):
+        module = load_controller()
+        transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+        transport.guest_exec = Mock(side_effect=["Filesystem\n", RuntimeError("curl: (6) Could not resolve host"), "401"])
+        with patch.object(module.time, "sleep") as sleep:
+            with redirect_stdout(io.StringIO()):
                     transport.preflight()
+        sleep.assert_called_once()
+        self.assertEqual(transport.guest_exec.call_count, 3)
 
     def test_mutations_log_output_and_keep_arguments_out_of_shell_source(self):
         module = load_controller()
@@ -215,6 +227,7 @@ class BootcVmCycleTests(unittest.TestCase):
             self.assertEqual(command[0], "virt-install")
             self.assertIn(str(disk), " ".join(command))
             self.assertIn("org.qemu.guest_agent.0", " ".join(command))
+            self.assertIn("user,model=virtio", command)
             self.assertNotIn("bcvk", " ".join(command))
             transport.preflight.assert_called_once()
 
