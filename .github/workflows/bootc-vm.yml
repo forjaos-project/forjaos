@@ -74,9 +74,10 @@ jobs:
           sudo podman run --rm --privileged --network host \
             --security-opt label=disable \
             --volume "$RUNNER_TEMP/bazzite-qcow2:/output" \
+            --volume "$GITHUB_WORKSPACE/image/tests/ci-guest-agent.toml:/config.toml:ro" \
             --volume /var/lib/containers/storage:/var/lib/containers/storage \
             quay.io/centos-bootc/bootc-image-builder@sha256:dab86ee6b46dcade411b37f4e70b07d93b6a06da0dbfec6fe89247a220e0d9f8 \
-            --type qcow2 --rootfs btrfs ghcr.io/ublue-os/bazzite:stable
+            --type qcow2 --rootfs btrfs --config /config.toml ghcr.io/ublue-os/bazzite:stable
           sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/bazzite-qcow2"
           test -s "$RUNNER_TEMP/bazzite-qcow2/qcow2/disk.qcow2"
       - name: Resolve current signed target

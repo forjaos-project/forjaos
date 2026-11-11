@@ -183,7 +183,7 @@ class LibvirtTransport:
             raise RuntimeError("guest-file-open did not return a handle")
         try:
             data = self.agent({"execute": "guest-file-read", "arguments": {"handle": handle, "count": 256}})
-            return base64.b64decode(data["buf-b64"]).decode("utf-8", errors="replace").strip()
+            return base64.b64decode(data["buf-b64"]).decode("utf-8", errors="replace").strip("\x00\r\n")
         finally:
             self.agent({"execute": "guest-file-close", "arguments": {"handle": handle}})
 
@@ -226,6 +226,10 @@ class LibvirtTransport:
             "--channel", "unix,target.type=virtio,target.name=org.qemu.guest_agent.0",
         ], timeout=300)
         self.wait_agent()
+        if self.guest_read_file("/sys/fs/selinux/enforce") != "1":
+            raise RuntimeError("SELinux must remain enforcing in the Bazzite test VM")
+        if self.guest_read_file("/proc/self/attr/current") != "system_u:system_r:unconfined_service_t:s0":
+            raise RuntimeError("test-only guest agent SELinux context was not applied")
 
     def status(self):
         return self.bootc_command("status", "--json")

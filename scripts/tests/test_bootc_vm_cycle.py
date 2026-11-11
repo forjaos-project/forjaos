@@ -88,12 +88,25 @@ class BootcVmCycleTests(unittest.TestCase):
             transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", disk=disk)
             transport.command = Mock(return_value="")
             transport.wait_agent = Mock()
+            transport.guest_read_file = Mock(side_effect=["1", "system_u:system_r:unconfined_service_t:s0"])
             transport.start_vm()
             command = transport.command.call_args_list[0].args[0]
             self.assertEqual(command[0], "virt-install")
             self.assertIn(str(disk), " ".join(command))
             self.assertIn("org.qemu.guest_agent.0", " ".join(command))
             self.assertNotIn("bcvk", " ".join(command))
+
+    def test_vm_rejects_disabled_selinux_before_bootc_cycle(self):
+        module = load_controller()
+        with tempfile.TemporaryDirectory() as directory:
+            disk = Path(directory) / "disk.qcow2"
+            disk.write_bytes(b"qcow2")
+            transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", disk=disk)
+            transport.command = Mock(return_value="")
+            transport.wait_agent = Mock()
+            transport.guest_read_file = Mock(return_value="0")
+            with self.assertRaisesRegex(RuntimeError, "SELinux must remain enforcing"):
+                transport.start_vm()
 
     def test_status_failure_preserves_error_and_reports_guest_agent_context(self):
         module = load_controller()

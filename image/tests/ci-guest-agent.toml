@@ -1,0 +1,13 @@
+# F0-008: applied only to the disposable Bazzite QCOW2 built in bootc-vm CI.
+# The published ForjaOS container image and the runner host are unaffected.
+[[customizations.directories]]
+path = "/etc/systemd/system/qemu-guest-agent.service.d"
+
+[[customizations.files]]
+path = "/etc/systemd/system/qemu-guest-agent.service.d/90-forja-vm-ci.conf"
+data = """[Service]
+SELinuxContext=system_u:system_r:unconfined_service_t:s0
+MemoryMax=3G
+CPUQuota=200%
+Nice=5
+"""

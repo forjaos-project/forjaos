@@ -7,10 +7,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/bootc-vm.yml"
+GUEST_CONFIG = ROOT / "image/tests/ci-guest-agent.toml"
 BASELINE = "sha256:cfe6a9791e5bd2226acc48c82cad0e3dcc887662bb9c9ba782a69b646a24f744"
 
 
 class BootcVmWorkflowTests(unittest.TestCase):
+    def test_guest_agent_override_is_confined_to_disposable_vm_disk(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        config = GUEST_CONFIG.read_text(encoding="utf-8")
+        self.assertIn('image/tests/ci-guest-agent.toml:/config.toml:ro', workflow)
+        self.assertIn('--config /config.toml', workflow)
+        self.assertIn('/etc/systemd/system/qemu-guest-agent.service.d/', config)
+        self.assertIn('SELinuxContext=system_u:system_r:unconfined_service_t:s0', config)
+        self.assertIn('MemoryMax=3G', config)
+        self.assertIn('CPUQuota=200%', config)
+        self.assertIn('Nice=5', config)
+        self.assertNotIn('SELINUX=disabled', config)
+
     def test_vm_workflow_has_ci_and_weekly_triggers(self):
         source = WORKFLOW.read_text(encoding="utf-8")
         self.assertRegex(source, r"(?m)^  pull_request:\s*$")
