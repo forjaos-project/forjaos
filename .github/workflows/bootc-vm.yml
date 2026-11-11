@@ -112,6 +112,24 @@ jobs:
             --connect qemu:///session \
             --disk "$RUNNER_TEMP/bazzite-qcow2/qcow2/disk.qcow2" \
             --output "$RUNNER_TEMP/bootc-vm-evidence"
+      - name: Diagnose guest boot after cycle failure
+        if: failure()
+        continue-on-error: true
+        run: |
+          sudo modprobe nbd max_part=16
+          sudo qemu-nbd --read-only --connect=/dev/nbd0 "$RUNNER_TEMP/bazzite-qcow2/qcow2/disk.qcow2"
+          mount_dir="$(mktemp -d "$RUNNER_TEMP/bazzite-inspect.XXXXXX")"
+          trap 'sudo umount "$mount_dir" 2>/dev/null || true; sudo qemu-nbd --disconnect /dev/nbd0' EXIT
+          lsblk -f /dev/nbd0
+          btrfs_device="$(lsblk -nrpo NAME,FSTYPE /dev/nbd0 | awk '$2 == "btrfs" {print $1; exit}')"
+          test -n "$btrfs_device"
+          sudo mount -o ro,subvolid=5 "$btrfs_device" "$mount_dir"
+          sudo find "$mount_dir" -maxdepth 8 -name 90-forja-vm-ci.conf -print -exec cat {} \;
+          sudo find "$mount_dir" -maxdepth 10 -type f -name '*.journal' -print |
+            head -n 5 | while IFS= read -r journal_file; do
+              sudo journalctl --file "$journal_file" --no-pager -o short-iso 2>/dev/null |
+                grep -Ei 'qemu-guest-agent|selinux|avc:|failed to start' | tail -n 120 || true
+            done
       - name: Upload VM deployment states
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4, MIT
