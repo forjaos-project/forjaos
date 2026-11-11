@@ -31,10 +31,19 @@ jobs:
         run: |
           if ! timeout 30s getent hosts azure.archive.ubuntu.com; then
             echo 'Ubuntu mirror DNS unavailable through runner resolver' >&2
-            readlink -f /etc/resolv.conf
+            resolver_target="$(readlink -f /etc/resolv.conf)"
+            echo "$resolver_target"
             resolvectl status || true
-            dig +short +time=2 +tries=1 @1.1.1.1 azure.archive.ubuntu.com || true
-            exit 1
+            if [ "$resolver_target" != /run/systemd/resolve/stub-resolv.conf ] || \
+               ! dig +short +time=2 +tries=1 @1.1.1.1 azure.archive.ubuntu.com | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+              exit 1
+            fi
+            dns_iface="$(ip -o -4 route show default | awk 'NR == 1 {print $5}')"
+            test -n "$dns_iface"
+            sudo resolvectl dns "$dns_iface" 1.1.1.1
+            trap 'sudo resolvectl revert "$dns_iface"' EXIT
+            sudo resolvectl flush-caches
+            timeout 30s getent hosts azure.archive.ubuntu.com
           fi
           timeout 300s sudo apt-get update
           timeout 600s sudo apt-get install -y --no-install-recommends \
