@@ -29,8 +29,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, MIT
       - name: Install VM host tools from Ubuntu
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          timeout 30s getent hosts azure.archive.ubuntu.com
+          timeout 300s sudo apt-get update
+          timeout 600s sudo apt-get install -y --no-install-recommends \
             podman skopeo libvirt-daemon-system libvirt-clients \
             qemu-system-x86 qemu-utils virtiofsd ovmf btrfs-progs xfsprogs \
             uidmap fuse-overlayfs slirp4netns
