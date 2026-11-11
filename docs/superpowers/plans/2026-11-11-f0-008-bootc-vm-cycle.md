@@ -4,7 +4,7 @@
 
 **Architecture:** Keep image publication and VM validation separate. The validation controller creates a dedicated mutable GHCR test tag from two already signed ForjaOS digests, runs a Bazzite VM, executes bootc through the QEMU guest agent, and checks the booted digest after every reboot. A manual Hyper-V run records the same transitions. The CI test tag is never a release channel. `:stable` remains subject to the weekly promotion gates in PRD 5.4 and NFR-040.
 
-**Tech Stack:** Python standard library for status assertions and VM orchestration, GitHub Actions, official Ubuntu Podman/Skopeo/libvirt/QEMU packages, and the bootc project's pinned `bcvk` binary (Apache-2.0/MIT) on an ephemeral runner. No package or repository is added to the ForjaOS image (ADR-002, G4). The upstream host-setup action is excluded because it performs broad cleanup and direct `/etc` edits that conflict with the repository's destructive-action rule. The VM job uses an unprivileged Podman and libvirt session after both OCI runtimes failed at mount-namespace entry under sudo.
+**Tech Stack:** Python standard library for status assertions and VM orchestration, GitHub Actions, official Ubuntu Podman/Skopeo/libvirt/QEMU/virtinst packages, and the pinned official `bootc-image-builder` container (Apache-2.0) on an ephemeral runner. No package or repository is added to the ForjaOS image (ADR-002, G4). The upstream host-setup action is excluded because it performs broad cleanup and direct `/etc` edits that conflict with the repository's destructive-action rule. The runner uses a rootful, short-lived image-builder container to create a Bazzite QCOW2, then an unprivileged libvirt session to boot it. This replaces `bcvk` after repeated CI failures while preparing its ephemeral installation VM, including on Ubuntu 26.04; a detached Podman exec probe passed on the same runner.
 
 **Entry:** Issue #44 states the FR-001/FR-008 acceptance criteria; roadmap F0-008 is claimed on `feat/F0-008-bootc-vm-validation`. Issue #43 tracks the latest daily build failure and must be resolved before a current image is used as a successful upgrade target.
 
@@ -35,8 +35,8 @@
 
 ## Task 3 — Run the VM test in CI (FR-008, NFR-040, G4)
 
-- Write `scripts/tests/test_bootc_vm_workflow.py` first; observe red before the workflow exists. Check manual and weekly triggers, exact branch/ref guard, pinned external actions and bcvk release checksum, narrow permissions, and evidence upload.
-- Add `.github/workflows/bootc-vm.yml` to run the controller on a GitHub-hosted Ubuntu VM with nested KVM preflight, official Ubuntu VM packages, libvirt, QEMU guest agent, and adequate disk checks. Use the last known signed baseline and a newly published `:testing` digest. A failed preflight is a failed gate, not a skipped test. Keep `:stable` untouched.
+- Write `scripts/tests/test_bootc_vm_workflow.py` first; observe red before the workflow exists. Check manual and weekly triggers, exact branch/ref guard, pinned external actions and image-builder container digest, narrow permissions, and evidence upload.
+- Add `.github/workflows/bootc-vm.yml` to run the controller on a GitHub-hosted Ubuntu VM with nested KVM preflight, official Ubuntu VM packages, libvirt, QEMU guest agent, and adequate disk checks. Generate a fresh Bazzite QCOW2 with `bootc-image-builder`, import it using `virt-install`, and pass its path to the controller. Use the last known signed baseline and a newly published `:testing` digest. A failed preflight is a failed gate, not a skipped test. Keep `:stable` untouched.
 - Run structural tests green and mutate the ref guard to prove failure. DoD: a completed CI run contains `switch`, `upgrade`, and `rollback` evidence with distinct digests and no unverified promotion.
 - Commit `feat(image): verify bootc lifecycle in CI`.
 
