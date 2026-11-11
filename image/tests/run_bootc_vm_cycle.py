@@ -16,6 +16,7 @@ DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 IMAGE = re.compile(r"ghcr\.io/forjaos-project/forjaos(?:-nvidia-open)?\Z")
 TAG = re.compile(r"vm-cycle-[a-z0-9-]+\Z")
 ASSERT_SCRIPT = Path(__file__).with_name("assert_bootc_state.py")
+MIN_GUEST_FREE_KIB = 6 * 1024 * 1024  # 4.50 GiB compressed target plus transfer headroom.
 
 
 def digest_at(status_text, slot):
@@ -244,8 +245,18 @@ class LibvirtTransport:
         self.preflight()
 
     def preflight(self):
-        usage = self.guest_exec("/usr/bin/df", "-h", "/", "/var", timeout=30)
+        usage = self.guest_exec("/usr/bin/df", "-Pk", "/var", timeout=30)
         print(f"vm-cycle: guest disk usage:\n{self.redact_diagnostic(usage).strip()}", flush=True)
+        lines = usage.strip().splitlines()
+        fields = lines[-1].split() if len(lines) == 2 else []
+        try:
+            available_kib = int(fields[3]) if len(fields) >= 6 else -1
+        except ValueError:
+            available_kib = -1
+        if available_kib < MIN_GUEST_FREE_KIB:
+            raise RuntimeError(
+                f"guest /var space below {MIN_GUEST_FREE_KIB} KiB or unreadable"
+            )
         deadline = time.monotonic() + 120
         while True:
             try:

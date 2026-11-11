@@ -83,18 +83,20 @@ GOOD_STATES = [
 
 
 class BootcVmCycleTests(unittest.TestCase):
+    GUEST_SPACE = "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/vda4 22020096 13631488 8388608 62% /var\n"
+
     def test_guest_preflight_reports_space_and_accepts_registry_auth_challenge(self):
         module = load_controller()
         for status in ("200", "401"):
             with self.subTest(status=status):
                 transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
-                transport.guest_exec = Mock(side_effect=["Filesystem available: 8G\n", status])
+                transport.guest_exec = Mock(side_effect=[self.GUEST_SPACE, status])
                 output = io.StringIO()
                 with redirect_stdout(output):
                     transport.preflight()
-                self.assertIn("Filesystem available: 8G", output.getvalue())
+                self.assertIn("8388608", output.getvalue())
                 calls = transport.guest_exec.call_args_list
-                self.assertEqual(calls[0].args, ("/usr/bin/df", "-h", "/", "/var"))
+                self.assertEqual(calls[0].args, ("/usr/bin/df", "-Pk", "/var"))
                 curl = calls[1]
                 self.assertEqual(curl.args[0], "/usr/bin/curl")
                 self.assertIn("https://ghcr.io/v2/", curl.args)
@@ -109,7 +111,7 @@ class BootcVmCycleTests(unittest.TestCase):
         for failure in ("000", "500", RuntimeError("curl DNS resolution failed")):
             with self.subTest(failure=failure):
                 transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
-                transport.guest_exec = Mock(side_effect=["Filesystem\n", failure, "eth0 UP", "default via 10.0.2.2", "nameserver 10.0.2.3"])
+                transport.guest_exec = Mock(side_effect=[self.GUEST_SPACE, failure, "eth0 UP", "default via 10.0.2.2", "nameserver 10.0.2.3"])
                 with patch.object(module.time, "monotonic", side_effect=[0, 120]):
                     with redirect_stdout(io.StringIO()), self.assertRaisesRegex(RuntimeError, "registry preflight"):
                         transport.preflight()
@@ -118,12 +120,25 @@ class BootcVmCycleTests(unittest.TestCase):
     def test_guest_preflight_retries_dns_until_network_is_ready(self):
         module = load_controller()
         transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
-        transport.guest_exec = Mock(side_effect=["Filesystem\n", RuntimeError("curl: (6) Could not resolve host"), "401"])
+        transport.guest_exec = Mock(side_effect=[self.GUEST_SPACE, RuntimeError("curl: (6) Could not resolve host"), "401"])
         with patch.object(module.time, "sleep") as sleep:
             with redirect_stdout(io.StringIO()):
                     transport.preflight()
         sleep.assert_called_once()
         self.assertEqual(transport.guest_exec.call_count, 3)
+
+    def test_guest_preflight_rejects_insufficient_or_unreadable_space_before_network(self):
+        module = load_controller()
+        for output in (
+            self.GUEST_SPACE.replace("8388608", "5242880"),
+            "Filesystem 1024-blocks Used Available Capacity Mounted on\ninvalid\n",
+        ):
+            with self.subTest(output=output):
+                transport = module.LibvirtTransport("vm-cycle-test", "actor", "token", "disk.qcow2")
+                transport.guest_exec = Mock(side_effect=[output, AssertionError("network must not be called")])
+                with redirect_stdout(io.StringIO()), self.assertRaisesRegex(RuntimeError, "guest.*space"):
+                    transport.preflight()
+                transport.guest_exec.assert_called_once_with("/usr/bin/df", "-Pk", "/var", timeout=30)
 
     def test_mutations_log_output_and_keep_arguments_out_of_shell_source(self):
         module = load_controller()
