@@ -71,6 +71,9 @@ jobs:
           df -h /
           podman pull ghcr.io/ublue-os/bazzite:stable
           podman run --rm --entrypoint /usr/bin/true ghcr.io/ublue-os/bazzite:stable
+          probe_id="$(podman run -d --entrypoint /usr/bin/sleep ghcr.io/ublue-os/bazzite:stable 120)"
+          trap 'podman rm -f "$probe_id" >/dev/null 2>&1 || true' EXIT
+          podman exec "$probe_id" /usr/bin/true
       - name: Resolve current signed target
         run: |
           target="$(skopeo inspect --format '{{.Digest}}' docker://ghcr.io/forjaos-project/forjaos:testing)"

@@ -43,6 +43,7 @@ class BootcVmWorkflowTests(unittest.TestCase):
         self.assertIn("uidmap fuse-overlayfs slirp4netns", source)
         self.assertIn("podman info", source)
         self.assertIn("podman run --rm --entrypoint /usr/bin/true ghcr.io/ublue-os/bazzite:stable", source)
+        self.assertIn('podman exec "$probe_id" /usr/bin/true', source)
         self.assertNotIn("CONTAINERS_CONF", source)
         self.assertNotIn("rm -rf", source)
         self.assertNotIn("sudo tee /etc/", source)
