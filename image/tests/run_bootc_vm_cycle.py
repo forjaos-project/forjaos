@@ -177,7 +177,7 @@ class LibvirtTransport:
         self.command([
             "bcvk", "libvirt", "run", "--connect", self.connect, "--name", self.vm_name,
             "--memory", "4G", "--cpus", "4", "--disk-size", "70G",
-            "--firmware", "uefi-insecure", "--detach", BASE_IMAGE,
+            "--firmware", "uefi-insecure", "--disable-tpm", "--detach", BASE_IMAGE,
         ], timeout=3600)
         xml = self.virsh("dumpxml", self.vm_name)
         if "org.qemu.guest_agent.0" not in xml:
@@ -222,6 +222,7 @@ def main():
     parser.add_argument("--baseline", required=True)
     parser.add_argument("--target", required=True)
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--connect", default="qemu:///session")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     actor = os.environ.get("GITHUB_ACTOR")
@@ -232,7 +233,7 @@ def main():
     if not run_id:
         parser.error("invalid run ID")
     tag = f"vm-cycle-{run_id}"
-    transport = LibvirtTransport(tag, actor, token)
+    transport = LibvirtTransport(tag, actor, token, connect=args.connect)
     run_cycle(transport, f"ghcr.io/forjaos-project/{args.variant}", args.baseline, args.target, tag, args.output)
 
 

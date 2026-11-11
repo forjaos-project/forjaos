@@ -28,7 +28,10 @@ class BootcVmWorkflowTests(unittest.TestCase):
 
     def test_pinned_tools_and_real_vm_cycle(self):
         source = WORKFLOW.read_text(encoding="utf-8")
-        self.assertRegex(source, r"bootc-dev/actions/bootc-host-setup@[0-9a-f]{40}")
+        self.assertNotIn("bootc-host-setup@", source)
+        self.assertIn("podman skopeo libvirt-daemon-system libvirt-clients", source)
+        self.assertNotIn("rm -rf", source)
+        self.assertNotIn("/etc/", source)
         self.assertRegex(source, r"actions/checkout@[0-9a-f]{40}")
         self.assertRegex(source, r"sigstore/cosign-installer@[0-9a-f]{40}")
         self.assertRegex(source, r"actions/upload-artifact@[0-9a-f]{40}")
@@ -40,6 +43,7 @@ class BootcVmWorkflowTests(unittest.TestCase):
         self.assertIn("--variant forjaos", source)
         self.assertIn("--target", source)
         self.assertIn("--baseline", source)
+        self.assertIn("--connect qemu:///system", source)
         self.assertIn("if: always()", source)
         self.assertNotRegex(source, re.compile(r"skopeo copy[^\n]*:stable"))
 

@@ -27,14 +27,13 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, MIT
-      - name: Set up nested bootc VM host
-        uses: bootc-dev/actions/bootc-host-setup@de95828443214c605662555316955bd1425b448d # Apache-2.0
-        with:
-          libvirt: true
-      - name: Install registry tools
+      - name: Install VM host tools from Ubuntu
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends skopeo
+          sudo apt-get install -y --no-install-recommends \
+            podman skopeo libvirt-daemon-system libvirt-clients \
+            qemu-system-x86 qemu-utils virtiofsd ovmf btrfs-progs xfsprogs
+          sudo systemctl start libvirtd
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3, Apache-2.0
         with:
           cosign-release: 'v3.1.4'
@@ -48,7 +47,7 @@ jobs:
       - name: Check VM host resources
         run: |
           test -e /dev/kvm
-          test -r /dev/kvm && test -w /dev/kvm
+          sudo test -r /dev/kvm && sudo test -w /dev/kvm
           free_kib="$(df -Pk / | awk 'NR==2 {print $4}')"
           test "$free_kib" -ge 8388608
           df -h /
@@ -62,11 +61,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 image/tests/run_bootc_vm_cycle.py \
+          sudo --preserve-env=GH_TOKEN,GITHUB_ACTOR python3 image/tests/run_bootc_vm_cycle.py \
             --variant forjaos \
             --baseline sha256:cfe6a9791e5bd2226acc48c82cad0e3dcc887662bb9c9ba782a69b646a24f744 \
             --target "$TARGET_DIGEST" \
             --run-id f0-008 \
+            --connect qemu:///system \
             --output "$RUNNER_TEMP/bootc-vm-evidence"
       - name: Upload VM deployment states
         if: always()
