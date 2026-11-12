@@ -24,14 +24,29 @@ class IsoWorkflowTests(unittest.TestCase):
 
     def test_pr_job_has_no_release_authority(self):
         source = WORKFLOW.read_text(encoding="utf-8")
+        build_section = source.split("\n  release:\n", 1)[0]
         self.assertIn("pull_request:", source)
         self.assertIn("workflow_dispatch:", source)
-        self.assertIn("github.event.pull_request.head.repo.full_name == github.repository", source)
-        self.assertIn("contents: read", source)
-        self.assertNotIn("contents: write", source)
-        self.assertNotIn("gh release create", source)
-        self.assertNotIn("gh release upload", source)
-        self.assertNotIn("delete:packages", source)
+        self.assertIn("github.event.pull_request.head.repo.full_name == github.repository", build_section)
+        self.assertIn("contents: read", build_section)
+        self.assertNotIn("contents: write", build_section)
+        self.assertNotIn("gh release create", build_section)
+        self.assertNotIn("gh release upload", build_section)
+        self.assertNotIn("delete:packages", build_section)
+
+    def test_release_requires_main_and_creates_verified_draft(self):
+        source = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("release_tag:", source)
+        self.assertIn('IMAGE_CHANNEL', source)
+        release_section = source.split("\n  release:\n", 1)[1]
+        for required in (
+            "github.ref == 'refs/heads/main'", "contents: write",
+            "actions/download-artifact@", "gh release create", "--draft",
+            "gh release download", "scripts/verify-iso.py check",
+            "cosign verify-blob", "v[0-9]+", "SHA256SUMS",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, release_section)
 
 if __name__ == "__main__":
     unittest.main()

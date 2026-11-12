@@ -1,5 +1,5 @@
 # F1-002 / FR-010 / NFR-011: build and verify both installer ISOs.
-# Release publication and physical media validation are separate gates.
+# A main-only manual dispatch creates a draft Release for physical validation.
 name: iso
 
 on:
@@ -16,6 +16,11 @@ on:
       - 'scripts/tests/test_iso_workflow.py'
       - 'docs/install.md'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Version tag vX.Y.Z; empty builds testing artifacts only'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -46,10 +51,11 @@ jobs:
         env:
           SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
           VARIANT: ${{ matrix.variant }}
+          IMAGE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' && 'stable' || 'testing' }}
         run: |
           set -euo pipefail
           output="$RUNNER_TEMP/iso-$VARIANT"
-          bash .github/scripts/build-iso.sh "$VARIANT" "$output"
+          bash .github/scripts/build-iso.sh "$VARIANT" "$output" "$IMAGE_CHANNEL"
           python3 scripts/verify-iso.py create "$output/$VARIANT.iso"
           python3 scripts/verify-iso.py check "$output/SHA256SUMS"
           bash scripts/check-signing-key.sh cosign.pub
@@ -74,3 +80,62 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
+
+  release:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release_tag != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, MIT
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4, MIT
+        with:
+          name: iso-forjaos
+          path: ${{ runner.temp }}/assets/forjaos
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4, MIT
+        with:
+          name: iso-forjaos-nvidia-open
+          path: ${{ runner.temp }}/assets/forjaos-nvidia-open
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3, Apache-2.0
+        with:
+          cosign-release: 'v3.1.4'
+      - name: Verify and create draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "release already exists: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          assets="$RUNNER_TEMP/assets"
+          release_dir="$RUNNER_TEMP/release"
+          mkdir -p "$release_dir"
+          for variant in forjaos forjaos-nvidia-open; do
+            cp "$assets/$variant/$variant.iso" "$release_dir/"
+            cp "$assets/$variant/$variant.iso.sigstore.json" "$release_dir/"
+            cp "$assets/$variant/THIRD_PARTY_LICENSES.md" \
+              "$release_dir/THIRD_PARTY_LICENSES-$variant.md"
+          done
+          cat "$assets/forjaos/SHA256SUMS" \
+              "$assets/forjaos-nvidia-open/SHA256SUMS" > "$release_dir/SHA256SUMS"
+          python3 scripts/verify-iso.py check "$release_dir/SHA256SUMS"
+          for variant in forjaos forjaos-nvidia-open; do
+            cosign verify-blob --key cosign.pub \
+              --bundle "$release_dir/$variant.iso.sigstore.json" \
+              "$release_dir/$variant.iso"
+          done
+          gh release create "$RELEASE_TAG" "$release_dir"/* --draft \
+            --target "$GITHUB_SHA" --title "ForjaOS $RELEASE_TAG" \
+            --notes 'ISO de instalação por rede. Requer conexão com o GHCR. Publicar após validação física.'
+          downloaded="$RUNNER_TEMP/downloaded"
+          gh release download "$RELEASE_TAG" --dir "$downloaded"
+          python3 scripts/verify-iso.py check "$downloaded/SHA256SUMS"
+          for variant in forjaos forjaos-nvidia-open; do
+            cosign verify-blob --key cosign.pub \
+              --bundle "$downloaded/$variant.iso.sigstore.json" \
+              "$downloaded/$variant.iso"
+          done
