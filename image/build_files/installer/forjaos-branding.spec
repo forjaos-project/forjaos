@@ -7,6 +7,7 @@ BuildArch:      noarch
 Provides:       system-logos
 Provides:       system-release
 Provides:       fedora-release-identity = %{base_identity_evr}
+Provides:       fedora-release-identity-basic = %{base_identity_evr}
 Obsoletes:      fedora-logos <= %{base_logos_evr}
 Obsoletes:      fedora-release-identity-basic <= %{base_identity_evr}
 Requires:       fedora-release = %{base_release_evr}

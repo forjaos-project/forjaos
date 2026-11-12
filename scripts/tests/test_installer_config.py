@@ -104,6 +104,8 @@ class InstallerConfigTests(unittest.TestCase):
     def test_branding_rpm_does_not_pull_optional_browser_stack(self):
         containerfile = (ROOT / "image/build_files/installer/Containerfile").read_text()
         self.assertIn("dnf install -y --setopt=install_weak_deps=False /tmp/forjaos-branding.rpm", containerfile)
+        spec = (ROOT / "image/build_files/installer/forjaos-branding.spec").read_text()
+        self.assertIn("Provides:       fedora-release-identity-basic = %{base_identity_evr}", spec)
 
 
 if __name__ == "__main__":
