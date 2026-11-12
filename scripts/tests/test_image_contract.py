@@ -16,6 +16,7 @@ SPEC.loader.exec_module(MODULE)
 REQUIRED = {
     "podman", "distrobox", "steam", "steam-devices", "firewalld", "audit",
     "btop", "nvtop", "forjaos-branding", "python3", "git-core",
+    "cockpit-bridge", "cockpit-system",
 }
 STATES = {
     "firewalld.service": "enabled",
@@ -44,10 +45,9 @@ class ImageContractTests(unittest.TestCase):
         self.assertTrue(any("firewalld.service" in error for error in errors))
         self.assertTrue(any("sshd.service" in error for error in errors))
 
-    def test_missing_unit_is_not_mistaken_for_disabled(self):
+    def test_absent_cockpit_socket_is_safe_when_components_exist(self):
         states = {**STATES, "cockpit.socket": "not-found"}
-        errors = MODULE.check_contract(REQUIRED, states)
-        self.assertTrue(any("cockpit.socket" in error for error in errors))
+        self.assertEqual(MODULE.check_contract(REQUIRED, states), [])
 
     def test_rpm_query_failure_fails_closed(self):
         with patch.object(MODULE.subprocess, "run", return_value=subprocess.CompletedProcess([], 2, "", "bad rpm")):

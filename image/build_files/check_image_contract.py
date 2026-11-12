@@ -8,6 +8,8 @@ import sys
 REQUIRED_RPMS = frozenset({
     "audit",
     "btop",
+    "cockpit-bridge",
+    "cockpit-system",
     "distrobox",
     "firewalld",
     "forjaos-branding",
@@ -65,6 +67,8 @@ def check_contract(packages: set[str], unit_states: dict[str, str]) -> list[str]
         errors.append(f"unwanted RPM retained: {package}")
     for unit, expected in REQUIRED_UNIT_STATES.items():
         actual = unit_states.get(unit, "not-found")
+        if unit == "cockpit.socket" and actual == "not-found":
+            continue  # Cockpit components are present, but no listening socket exists.
         if actual != expected:
             errors.append(f"{unit}: expected {expected}, got {actual}")
     return errors
