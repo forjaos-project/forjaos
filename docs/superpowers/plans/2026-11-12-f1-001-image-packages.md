@@ -14,7 +14,7 @@
 | --- | --- |
 | `image/build_files/remove.txt` | Exact unwanted RPMs confirmed in the base image. |
 | `image/build_files/apply_package_policy.sh` | Apply manifests safely to both image variants and fail on transaction errors. |
-| `image/Containerfile` | Run the package policy before final identity and bootc lint. |
+| `image/Containerfile` | Run the package policy before final identity and bootc lint; include the contract checker in each variant. |
 | `scripts/tests/test_image_package_policy.sh` | Prove installed-only removal, install transaction failure, and preservation of gaming packages. |
 | `image/build_files/check_image_contract.py` | Read real RPM and systemctl results, enforce the F1-001 package and service subset. |
 | `scripts/tests/test_image_contract.py` | Prove failures for missing packages, retained unwanted packages, and wrong service states. |
@@ -41,7 +41,7 @@
 
 ## Task 3 — Gate both published variants (FR-004, FR-005, FR-006, FR-007, ADR-0034)
 
-**Files:** `.github/scripts/daily-image.sh`, `scripts/tests/test_daily_image.sh`.
+**Files:** `image/Containerfile`, `.github/scripts/daily-image.sh`, `scripts/tests/test_daily_image.sh`.
 
 1. Extend the existing fake-Podman test to require the image contract checker after build and before any push; observe failure against the current script.
 2. Run the checker in the built container with its own entrypoint. Preserve the existing license inventory, branding, and signature gates. Run the test and commit.

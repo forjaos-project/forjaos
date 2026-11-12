@@ -20,6 +20,7 @@ case "$1" in
     if [[ "$2" == inspect ]]; then printf '%064d\n' 1; fi
     ;;
   run)
+    if [[ "$*" == *'/usr/libexec/forjaos/check_image_contract.py'* && "${TEST_FAIL_CONTRACT:-}" == 1 ]]; then exit 1; fi
     if [[ "$*" == *'--entrypoint /usr/bin/rpm'* ]]; then
       [[ "${TEST_FAIL_RPM:-}" != 1 ]] || exit 1
       [[ "${TEST_EMPTY_RPM:-}" != 1 ]] || exit 0
@@ -80,6 +81,8 @@ for variant in forjaos-nvidia-open forjaos; do
   grep -qF -- "--build-arg IMAGE_NAME=$variant" "$TEST_LOG"
   assert_order 'container lint' 'os-release'
   assert_order 'os-release' '--entrypoint /usr/bin/rpm'
+  assert_order '--entrypoint /usr/bin/rpm' '/usr/libexec/forjaos/check_image_contract.py'
+  assert_order '/usr/libexec/forjaos/check_image_contract.py' '--rootfs /'
   assert_order '--entrypoint /usr/bin/rpm' '--rootfs /'
   assert_order 'os-release' '--rootfs /'
   assert_order '--rootfs /' 'podman push'
@@ -107,6 +110,12 @@ if bash "$REPO/.github/scripts/daily-image.sh" forjaos >/dev/null 2>&1; then ech
 if [[ ! -f "$LICENSE_REPORT_DIR/forjaos/THIRD_PARTY_LICENSES.md" ]]; then echo 'FAIL: branding failure discarded license report' >&2; exit 1; fi
 if grep -qE 'podman push|cosign sign|skopeo copy' "$TEST_LOG"; then echo 'FAIL: published branded image' >&2; exit 1; fi
 unset TEST_FAIL_BRANDING
+
+: > "$TEST_LOG"
+export TEST_FAIL_CONTRACT=1
+if bash "$REPO/.github/scripts/daily-image.sh" forjaos >/dev/null 2>&1; then echo 'FAIL: accepted image contract failure' >&2; exit 1; fi
+if grep -qE 'podman push|cosign sign|skopeo copy' "$TEST_LOG"; then echo 'FAIL: published image with contract failure' >&2; exit 1; fi
+unset TEST_FAIL_CONTRACT
 
 : > "$TEST_LOG"
 rm -f "$LICENSE_REPORT_DIR/forjaos/THIRD_PARTY_LICENSES.md"
