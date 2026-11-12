@@ -1,6 +1,6 @@
 # ADR-0034 — Entrega incremental dos pacotes e serviços da imagem
 
-**Status:** proposto · **Data:** 2026-11-12 · **Relacionados:** FR-004, FR-005, FR-006, FR-007, F1-001, F1-002, F1-009, F1-010, ADR-0032
+**Status:** aceito · **Data:** 2026-11-12 · **Aprovação:** mantenedor, 2026-11-12 · **Relacionados:** FR-004, FR-005, FR-006, FR-007, F1-001, F1-002, F1-009, F1-010, ADR-0032
 
 ## Contexto
 
@@ -10,7 +10,7 @@ O inventário de RPM da imagem `forjaos:testing` produzida pelo workflow `daily-
 
 O PRD pede o RPM oficial do VS Code, mas a [licença do produto Microsoft](https://code.visualstudio.com/license) difere da licença MIT do código-fonte. O DoD local de `image/AGENTS.md` proíbe embarcar pacote proprietário na imagem sem decisão explícita. A [documentação oficial de instalação Linux](https://code.visualstudio.com/docs/setup/linux) oferece RPM e repositório da Microsoft; adicionar esse repositório também requer decisão pela regra 12 do `AGENTS.md`.
 
-## Decisão proposta
+## Decisão
 
 1. F1-001 entrega apenas o conjunto de pacotes da base e a política de serviços que podem ser instalados e testados sem componentes ainda inexistentes. A lista de remoção identifica pacotes presentes nas duas variantes e preserva Steam, codecs e suporte de controles. O CI inspeciona os RPMs e o estado de habilitação dos serviços na imagem construída.
 2. F1-002 mede e aprova o limite de 6 GB na ISO real. F1-009 implementa `forja doctor` e verifica a presença dos componentes. F1-010 entrega os componentes DX conforme ADR-0032. As unidades `herod` e `memd` entram quando seus próprios componentes forem implementados, com limites de recursos.
