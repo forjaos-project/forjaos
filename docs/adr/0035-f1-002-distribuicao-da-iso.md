@@ -10,6 +10,8 @@ O PRD limita cada ISO a 6 GB (NFR-011, também citado em FR-004) e exige ISO, SH
 
 O tipo `bootc-installer` embute o payload OCI na ISO. Os manifests comprimidos dos payloads usados no CI somam aproximadamente 4,87 GB (genérica) e 5,25 GB (NVIDIA), antes do ambiente Anaconda e da estrutura da mídia. Esses tamanhos são diagnóstico, não limite inferior matemático da ISO final. A alternativa de instalador menor requer decidir se o payload pode ser baixado durante a instalação e verificar a assinatura também nessa etapa.
 
+A [documentação atual do Image Builder](https://osbuild.org/docs/developer-guide/projects/image-builder/advanced/bootc/isos/) descreve `generic-iso` com Anaconda e payload por registro remoto; o payload só é embutido quando `--bootc-installer-payload-ref` é fornecido. O [projeto upstream incorporou o `bootc-image-builder` ao `image-builder`](https://github.com/osbuild/image-builder/blob/main/bootc-image-builder/README.md). Essas fontes demonstram um caminho técnico para o protótipo, mas não provam o tamanho final nem a verificação de assinatura do ForjaOS.
+
 ## Opções para decisão
 
 ### A — ISO de instalação por rede (recomendação técnica)
