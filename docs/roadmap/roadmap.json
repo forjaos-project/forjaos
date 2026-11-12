@@ -385,7 +385,8 @@
       "status": "doing",
       "agent": "codex",
       "scope": "image/",
-      "claimed_at": "2026-11-12"
+      "claimed_at": "2026-11-12",
+      "notes": "ADR-0034: F1-001 entrega a parcela verificável dos FR-004 a FR-007. O limite da ISO depende de F1-002; o inventário do forja doctor depende de F1-009; os componentes DX dependem de F1-010; herod e memd dependem dos cards próprios. Os requisitos completos permanecem abertos para a release."
     },
     {
       "id": "F1-002",
