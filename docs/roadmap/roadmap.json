@@ -6,14 +6,14 @@
       "name": "Fundação",
       "weeks": "1–2",
       "dod": "Imagem builda no Actions, assinada, no GHCR; bootc switch para ela funciona em VM",
-      "status": "doing"
+      "status": "done"
     },
     {
       "id": "1",
       "name": "Imagem instalável",
       "weeks": "3–8",
       "dod": "Pendrive → instalação em dual boot no desktop de referência → docker compose up + Steam em < 15 min; NFR-001, 002, 011, 012 passando",
-      "status": "todo"
+      "status": "doing"
     },
     {
       "id": "2",
@@ -318,13 +318,16 @@
       ],
       "phase": "0",
       "title": "bootc switch para a imagem em VM + upgrade/rollback testados",
-      "status": "doing",
+      "status": "done",
       "scope": "image/",
       "depends_on": [
         "F0-003"
       ],
       "agent": "codex",
-      "claimed_at": "2026-11-11"
+      "claimed_at": "2026-11-11",
+      "pr": 45,
+      "merged_at": "2026-11-12",
+      "summary": "Validated signed Bazzite-to-ForjaOS switch, upgrade, and rollback in CI VM with seven deployment states"
     },
     {
       "id": "F0-009",
