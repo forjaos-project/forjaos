@@ -41,11 +41,23 @@ for variant in forjaos forjaos-nvidia-open; do
   grep -qF "docker://ghcr.io/forjaos-project/$variant:testing" "$TEST_LOG"
   grep -qF "cosign verify --new-bundle-format=false --key $repo/cosign.pub ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
   grep -qF "sudo podman pull ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
-  grep -qF -- '--type anaconda-iso --rootfs btrfs' "$TEST_LOG"
+  grep -qF "sudo podman build --file $repo/image/build_files/installer/Containerfile --build-arg SOURCE_IMAGE=ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
+  grep -qF -- '--type bootc-installer --rootfs btrfs' "$TEST_LOG"
+  grep -qF -- "--installer-payload-ref ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
+  grep -qF -- "$repo/image/build_files/installer/config.toml:/config.toml:ro" "$TEST_LOG"
+  if grep -qF -- '--type anaconda-iso' "$TEST_LOG"; then
+    echo 'FAIL: legacy anaconda-iso may install to the first disk without prompting' >&2; exit 1
+  fi
   verify_line="$(grep -n 'cosign verify' "$TEST_LOG" | head -1 | cut -d: -f1)"
+  build_line="$(grep -n 'sudo podman build' "$TEST_LOG" | head -1 | cut -d: -f1)"
   run_line="$(grep -n 'sudo podman run' "$TEST_LOG" | head -1 | cut -d: -f1)"
-  [[ "$verify_line" -lt "$run_line" ]]
+  [[ "$verify_line" -lt "$build_line" && "$build_line" -lt "$run_line" ]]
 done
+
+grep -qF 'unattended = false' "$repo/image/build_files/installer/config.toml"
+if grep -Eq 'clearpart|autopart|unattended = true' "$repo/image/build_files/installer/config.toml"; then
+  echo 'FAIL: installer config permits unattended disk changes' >&2; exit 1
+fi
 
 : > "$TEST_LOG"
 export TEST_BAD_SIGNATURE=1
