@@ -2,7 +2,7 @@
 
 ## Estado e escolha da imagem
 
-F1-002 gera as variantes `forjaos.iso` (desktop genérico) e `forjaos-nvidia-open.iso` (NVIDIA open). Os artefatos de CI são para validação; só use uma versão publicada em GitHub Release como mídia de instalação após a validação de release. O fluxo de publicação e os testes físicos ainda precisam ser concluídos. Não confunda o arquivo de CI com uma versão `stable`.
+F1-002 gera as variantes `forjaos.iso` (desktop genérico) e `forjaos-nvidia-open.iso` (NVIDIA open). Estas ISOs contêm o instalador Anaconda, não o sistema completo: a instalação exige **conexão com a internet** para baixar o payload ForjaOS do GHCR. O instalador referencia um digest imutável e deve verificar a assinatura do payload antes de instalá-lo; se a rede ou a verificação falhar, interrompa a instalação. Os artefatos de CI são para validação; só use uma versão publicada em GitHub Release após a validação de release. O fluxo de publicação e os testes físicos ainda precisam ser concluídos. Não confunda o arquivo de CI com uma versão `stable`.
 
 Baixe a ISO desejada, seu `SHA256SUMS` e o arquivo `<nome-da-iso>.sigstore.json` do **mesmo** build ou release. Guarde os três no mesmo diretório. O `SHA256SUMS` de cada variante é separado; não substitua um pelo outro. Obtenha também `cosign.pub` do commit associado à imagem. Antes de gravar o pendrive, confira:
 
@@ -12,11 +12,11 @@ cosign verify-blob --key cosign.pub \
   --bundle forjaos.iso.sigstore.json forjaos.iso
 ```
 
-Para a variante NVIDIA, troque `forjaos.iso` por `forjaos-nvidia-open.iso` nos nomes do segundo comando. Interrompa se qualquer verificação falhar. O limite de tamanho da ISO é 6 GB decimais; o CI mede o arquivo produzido.
+Para a variante NVIDIA, troque `forjaos.iso` por `forjaos-nvidia-open.iso` nos nomes do segundo comando. Interrompa se qualquer verificação falhar. O PRD limita a ISO a 6 GB decimais; para publicar diretamente no GitHub Release, cada arquivo também precisa ter menos de 2 GiB. O CI mede ambos os limites.
 
 ## Pendrive e boot
 
-Use um pendrive de pelo menos 8 GB, sem dados que precisem ser preservados. A gravação apaga ou substitui o conteúdo do dispositivo escolhido. Para validar FR-014, repita os três métodos abaixo em mídia de teste e registre o resultado separadamente. Mantenha Secure Boot no estado exigido pelo cenário de validação; a confirmação de MOK e dual boot pertence a F1-003.
+Use um pendrive de pelo menos 8 GB, sem dados que precisem ser preservados, e uma conexão confiável com o GHCR durante a instalação. A gravação apaga ou substitui o conteúdo do dispositivo escolhido. Para validar FR-014, repita os três métodos abaixo em mídia de teste e registre o resultado separadamente. Mantenha Secure Boot no estado exigido pelo cenário de validação; a confirmação de MOK e dual boot pertence a F1-003.
 
 ### Fedora Media Writer
 

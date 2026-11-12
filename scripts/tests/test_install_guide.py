@@ -18,6 +18,13 @@ class InstallGuideTests(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, guide)
 
+    def test_network_install_dependency_is_explicit(self):
+        guide = GUIDE.read_text(encoding="utf-8")
+        self.assertIn("conexão com a internet", guide)
+        self.assertIn("digest", guide)
+        self.assertIn("assinatura do payload", guide)
+        self.assertIn("2 GiB", guide)
+
 
 if __name__ == "__main__":
     unittest.main()
