@@ -6,15 +6,15 @@ F1-002 gera as variantes `forjaos.iso` (desktop genérico) e `forjaos-nvidia-ope
 
 Para validar em hardware antes da publicação, o mantenedor pode despachar `iso.yml` na branch F1-002 com `candidate_tag` no formato `vX.Y.Z-rc.N`. O fluxo constrói a partir de `:testing`, cria um GitHub Release em **rascunho** e pré-lançamento, baixa os assets de volta e confere checksum e assinatura. Essa candidata não é `:stable` e não substitui o release final, que exige `release_tag` em `main` e payload `:stable` após promoção.
 
-Baixe a ISO desejada, seu `SHA256SUMS` e o arquivo `<nome-da-iso>.sigstore.json` do **mesmo** build ou release. Guarde os três no mesmo diretório. O `SHA256SUMS` de cada variante é separado; não substitua um pelo outro. Obtenha também `cosign.pub` do commit associado à imagem. Antes de gravar o pendrive, confira:
+Baixe a ISO desejada, o `SHA256SUMS` e o arquivo `<nome-da-iso>.sigstore.json` do **mesmo** build ou release. Guarde os três no mesmo diretório. Nos artefatos de CI, cada variante tem seu próprio manifesto; no Release, o `SHA256SUMS` é combinado e lista as duas ISOs. A opção `--ignore-missing` verifica apenas a ISO baixada. Obtenha também `cosign.pub` do commit associado à imagem. Antes de gravar o pendrive, confira:
 
 ```bash
-sha256sum -c SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS
 cosign verify-blob --key cosign.pub \
   --bundle forjaos.iso.sigstore.json forjaos.iso
 ```
 
-Para a variante NVIDIA, troque `forjaos.iso` por `forjaos-nvidia-open.iso` nos nomes do segundo comando. Interrompa se qualquer verificação falhar. O PRD limita a ISO a 6 GB decimais; para publicar diretamente no GitHub Release, cada arquivo também precisa ter menos de 2 GiB. O CI mede ambos os limites.
+Confira que a saída do `sha256sum` mostra `<nome-da-iso>: OK`. Para a variante NVIDIA, troque `forjaos.iso` por `forjaos-nvidia-open.iso` nos nomes do segundo comando. Interrompa se qualquer verificação falhar ou se nenhuma ISO for verificada. O PRD limita a ISO a 6 GB decimais; para publicar diretamente no GitHub Release, cada arquivo também precisa ter menos de 2 GiB. O CI mede ambos os limites.
 
 ## Pendrive e boot
 
