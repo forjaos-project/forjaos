@@ -81,7 +81,7 @@ Instalador próprio, loja de apps própria, COSMIC como desktop, spin tiling com
 | ADR | Decisão | Escolha | Alternativas descartadas e por quê |
 | --- | --- | --- | --- |
 | ADR-001 | Base | Fedora Atomic via Universal Blue; bases desktop `bazzite-nvidia-open:stable` e `bazzite:stable` (ADR-0032) | Arch/Omarchy (rolling quebra driver; Omarchy já ocupa o nicho); NixOS (curva, binários proprietários); Debian/Ubuntu (kernel velho para gaming) |
-| ADR-002 | Modelo de build | bootc/OCI: Containerfile + GitHub Actions + cosign + GHCR; ISO via bootc-image-builder | ISO artesanal (não reproduzível); live-build (Debian) |
+| ADR-002 | Modelo de build | bootc/OCI: Containerfile + GitHub Actions + cosign + GHCR; ISO por rede via `image-builder generic-iso` (ADR-0035) | ISO artesanal (não reproduzível); live-build (Debian) |
 | ADR-003 | Desktop | KDE Plasma 6 padrão; spin tiling (niri) só no 2.0 | GNOME (gaming fraco, extensões quebram); COSMIC (estável desde 12/2025, mas lacunas de applets — candidato 2.0); Hyprland como padrão (descoberta zero para quem vem do Windows) |
 | ADR-004 | Nome do SO | ForjaOS, sem descritor (ADR-031) | "DeveloperOS" sozinho (genérico, colide com DevOS-Developer-OS no GitHub); Ipê (menos ligado a dev/jogos) |
 | ADR-005 | Assistente | Projeto novo, nativo: daemon Rust (`herod`) + QML/KDE Frameworks. rrb-jarvisOS descontinuado como código; suas decisões migram como ADR-010 a ADR-016 | Portar o Electron do jarvisOS (150–300 MB ociosos, migração dupla) |
@@ -100,7 +100,7 @@ Instalador próprio, loja de apps própria, COSMIC como desktop, spin tiling com
 | ADR-018 | Memória | Vault Markdown (compatível Obsidian/Logseq) + SQLite (FTS5 + sqlite-vec) + `graph.json` no formato do graphify; coletores por fonte, opt-in | Captura total (modelo Recall) |
 | ADR-019 | Visualizador de memória | App QML (Qt Quick) próprio, grafo em WebGL via QtWebEngine só se QML puro não atingir 10 k nós a 60 fps | Electron; Obsidian (proprietário, não embarcável) |
 | ADR-020 | CLI | `forja`, Rust (clap), um binário, subcomandos espelham a UI | Shell scripts soltos; `ujust` direto (fica como backend) |
-| ADR-021 | Instalador | Anaconda do bootc-image-builder, sem instalador próprio | Calamares (não suporta bootc nativamente); instalador próprio (anos de trabalho) |
+| ADR-021 | Instalador | Anaconda via `image-builder generic-iso`, com payload por rede e sem instalador próprio (ADR-0035) | Calamares (não suporta bootc nativamente); instalador próprio (anos de trabalho) |
 | ADR-022 | Segurança padrão | SELinux enforcing (herdado), firewalld, auditd, Secure Boot com chave ublue + MOK; zero porta aberta | Desligar SELinux "para facilitar" |
 | ADR-023 | Módulo Escudo | CrowdSec e Suricata como opt-in instalável via `forja install escudo`, nunca no padrão | IDS no padrão (CPU constante, modo promíscuo) |
 | ADR-024 | Validação física | Todo release `stable` é instalado a partir de ISO em pendrive em dois hardwares de referência: notebook com NVIDIA híbrida e desktop RTX, ambos em dual boot com Windows | Só VM |
@@ -169,7 +169,7 @@ push/cron ─► GitHub Actions
   ├─ testes de imagem: pacotes presentes, serviços habilitados, zero marca Fedora/Bazzite, SELinux enforcing
   ├─ cosign sign ─► push ghcr.io/<org>/forjaos*:testing
   ├─ (semanal) VM boot: systemd-analyze, free, ss -tlnp, metas NFR ─► promove :stable
-  └─ (release) bootc-image-builder ─► ISO Anaconda ─► checksum + assinatura ─► GitHub Release
+  └─ (release) image-builder generic-iso ─► ISO Anaconda por rede ─► checksum + assinatura ─► GitHub Release
 ```
 
 ---
@@ -193,7 +193,7 @@ push/cron ─► GitHub Actions
 
 | ID | Requisito | DoD |
 | --- | --- | --- |
-| FR-010 | ISO Anaconda gerada por `bootc-image-builder` para cada variante, assinada, com checksum SHA-256 publicado | ISO no GitHub Release; checksum confere |
+| FR-010 | ISO Anaconda por rede gerada por `image-builder generic-iso` para cada variante, assinada, com checksum SHA-256 publicado; payload fixado por digest e assinatura verificada também na instalação (ADR-0035) | Cada ISO < 2 GiB no GitHub Release; checksum e assinaturas conferem; instalador exige rede e rejeita payload sem assinatura válida |
 | FR-011 | Instalação ao lado do Windows: o instalador detecta Windows, permite redimensionar NTFS e instalar na partição livre; GRUB lista Windows | Instalação real nos 2 hardwares de referência com Windows preservado e bootável |
 | FR-012 | Secure Boot funcional: módulos NVIDIA assinados com a chave ublue; o 1º boot pede enroll da chave MOK com instrução na tela em pt-BR | Boot com Secure Boot ativo nos 2 hardwares |
 | FR-013 | Pós-instalação automática: `timedatectl set-local-rtc 1` quando Windows detectado; montagem NTFS somente leitura por padrão; aviso sobre Fast Startup e BitLocker na primeira tela do wizard | Script roda no 1º boot; teste manual |
