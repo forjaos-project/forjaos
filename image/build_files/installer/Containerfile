@@ -1,25 +1,43 @@
-# Build-only Anaconda environment. The signed ForjaOS payload stays immutable.
-ARG SOURCE_IMAGE
-FROM ${SOURCE_IMAGE}
+# ADR-0035: a dedicated Anaconda environment; the ForjaOS payload stays remote.
+# Fedora bootc 45, linux/amd64, pinned to an immutable image manifest.
+FROM quay.io/fedora/fedora-bootc@sha256:056aaa1c51c47e475d99b44a0ee61431348e4e74322f3562667789c87719a0db
 
-# ADR-021 requires Anaconda. These Fedora packages come from the payload's
-# existing repositories and are installed only in this disposable CI image.
+# Fedora repository packages only. The installer does not add dependencies to
+# the published ForjaOS system image.
 RUN dnf install -y --setopt=install_weak_deps=False \
-      anaconda \
-      anaconda-install-img-deps \
-      anaconda-dracut \
-      dracut-config-generic \
-      dracut-network \
-      net-tools \
-      squashfs-tools \
-      grub2-efi-x64-cdboot \
-      python3-mako \
-      lorax-templates-* \
-      biosdevname \
-      prefixdevname \
+      anaconda anaconda-install-img-deps anaconda-dracut \
+      dracut-config-generic dracut-network dracut-live \
+      net-tools grub2-efi-x64-cdboot plymouth \
+      default-fonts-core-sans default-fonts-other-sans google-noto-sans-cjk-fonts \
+      xorriso squashfs-tools isomd5sum \
     && dnf clean all
 
-# Fedora 43+ keeps the EFI tree under /usr/lib/efi; the ISO builder expects it
-# under /boot/efi. Lorax also requires /var/mnt in the installer environment.
-RUN mkdir -p /boot/efi /var/mnt \
+COPY cosign.pub /tmp/forjaos.pub
+COPY image/build_files/installer/configure_installer.py /usr/libexec/forjaos-configure-installer.py
+ARG PAYLOAD_REF
+ARG TARGET_REF
+RUN python3 /usr/libexec/forjaos-configure-installer.py \
+      --root / --source "$PAYLOAD_REF" --target "$TARGET_REF" \
+      --public-key /tmp/forjaos.pub \
+    && mkdir -p /boot/efi /var/mnt \
     && cp -ra /usr/lib/efi/*/*/EFI /boot/efi
+
+# Anaconda live environment setup from the upstream Image Builder ISO guide.
+RUN printf '%s\n' 'install:x:0:0:root:/root:/usr/libexec/anaconda/run-anaconda' >> /etc/passwd \
+    && printf '%s\n' 'install::14438:0:99999:7:::' >> /etc/shadow \
+    && passwd -d root \
+    && mv /usr/share/anaconda/list-harddrives-stub /usr/bin/list-harddrives \
+    && mv /etc/yum.repos.d /etc/anaconda.repos.d \
+    && ln -s /lib/systemd/system/anaconda.target /etc/systemd/system/default.target \
+    && rm /usr/lib/systemd/system-generators/systemd-gpt-auto-generator \
+    && ln -s /usr/lib/systemd/system/anaconda-shell@.service \
+         /usr/lib/systemd/system/autovt@.service \
+    && mkdir -p /usr/lib/systemd/logind.conf.d \
+    && printf '[Login]\nReserveVT=2\n' > /usr/lib/systemd/logind.conf.d/anaconda-shell.conf \
+    && mkdir -p /etc/systemd/user/pipewire.service.d /etc/systemd/user/pipewire.socket.d \
+    && printf '[Unit]\nConditionUser=\n' > /etc/systemd/user/pipewire.service.d/allowroot.conf \
+    && printf '[Unit]\nConditionUser=\n' > /etc/systemd/user/pipewire.socket.d/allowroot.conf \
+    && mkdir -p "$(realpath /root)" \
+    && kernel="$(ls /usr/lib/modules)" \
+    && DRACUT_NO_XATTR=1 dracut --force --zstd --reproducible --no-hostonly \
+         --add anaconda "/usr/lib/modules/$kernel/initramfs.img" "$kernel"
