@@ -382,11 +382,14 @@
       ],
       "phase": "1",
       "title": "Pacotes removidos/adicionados e serviços padrão da imagem",
-      "status": "doing",
+      "status": "done",
       "agent": "codex",
       "scope": "image/",
       "claimed_at": "2026-11-12",
-      "notes": "ADR-0034: F1-001 entrega a parcela verificável dos FR-004 a FR-007. O limite da ISO depende de F1-002; o inventário do forja doctor depende de F1-009; os componentes DX dependem de F1-010; herod e memd dependem dos cards próprios. Os requisitos completos permanecem abertos para a release."
+      "notes": "ADR-0034: F1-001 entrega a parcela verificável dos FR-004 a FR-007. O limite da ISO depende de F1-002; o inventário do forja doctor depende de F1-009; os componentes DX dependem de F1-010; herod e memd dependem dos cards próprios. Os requisitos completos permanecem abertos para a release.",
+      "pr": 48,
+      "merged_at": "2026-11-12",
+      "summary": "Remoção condicional do Waydroid e contrato verificável de pacotes e serviços nas duas imagens, conforme ADR-0034"
     },
     {
       "id": "F1-002",
