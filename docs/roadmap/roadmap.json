@@ -415,7 +415,10 @@
       ],
       "phase": "1",
       "title": "ISO Anaconda via bootc-image-builder, checksum, assinatura, guia de gravação",
-      "status": "todo"
+      "status": "doing",
+      "agent": "codex",
+      "scope": "image/",
+      "claimed_at": "2026-11-12"
     },
     {
       "id": "F1-003",
