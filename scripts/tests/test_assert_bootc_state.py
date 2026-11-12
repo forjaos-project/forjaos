@@ -39,6 +39,20 @@ def check(payload, *args):
 
 
 class AssertBootcStateTests(unittest.TestCase):
+    def test_container_policy_is_required_when_requested(self):
+        signed = state(booted=OLD, staged=NEW)
+        for slot in ("booted", "staged"):
+            signed["status"][slot]["image"]["image"] = {"signature": "containerPolicy"}
+        self.assertEqual(
+            check(signed, "--booted", OLD, "--staged", NEW, "--require-container-policy").returncode,
+            0,
+        )
+        del signed["status"]["staged"]["image"]["image"]["signature"]
+        self.assertNotEqual(
+            check(signed, "--booted", OLD, "--staged", NEW, "--require-container-policy").returncode,
+            0,
+        )
+
     def test_switch_requires_booted_digest_after_reboot(self):
         self.assertEqual(check(state(), "--booted", OLD, "--no-staged").returncode, 0)
         result = check(state(booted=NEW), "--booted", OLD)

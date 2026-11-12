@@ -32,6 +32,7 @@ def main():
     parser.add_argument("--rollback", help="expected rollback OCI digest")
     parser.add_argument("--no-staged", action="store_true", help="require no staged deployment")
     parser.add_argument("--rollback-queued", action="store_true", help="require rollback to be queued")
+    parser.add_argument("--require-container-policy", action="store_true", help="require signed bootc origins")
     args = parser.parse_args()
     if args.no_staged and args.staged:
         parser.error("--no-staged and --staged are mutually exclusive")
@@ -48,6 +49,10 @@ def main():
             expected = getattr(args, slot)
             if expected is not None and actual[slot] != expected:
                 raise ValueError(f"{slot}: expected {expected}, got {actual[slot]}")
+            if args.require_container_policy and actual[slot] is not None:
+                signature = status[slot]["image"].get("image", {}).get("signature")
+                if signature != "containerPolicy":
+                    raise ValueError(f"{slot}: container signature policy is not enforced")
         if args.no_staged and actual["staged"] is not None:
             raise ValueError(f"staged deployment remains: {actual['staged']}")
         if args.rollback_queued and status.get("rollbackQueued") is not True:

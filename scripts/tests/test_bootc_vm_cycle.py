@@ -20,7 +20,7 @@ BASE = "sha256:" + "c" * 64
 
 def state(booted, staged=None, rollback=None, queued=False):
     def deployment(digest):
-        return {"image": {"imageDigest": digest}} if digest else None
+        return {"image": {"imageDigest": digest, "image": {"signature": "containerPolicy"}}} if digest else None
 
     return json.dumps({"status": {
         "booted": deployment(booted),
@@ -331,6 +331,10 @@ class BootcVmCycleTests(unittest.TestCase):
             module.run_cycle(transport, "ghcr.io/forjaos-project/forjaos", OLD, NEW, "vm-cycle-1", Path(output))
             self.assertEqual(len(list(Path(output).glob("*.json"))), 7)
         self.assertEqual(transport.events[:3], [f"verify:{OLD}", f"verify:{NEW}", f"publish:{OLD}"])
+        self.assertIn(
+            "bootc:switch --enforce-container-sigpolicy ghcr.io/forjaos-project/forjaos:vm-cycle-1",
+            transport.events,
+        )
         self.assertEqual(transport.events.count("reboot"), 3)
         self.assertEqual(transport.events[-1], "close")
         self.assertLess(transport.events.index(f"publish:{NEW}"), transport.events.index("bootc:upgrade"))

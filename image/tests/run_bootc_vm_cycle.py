@@ -30,7 +30,7 @@ def digest_at(status_text, slot):
 
 
 def check_status(status_text, *, booted, staged=None, rollback=None, no_staged=False, queued=False):
-    command = [sys.executable, str(ASSERT_SCRIPT), "--booted", booted]
+    command = [sys.executable, str(ASSERT_SCRIPT), "--booted", booted, "--require-container-policy"]
     if staged:
         command += ["--staged", staged]
     if rollback:
@@ -72,7 +72,7 @@ def run_cycle(transport, image, baseline, target, tag, output):
         check_status(initial, booted=base_digest, no_staged=True)
         print(f"vm-cycle: 01-base: booted={base_digest}", flush=True)
 
-        transport.bootc("switch", f"{image}:{tag}")
+        transport.bootc("switch", "--enforce-container-sigpolicy", f"{image}:{tag}")
         observe("02-switch-staged", booted=base_digest, staged=baseline)
         transport.reboot()
         observe("03-switch-booted", booted=baseline, rollback=base_digest, no_staged=True)

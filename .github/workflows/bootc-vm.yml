@@ -83,15 +83,25 @@ jobs:
           podman exec "$probe_id" /usr/bin/true
       - name: Build fresh Bazzite VM disk
         run: |
-          sudo podman pull ghcr.io/ublue-os/bazzite:stable
+          bazzite_digest="$(skopeo inspect --format '{{.Digest}}' docker://ghcr.io/ublue-os/bazzite:stable)"
+          [[ "$bazzite_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          bazzite_ref="ghcr.io/ublue-os/bazzite@$bazzite_digest"
+          podman pull "$bazzite_ref"
+          sudo podman pull "$bazzite_ref"
+          podman run --rm --entrypoint /usr/bin/cat "$bazzite_ref" \
+            /etc/containers/policy.json > "$RUNNER_TEMP/bazzite-policy.json"
+          python3 image/tests/generate_ci_vm_config.py \
+            --base-policy "$RUNNER_TEMP/bazzite-policy.json" \
+            --public-key cosign.pub \
+            --output "$RUNNER_TEMP/forja-vm-config.toml"
           mkdir -p "$RUNNER_TEMP/bazzite-qcow2"
           sudo podman run --rm --privileged --network host \
             --security-opt label=disable \
             --volume "$RUNNER_TEMP/bazzite-qcow2:/output" \
-            --volume "$GITHUB_WORKSPACE/image/tests/ci-guest-agent.toml:/config.toml:ro" \
+            --volume "$RUNNER_TEMP/forja-vm-config.toml:/config.toml:ro" \
             --volume /var/lib/containers/storage:/var/lib/containers/storage \
             quay.io/centos-bootc/bootc-image-builder@sha256:dab86ee6b46dcade411b37f4e70b07d93b6a06da0dbfec6fe89247a220e0d9f8 \
-            --type qcow2 --rootfs btrfs ghcr.io/ublue-os/bazzite:stable
+            --type qcow2 --rootfs btrfs "$bazzite_ref"
           sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/bazzite-qcow2"
           test -s "$RUNNER_TEMP/bazzite-qcow2/qcow2/disk.qcow2"
       - name: Resolve current signed target
