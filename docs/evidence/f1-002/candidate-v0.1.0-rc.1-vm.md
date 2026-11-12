@@ -75,4 +75,4 @@ Generic 1126.645521 Bootc deployment complete: registry:ghcr.io/forjaos-project/
 Generic 1134.678417 Complete!
 ```
 
-UEFI Secure Boot was not enabled in these disposable QEMU guests. The results do not establish boot or installation on physical hardware.
+UEFI Secure Boot was not enabled in these disposable QEMU guests. The NVIDIA guest had no GPU passed through and reported a failed `nvidia-cdi-refresh.service` during boot; it nevertheless reached the login prompt. This VM probe does not establish NVIDIA functionality, Secure Boot, or installation on physical hardware.
