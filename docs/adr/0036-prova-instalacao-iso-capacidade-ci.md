@@ -1,6 +1,6 @@
 # ADR-0036 — Prova de instalação da ISO e capacidade do CI
 
-**Status:** proposto · **Data:** 2026-11-12 · **Aprovação:** pendente · **Revoga parcialmente, se aceito:** ADR-0035, somente quanto ao local de execução da instalação completa em VM · **Relacionados:** F1-002, FR-010, FR-014, NFR-011, NFR-020, ADR-024, ADR-0033
+**Status:** aceito · **Data:** 2026-11-12 · **Aprovação:** mantenedor, 2026-11-12 (opção B) · **Revoga parcialmente:** ADR-0035, somente quanto ao local de execução da instalação completa em VM · **Relacionados:** F1-002, FR-010, FR-014, NFR-011, NFR-020, ADR-024, ADR-0033
 
 ## Contexto verificado
 
@@ -10,7 +10,7 @@ O [runner Linux padrão para repositórios públicos do GitHub Actions](https://
 
 Uma instalação completa no runner padrão não cabe no armazenamento observado. Declarar o boot da tela como instalação completa esconderia a diferença entre os gates.
 
-## Decisão proposta
+## Decisão
 
 Para F1-002, o CI de PR continua obrigatório para as duas variantes: build real, tamanho, checksum, assinatura, política de assinatura do payload, digest fixo e boot até o Anaconda. A instalação completa do **asset exato** de cada variante da candidata publicada é executada em VM local com armazenamento suficiente, usando procedimento reproduzível e disco descartável. O registro versionado deve incluir versão, SHA-256 da ISO, digest do payload, comando de boot, saída de conclusão do Anaconda e boot do disco instalado. O revisor em contexto limpo verifica os registros e repete ao menos uma instalação quando o ambiente permitir.
 
@@ -24,4 +24,4 @@ Configurar runner próprio ou runner maior com pelo menos 64 GB de armazenamento
 
 ## Condição de aceite
 
-Este ADR não altera nenhum gate enquanto estiver **proposto**. Se aceito, o F1-002 só avança após registrar instalação completa e boot do disco para os dois assets exatos da candidata, além das provas físicas e da revisão independente. Se rejeitado, o F1-002 permanece `doing` até existir runner com capacidade comprovada para o gate completo no CI.
+O F1-002 só avança após registrar instalação completa e boot do disco para os dois assets exatos da candidata, além das provas físicas e da revisão independente.
