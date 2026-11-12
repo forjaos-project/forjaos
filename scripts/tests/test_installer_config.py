@@ -101,6 +101,10 @@ class InstallerConfigTests(unittest.TestCase):
         self.assertEqual((sources / "forjaos-logo.png").read_bytes(),
                          (ROOT / "brand/logo/png/forjaos-256.png").read_bytes())
 
+    def test_branding_rpm_does_not_pull_optional_browser_stack(self):
+        containerfile = (ROOT / "image/build_files/installer/Containerfile").read_text()
+        self.assertIn("dnf install -y --setopt=install_weak_deps=False /tmp/forjaos-branding.rpm", containerfile)
+
 
 if __name__ == "__main__":
     unittest.main()

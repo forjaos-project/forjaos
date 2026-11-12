@@ -23,7 +23,7 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     && dnf clean all
 
 COPY --from=branding-builder /tmp/forjaos-branding.rpm /tmp/forjaos-branding.rpm
-RUN dnf install -y /tmp/forjaos-branding.rpm \
+RUN dnf install -y --setopt=install_weak_deps=False /tmp/forjaos-branding.rpm \
     && dnf clean all && rm /tmp/forjaos-branding.rpm
 
 COPY cosign.pub /tmp/forjaos.pub
