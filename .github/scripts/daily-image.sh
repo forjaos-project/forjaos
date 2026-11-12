@@ -47,6 +47,8 @@ podman run --rm --entrypoint /usr/bin/rpm "$local_image" -qa \
   | python3 .github/scripts/generate_third_party_licenses.py \
     --variant "$variant" --image-id "$image_id" \
     --output "$LICENSE_REPORT_DIR/$variant/THIRD_PARTY_LICENSES.md"
+podman run --rm --entrypoint /usr/bin/python3 "$local_image" \
+  /usr/libexec/forjaos/check_image_contract.py
 bash scripts/check-branding.sh --image "$local_image"
 bash scripts/check-signing-key.sh cosign.pub
 

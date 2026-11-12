@@ -13,6 +13,12 @@ FROM ${BASE_IMAGE}
 
 ARG IMAGE_NAME=forjaos-nvidia-open
 
+COPY image/build_files/remove.txt /tmp/remove.txt
+COPY image/build_files/apply_package_policy.sh /tmp/apply_package_policy.sh
+RUN bash /tmp/apply_package_policy.sh /tmp/remove.txt \
+    && dnf clean all \
+    && rm /tmp/remove.txt /tmp/apply_package_policy.sh
+
 COPY --from=branding-builder /tmp/forjaos-branding.rpm /tmp/forjaos-branding.rpm
 COPY --from=branding-builder /tmp/forjaos-plasma.rpm /tmp/forjaos-plasma.rpm
 RUN dnf install -y /tmp/forjaos-branding.rpm && dnf clean all && rm /tmp/forjaos-branding.rpm
@@ -23,6 +29,7 @@ RUN dnf install -y /tmp/forjaos-plasma.rpm \
     && dnf remove -y --no-autoremove fedora-appstream-metadata fira-code-fonts \
     && dnf clean all && rm /tmp/forjaos-plasma.rpm
 COPY image/build_files/configure_image.py /tmp/configure_image.py
+COPY image/build_files/check_image_contract.py /usr/libexec/forjaos/check_image_contract.py
 COPY image/build_files/configure_plasma.py /tmp/configure_plasma.py
 COPY cosign.pub /tmp/forjaos.pub
 COPY brand/logo/png/ /tmp/forjaos-icons/
