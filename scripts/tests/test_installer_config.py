@@ -107,6 +107,11 @@ class InstallerConfigTests(unittest.TestCase):
         spec = (ROOT / "image/build_files/installer/forjaos-branding.spec").read_text()
         self.assertIn("Provides:       fedora-release-identity-basic = %{base_identity_evr}", spec)
 
+    def test_live_initramfs_loads_selinux_policy_before_switch_root(self):
+        containerfile = (ROOT / "image/build_files/installer/Containerfile").read_text()
+        self.assertIn("--add 'anaconda selinux'", containerfile)
+        self.assertNotIn("selinux=0", containerfile)
+
 
 if __name__ == "__main__":
     unittest.main()
