@@ -382,7 +382,10 @@
       ],
       "phase": "1",
       "title": "Pacotes removidos/adicionados e serviços padrão da imagem",
-      "status": "todo"
+      "status": "doing",
+      "agent": "codex",
+      "scope": "image/",
+      "claimed_at": "2026-11-12"
     },
     {
       "id": "F1-002",
