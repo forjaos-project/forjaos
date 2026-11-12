@@ -1,6 +1,7 @@
 """FR-010: a VM screenshot must show the installer, not only its GRUB menu."""
 
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -15,6 +16,20 @@ else:
 
 
 class IsoVmSmokeTests(unittest.TestCase):
+    def test_uses_pflash_with_separate_writable_variables(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            code = root / "CODE.fd"
+            variables = root / "VARS.fd"
+            code.write_bytes(b"code")
+            variables.write_bytes(b"vars")
+            args = module.firmware_drives(code, variables, root)
+            self.assertEqual(args, [
+                "-drive", f"if=pflash,format=raw,unit=0,readonly=on,file={code}",
+                "-drive", f"if=pflash,format=raw,unit=1,file={root / 'OVMF_VARS.fd'}",
+            ])
+            self.assertEqual((root / "OVMF_VARS.fd").read_bytes(), b"vars")
+
     def test_uses_software_emulation_without_kvm(self):
         self.assertEqual(module.accelerator(False), "tcg,thread=multi")
         self.assertEqual(module.accelerator(True), "kvm")

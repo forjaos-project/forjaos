@@ -3,6 +3,7 @@
 
 import argparse
 import os
+import shutil
 import socket
 import subprocess
 import time
@@ -21,6 +22,15 @@ def installer_visible(text: str) -> bool:
 
 def accelerator(kvm_available: bool) -> str:
     return "kvm" if kvm_available else "tcg,thread=multi"
+
+
+def firmware_drives(code: Path, variables: Path, output: Path) -> list[str]:
+    writable_variables = output / "OVMF_VARS.fd"
+    shutil.copyfile(variables, writable_variables)
+    return [
+        "-drive", f"if=pflash,format=raw,unit=0,readonly=on,file={code}",
+        "-drive", f"if=pflash,format=raw,unit=1,file={writable_variables}",
+    ]
 
 
 def screenshot(monitor: Path, destination: Path) -> None:
@@ -47,10 +57,10 @@ def screenshot(monitor: Path, destination: Path) -> None:
 def boot(iso: Path, output: Path, timeout_seconds: int) -> None:
     if not iso.is_file():
         raise FileNotFoundError(iso)
-    firmware = next((path for path in (
-        Path("/usr/share/OVMF/OVMF_CODE_4M.fd"),
-        Path("/usr/share/OVMF/OVMF_CODE.fd"),
-    ) if path.is_file()), None)
+    firmware = next(((code, variables) for code, variables in (
+        (Path("/usr/share/OVMF/OVMF_CODE_4M.fd"), Path("/usr/share/OVMF/OVMF_VARS_4M.fd")),
+        (Path("/usr/share/OVMF/OVMF_CODE.fd"), Path("/usr/share/OVMF/OVMF_VARS.fd")),
+    ) if code.is_file() and variables.is_file()), None)
     if firmware is None:
         raise FileNotFoundError("OVMF firmware")
     output.mkdir(parents=True, exist_ok=True)
@@ -62,7 +72,7 @@ def boot(iso: Path, output: Path, timeout_seconds: int) -> None:
     command = [
         "qemu-system-x86_64", "-accel", accelerator(os.access("/dev/kvm", os.R_OK | os.W_OK)),
         "-machine", "q35",
-        "-m", "4096", "-smp", "2", "-bios", str(firmware),
+        "-m", "4096", "-smp", "2", *firmware_drives(*firmware, output),
         "-boot", "order=d", "-cdrom", str(iso),
         "-drive", f"file={disk},format=qcow2,if=virtio",
         "-netdev", "user,id=net0", "-device", "virtio-net-pci,netdev=net0",
