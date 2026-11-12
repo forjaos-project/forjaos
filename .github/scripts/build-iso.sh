@@ -7,16 +7,21 @@ case "$variant" in
   forjaos|forjaos-nvidia-open) ;;
   *) echo 'build-iso: expected forjaos or forjaos-nvidia-open' >&2; exit 2 ;;
 esac
-if [[ $# -ne 2 || -z "$2" ]]; then
-  echo 'build-iso: expected variant and output directory' >&2
+if [[ $# -lt 2 || $# -gt 3 || -z "$2" ]]; then
+  echo 'build-iso: expected variant, output directory, and optional testing/stable channel' >&2
   exit 2
 fi
+channel="${3:-testing}"
+case "$channel" in
+  testing|stable) ;;
+  *) echo 'build-iso: expected testing or stable channel' >&2; exit 2 ;;
+esac
 
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
 mkdir -p "$2"
 output="$(cd "$2" && pwd -P)"
 image="ghcr.io/forjaos-project/$variant"
-digest="$(skopeo inspect --format '{{.Digest}}' "docker://$image:testing")"
+digest="$(skopeo inspect --format '{{.Digest}}' "docker://$image:$channel")"
 if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
   echo 'build-iso: registry returned an invalid digest' >&2
   exit 1
@@ -31,8 +36,14 @@ installer_image="localhost/$variant-installer:ci"
 sudo podman build \
   --file "$repo/image/build_files/installer/Containerfile" \
   --build-arg "PAYLOAD_REF=$ref" \
-  --build-arg "TARGET_REF=$image:testing" \
+  --build-arg "TARGET_REF=$image:$channel" \
   --tag "$installer_image" "$repo"
+installer_id="$(sudo podman image inspect --format '{{.Id}}' "$installer_image")"
+sudo podman run --rm --entrypoint /usr/bin/rpm "$installer_image" -qa \
+  --queryformat 'P\t%{NAME}\t%{VERSION}-%{RELEASE}\t%{ARCH}\t%{LICENSE}\t%{SOURCERPM}\n[F\t%{FILENAMES}\t%{FILEFLAGS:fflags}\n]' \
+  | python3 "$repo/.github/scripts/generate_third_party_licenses.py" \
+    --variant "$variant" --image-id "$installer_id" \
+    --output "$output/THIRD_PARTY_LICENSES.md"
 sudo podman run --rm --privileged --network host \
   --security-opt label=disable \
   --volume "$output:/output" \

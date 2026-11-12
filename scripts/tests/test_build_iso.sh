@@ -21,6 +21,14 @@ FAKE
 cat > "$tmp/bin/sudo" <<'FAKE'
 #!/usr/bin/env bash
 printf 'sudo %s\n' "$*" >> "$TEST_LOG"
+if [[ "$1" == podman && "$2" == image && "$3" == inspect ]]; then
+  printf 'sha256:%064d\n' 0
+  exit 0
+fi
+if [[ "$1" == podman && "$2" == run && "$*" == *'--entrypoint /usr/bin/rpm'* ]]; then
+  printf 'P\tanaconda\t1-1\tx86_64\tGPL-2.0-or-later\tanaconda-1-1.src.rpm\nF\t/usr/share/licenses/anaconda/LICENSE\tl\n'
+  exit 0
+fi
 if [[ "$1" == podman && "$2" == run ]]; then
   while (($#)); do
     if [[ "$1" == --volume && "$2" == *:/output ]]; then
@@ -39,6 +47,7 @@ for variant in forjaos forjaos-nvidia-open; do
   : > "$TEST_LOG"
   bash "$repo/.github/scripts/build-iso.sh" "$variant" "$tmp/$variant"
   test -s "$tmp/$variant/$variant.iso"
+  test -s "$tmp/$variant/THIRD_PARTY_LICENSES.md"
   grep -qF "docker://ghcr.io/forjaos-project/$variant:testing" "$TEST_LOG"
   grep -qF "cosign verify --new-bundle-format=false --key $repo/cosign.pub ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
   grep -qF "sudo podman build --file $repo/image/build_files/installer/Containerfile --build-arg PAYLOAD_REF=ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
@@ -46,6 +55,7 @@ for variant in forjaos forjaos-nvidia-open; do
   grep -qF -- '--bootc-default-fs ext4' "$TEST_LOG"
   grep -qF -- '--output-name' "$TEST_LOG"
   grep -qF -- 'generic-iso' "$TEST_LOG"
+  grep -qF -- '--entrypoint /usr/bin/rpm' "$TEST_LOG"
   if grep -qE -- '--installer-payload-ref|--bootc-installer-payload-ref|--type bootc-installer' "$TEST_LOG"; then
     echo 'FAIL: network installer embeds the payload' >&2; exit 1
   fi
@@ -57,6 +67,15 @@ for variant in forjaos forjaos-nvidia-open; do
   run_line="$(grep -n 'sudo podman run' "$TEST_LOG" | head -1 | cut -d: -f1)"
   [[ "$verify_line" -lt "$build_line" && "$build_line" -lt "$run_line" ]]
 done
+
+export TEST_VARIANT=forjaos
+: > "$TEST_LOG"
+bash "$repo/.github/scripts/build-iso.sh" forjaos "$tmp/stable" stable
+grep -qF 'docker://ghcr.io/forjaos-project/forjaos:stable' "$TEST_LOG"
+grep -qF -- '--build-arg TARGET_REF=ghcr.io/forjaos-project/forjaos:stable' "$TEST_LOG"
+if bash "$repo/.github/scripts/build-iso.sh" forjaos "$tmp/invalid-channel" arbitrary >/dev/null 2>&1; then
+  echo 'FAIL: accepted arbitrary release channel' >&2; exit 1
+fi
 
 : > "$TEST_LOG"
 export TEST_BAD_SIGNATURE=1

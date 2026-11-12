@@ -70,6 +70,7 @@ jobs:
             ${{ runner.temp }}/iso-${{ matrix.variant }}/${{ matrix.variant }}.iso
             ${{ runner.temp }}/iso-${{ matrix.variant }}/SHA256SUMS
             ${{ runner.temp }}/iso-${{ matrix.variant }}/${{ matrix.variant }}.iso.sigstore.json
+            ${{ runner.temp }}/iso-${{ matrix.variant }}/THIRD_PARTY_LICENSES.md
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
