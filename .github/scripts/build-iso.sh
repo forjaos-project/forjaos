@@ -28,12 +28,19 @@ cosign verify --new-bundle-format=false --key "$repo/cosign.pub" "$ref" >/dev/nu
 # builder digest identical to the one already used by the VM CI workflow.
 builder='quay.io/centos-bootc/bootc-image-builder@sha256:dab86ee6b46dcade411b37f4e70b07d93b6a06da0dbfec6fe89247a220e0d9f8'
 sudo podman pull "$ref"
+installer_image="localhost/$variant-installer:ci"
+sudo podman build \
+  --file "$repo/image/build_files/installer/Containerfile" \
+  --build-arg "SOURCE_IMAGE=$ref" \
+  --tag "$installer_image" "$repo/image/build_files/installer"
 sudo podman run --rm --privileged --network host \
   --security-opt label=disable \
   --volume "$output:/output" \
+  --volume "$repo/image/build_files/installer/config.toml:/config.toml:ro" \
   --volume /var/lib/containers/storage:/var/lib/containers/storage \
-  "$builder" --type anaconda-iso --rootfs btrfs \
-  --chown "$(id -u):$(id -g)" "$ref"
+  "$builder" --type bootc-installer --rootfs btrfs \
+  --installer-payload-ref "$ref" \
+  --chown "$(id -u):$(id -g)" "$installer_image"
 
 iso="$output/bootiso/install.iso"
 if [[ ! -s "$iso" ]]; then

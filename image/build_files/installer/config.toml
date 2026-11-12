@@ -1,0 +1,4 @@
+# Anaconda must wait for the user to choose the target and partition layout.
+# Never use unattended, clearpart, autopart, or a scripted disk target here.
+[customizations.installer]
+unattended = false

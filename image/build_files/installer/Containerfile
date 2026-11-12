@@ -1,0 +1,25 @@
+# Build-only Anaconda environment. The signed ForjaOS payload stays immutable.
+ARG SOURCE_IMAGE
+FROM ${SOURCE_IMAGE}
+
+# ADR-021 requires Anaconda. These Fedora packages come from the payload's
+# existing repositories and are installed only in this disposable CI image.
+RUN dnf install -y --setopt=install_weak_deps=False \
+      anaconda \
+      anaconda-install-img-deps \
+      anaconda-dracut \
+      dracut-config-generic \
+      dracut-network \
+      net-tools \
+      squashfs-tools \
+      grub2-efi-x64-cdboot \
+      python3-mako \
+      lorax-templates-* \
+      biosdevname \
+      prefixdevname \
+    && dnf clean all
+
+# Fedora 43+ keeps the EFI tree under /usr/lib/efi; the ISO builder expects it
+# under /boot/efi. Lorax also requires /var/mnt in the installer environment.
+RUN mkdir -p /boot/efi /var/mnt \
+    && cp -ra /usr/lib/efi/*/*/EFI /boot/efi

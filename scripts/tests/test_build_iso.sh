@@ -55,7 +55,7 @@ for variant in forjaos forjaos-nvidia-open; do
 done
 
 grep -qF 'unattended = false' "$repo/image/build_files/installer/config.toml"
-if grep -Eq 'clearpart|autopart|unattended = true' "$repo/image/build_files/installer/config.toml"; then
+if grep -v '^[[:space:]]*#' "$repo/image/build_files/installer/config.toml" | grep -Eq 'clearpart|autopart|unattended = true'; then
   echo 'FAIL: installer config permits unattended disk changes' >&2; exit 1
 fi
 
