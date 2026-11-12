@@ -90,19 +90,18 @@ jobs:
   boot:
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         variant: [forjaos, forjaos-nvidia-open]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, MIT
-      - name: Install KVM and OCR tools
+      - name: Install QEMU and OCR tools
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             qemu-system-x86 qemu-utils ovmf tesseract-ocr
-          test -r /dev/kvm && test -w /dev/kvm
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4, MIT
         with:
           name: iso-${{ matrix.variant }}

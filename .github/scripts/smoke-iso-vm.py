@@ -2,6 +2,7 @@
 """Boot an installer ISO in KVM and retain proof that Anaconda opened."""
 
 import argparse
+import os
 import socket
 import subprocess
 import time
@@ -16,6 +17,10 @@ def installer_visible(text: str) -> bool:
         "welcome", "installation summary", "select your language", "anaconda",
         "instalação", "idioma",
     ))
+
+
+def accelerator(kvm_available: bool) -> str:
+    return "kvm" if kvm_available else "tcg,thread=multi"
 
 
 def screenshot(monitor: Path, destination: Path) -> None:
@@ -55,7 +60,8 @@ def boot(iso: Path, output: Path, timeout_seconds: int) -> None:
     transcript = output / "screen-ocr.txt"
     subprocess.run(["qemu-img", "create", "-f", "qcow2", str(disk), "32G"], check=True)
     command = [
-        "qemu-system-x86_64", "-enable-kvm", "-machine", "q35",
+        "qemu-system-x86_64", "-accel", accelerator(os.access("/dev/kvm", os.R_OK | os.W_OK)),
+        "-machine", "q35",
         "-m", "4096", "-smp", "2", "-bios", str(firmware),
         "-boot", "order=d", "-cdrom", str(iso),
         "-drive", f"file={disk},format=qcow2,if=virtio",
@@ -98,7 +104,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--iso", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--timeout-seconds", type=int, default=480)
+    parser.add_argument("--timeout-seconds", type=int, default=1200)
     args = parser.parse_args()
     boot(args.iso, args.output, args.timeout_seconds)
 

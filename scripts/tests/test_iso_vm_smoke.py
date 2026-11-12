@@ -15,6 +15,10 @@ else:
 
 
 class IsoVmSmokeTests(unittest.TestCase):
+    def test_uses_software_emulation_without_kvm(self):
+        self.assertEqual(module.accelerator(False), "tcg,thread=multi")
+        self.assertEqual(module.accelerator(True), "kvm")
+
     def test_rejects_grub_menu_and_blank_screen(self):
         for text in ("", "Instalar ForjaOS", "GNU GRUB\nInstalar ForjaOS"):
             with self.subTest(text=text):
