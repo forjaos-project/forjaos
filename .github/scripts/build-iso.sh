@@ -47,18 +47,26 @@ sudo podman run --rm --entrypoint /usr/bin/rpm "$installer_image" -qa \
     --output "$output/THIRD_PARTY_LICENSES.md"
 sudo podman run --rm --privileged --network host \
   --security-opt label=disable \
+  --volume "$repo/.github/scripts/osbuild:/usr/local/bin/osbuild:ro" \
   --volume "$output:/output" \
   --volume /var/lib/containers/storage:/var/lib/containers/storage \
+  --env "FORJA_PATCHED_MANIFEST=/output/$variant-osbuild-manifest.json" \
   "$builder" build --bootc-ref "$installer_image" \
   --bootc-default-fs ext4 --output-dir /output --output-name "$variant" \
   generic-iso
 
 iso="$output/$variant.iso"
+manifest="$output/$variant-osbuild-manifest.json"
 if [[ ! -s "$iso" ]]; then
   echo "build-iso: builder did not produce $variant.iso" >&2
   exit 1
 fi
+if [[ ! -s "$manifest" ]]; then
+  echo 'build-iso: missing SELinux-labeled osbuild manifest' >&2
+  exit 1
+fi
 sudo chown "$(id -u):$(id -g)" "$iso"
+sudo chown "$(id -u):$(id -g)" "$manifest"
 sudo podman run --rm \
   --volume "$output:/output" \
   --entrypoint /usr/bin/xorriso "$installer_image" \

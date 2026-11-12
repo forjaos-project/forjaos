@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - '.github/scripts/build-iso.sh'
+      - '.github/scripts/osbuild'
       - '.github/scripts/smoke-iso-vm.py'
       - '.github/workflows/iso.yml'
       - 'image/build_files/installer/**'
@@ -19,6 +20,7 @@ on:
       - 'scripts/tests/test_verify_iso.py'
       - 'scripts/tests/test_iso_workflow.py'
       - 'scripts/tests/test_iso_vm_smoke.py'
+      - 'scripts/tests/test_patch_iso_manifest.py'
       - 'docs/install.md'
   workflow_dispatch:
     inputs:
@@ -82,6 +84,7 @@ jobs:
             ${{ runner.temp }}/iso-${{ matrix.variant }}/SHA256SUMS
             ${{ runner.temp }}/iso-${{ matrix.variant }}/${{ matrix.variant }}.iso.sigstore.json
             ${{ runner.temp }}/iso-${{ matrix.variant }}/${{ matrix.variant }}-grub.cfg
+            ${{ runner.temp }}/iso-${{ matrix.variant }}/${{ matrix.variant }}-osbuild-manifest.json
             ${{ runner.temp }}/iso-${{ matrix.variant }}/THIRD_PARTY_LICENSES.md
           compression-level: 0
           if-no-files-found: error

@@ -44,6 +44,7 @@ if [[ "$1" == podman && "$2" == run ]]; then
     if [[ "$1" == --volume && "$2" == *:/output ]]; then
       mkdir -p "${2%:/output}"
       printf 'ISO fixture' > "${2%:/output}/$TEST_VARIANT.iso"
+      printf '{"pipelines":[{"name":"os-tree","stages":[{"type":"org.osbuild.container-deploy"},{"type":"org.osbuild.selinux"}]}]}\n' > "${2%:/output}/$TEST_VARIANT-osbuild-manifest.json"
       break
     fi
     shift
@@ -57,6 +58,7 @@ for variant in forjaos forjaos-nvidia-open; do
   : > "$TEST_LOG"
   bash "$repo/.github/scripts/build-iso.sh" "$variant" "$tmp/$variant"
   test -s "$tmp/$variant/$variant.iso"
+  test -s "$tmp/$variant/$variant-osbuild-manifest.json"
   test -s "$tmp/$variant/THIRD_PARTY_LICENSES.md"
   grep -qF "docker://ghcr.io/forjaos-project/$variant:testing" "$TEST_LOG"
   grep -qF "cosign verify --new-bundle-format=false --key $repo/cosign.pub ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
@@ -64,6 +66,8 @@ for variant in forjaos forjaos-nvidia-open; do
   grep -qF -- "--build-arg TARGET_REF=ghcr.io/forjaos-project/$variant:testing" "$TEST_LOG"
   grep -qF -- '--bootc-default-fs ext4' "$TEST_LOG"
   grep -qF -- '--output-name' "$TEST_LOG"
+  grep -qF -- "--volume $repo/.github/scripts/osbuild:/usr/local/bin/osbuild:ro" "$TEST_LOG"
+  grep -qF -- "FORJA_PATCHED_MANIFEST=/output/$variant-osbuild-manifest.json" "$TEST_LOG"
   grep -qF -- 'generic-iso' "$TEST_LOG"
   grep -qF "sudo bash $repo/scripts/check-branding.sh --image localhost/$variant-installer:ci" "$TEST_LOG"
   grep -qF -- '--entrypoint /usr/bin/rpm' "$TEST_LOG"
