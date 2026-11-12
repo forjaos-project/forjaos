@@ -23,6 +23,7 @@ class IsoWorkflowTests(unittest.TestCase):
         self.assertIn("'brand/logo/**'", source)
         self.assertIn("'brand/fonts/**'", source)
         self.assertIn("THIRD_PARTY_LICENSES.md", source)
+        self.assertIn("-grub.cfg", source)
 
     def test_pr_job_has_no_release_authority(self):
         source = WORKFLOW.read_text(encoding="utf-8")

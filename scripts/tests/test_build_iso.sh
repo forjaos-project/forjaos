@@ -29,6 +29,16 @@ if [[ "$1" == podman && "$2" == run && "$*" == *'--entrypoint /usr/bin/rpm'* ]];
   printf 'P\tanaconda\t1-1\tx86_64\tGPL-2.0-or-later\tanaconda-1-1.src.rpm\nF\t/usr/share/licenses/anaconda/LICENSE\tl\n'
   exit 0
 fi
+if [[ "$1" == podman && "$2" == run && "$*" == *'--entrypoint /usr/bin/xorriso'* ]]; then
+  while (($#)); do
+    if [[ "$1" == --volume && "$2" == *:/output ]]; then
+      printf "menuentry 'Instalar ForjaOS' {\n linux /images/pxeboot/vmlinuz root=live:CDLABEL=ForjaOS-Installer rd.live.image inst.graphical %s\n}\n" \
+        "${TEST_INSECURE_GRUB:+enforcing=0}" > "${2%:/output}/$TEST_VARIANT-grub.cfg"
+      exit 0
+    fi
+    shift
+  done
+fi
 if [[ "$1" == podman && "$2" == run ]]; then
   while (($#)); do
     if [[ "$1" == --volume && "$2" == *:/output ]]; then
@@ -57,6 +67,8 @@ for variant in forjaos forjaos-nvidia-open; do
   grep -qF -- 'generic-iso' "$TEST_LOG"
   grep -qF "sudo bash $repo/scripts/check-branding.sh --image localhost/$variant-installer:ci" "$TEST_LOG"
   grep -qF -- '--entrypoint /usr/bin/rpm' "$TEST_LOG"
+  grep -qF -- '--entrypoint /usr/bin/xorriso' "$TEST_LOG"
+  test -s "$tmp/$variant/$variant-grub.cfg"
   if grep -qE -- '--installer-payload-ref|--bootc-installer-payload-ref|--type bootc-installer' "$TEST_LOG"; then
     echo 'FAIL: network installer embeds the payload' >&2; exit 1
   fi
@@ -94,6 +106,13 @@ if bash "$repo/.github/scripts/build-iso.sh" forjaos "$tmp/bad-digest" >/dev/nul
 fi
 ! grep -q 'cosign\|sudo podman' "$TEST_LOG"
 unset TEST_BAD_DIGEST
+
+: > "$TEST_LOG"
+export TEST_INSECURE_GRUB=1
+if bash "$repo/.github/scripts/build-iso.sh" forjaos "$tmp/insecure-grub" >/dev/null 2>&1; then
+  echo 'FAIL: accepted installer boot with SELinux permissive' >&2; exit 1
+fi
+unset TEST_INSECURE_GRUB
 
 if bash "$repo/.github/scripts/build-iso.sh" arbitrary "$tmp/invalid" >/dev/null 2>&1; then
   echo 'FAIL: accepted invalid variant' >&2; exit 1

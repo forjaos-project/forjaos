@@ -59,4 +59,18 @@ if [[ ! -s "$iso" ]]; then
   exit 1
 fi
 sudo chown "$(id -u):$(id -g)" "$iso"
+sudo podman run --rm \
+  --volume "$output:/output" \
+  --entrypoint /usr/bin/xorriso "$installer_image" \
+  -indev "/output/$variant.iso" -osirrox on \
+  -extract /boot/grub2/grub.cfg "/output/$variant-grub.cfg" >/dev/null
+sudo chown "$(id -u):$(id -g)" "$output/$variant-grub.cfg"
+grep -qF "menuentry 'Instalar ForjaOS'" "$output/$variant-grub.cfg"
+grep -qF 'root=live:CDLABEL=ForjaOS-Installer rd.live.image inst.graphical' \
+  "$output/$variant-grub.cfg"
+if grep -qE '(^|[[:space:]])(enforcing=0|selinux=0)([[:space:]]|$)' \
+  "$output/$variant-grub.cfg"; then
+  echo 'build-iso: installer boot disables SELinux' >&2
+  exit 1
+fi
 printf 'build-iso: %s from %s\n' "$iso" "$ref"
