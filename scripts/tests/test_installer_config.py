@@ -89,6 +89,13 @@ class InstallerConfigTests(unittest.TestCase):
         self.assertNotIn("setenforce", drop_in)
         self.assertNotIn("enforcing=0", drop_in)
 
+    def test_anaconda_service_exposes_forjaos_product_identity(self):
+        module.configure(self.root, self.source, self.target, self.key)
+        drop_in = (self.root / "usr/lib/systemd/system/anaconda.service.d/10-forjaos-tmux.conf").read_text()
+        self.assertIn("Environment=ANACONDA_PRODUCTNAME=ForjaOS", drop_in)
+        self.assertIn("Environment=ANACONDA_PRODUCTVERSION=0.1", drop_in)
+        self.assertNotIn("bluesky", drop_in)
+
     def test_installer_branding_uses_project_identity_and_tokens(self):
         branding.generate(self.root / "sources", ROOT / "brand")
         sources = self.root / "sources"
