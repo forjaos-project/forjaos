@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build one Anaconda installer ISO from a signed, immutable testing digest.
+# Build one network Anaconda ISO for a signed, immutable testing digest.
 set -euo pipefail
 
 variant="${1:-}"
@@ -24,28 +24,27 @@ fi
 ref="$image@$digest"
 cosign verify --new-bundle-format=false --key "$repo/cosign.pub" "$ref" >/dev/null
 
-# The builder reads the rootful Podman store mounted from the host. Keep the
-# builder digest identical to the one already used by the VM CI workflow.
-builder='quay.io/centos-bootc/bootc-image-builder@sha256:dab86ee6b46dcade411b37f4e70b07d93b6a06da0dbfec6fe89247a220e0d9f8'
-sudo podman pull "$ref"
+# ADR-0035: the installer environment is Fedora bootc; only its Kickstart
+# refers to the verified ForjaOS payload. Do not embed the large payload.
+builder='ghcr.io/osbuild/image-builder-cli@sha256:8bfc9884838edb070372827f9b3f94a86a5900ccdceb15c6920cc6a4095d51ae'
 installer_image="localhost/$variant-installer:ci"
 sudo podman build \
   --file "$repo/image/build_files/installer/Containerfile" \
-  --build-arg "SOURCE_IMAGE=$ref" \
-  --tag "$installer_image" "$repo/image/build_files/installer"
+  --build-arg "PAYLOAD_REF=$ref" \
+  --build-arg "TARGET_REF=$image:testing" \
+  --tag "$installer_image" "$repo"
 sudo podman run --rm --privileged --network host \
   --security-opt label=disable \
   --volume "$output:/output" \
-  --volume "$repo/image/build_files/installer/config.toml:/config.toml:ro" \
   --volume /var/lib/containers/storage:/var/lib/containers/storage \
-  "$builder" --type bootc-installer --rootfs btrfs \
-  --installer-payload-ref "$ref" \
-  --chown "$(id -u):$(id -g)" "$installer_image"
+  "$builder" build --bootc-ref "$installer_image" \
+  --bootc-default-fs ext4 --output-dir /output --output-name "$variant" \
+  generic-iso
 
-iso="$output/bootiso/install.iso"
+iso="$output/$variant.iso"
 if [[ ! -s "$iso" ]]; then
-  echo 'build-iso: builder did not produce bootiso/install.iso' >&2
+  echo "build-iso: builder did not produce $variant.iso" >&2
   exit 1
 fi
-mv "$iso" "$output/$variant.iso"
-printf 'build-iso: %s from %s\n' "$output/$variant.iso" "$ref"
+sudo chown "$(id -u):$(id -g)" "$iso"
+printf 'build-iso: %s from %s\n' "$iso" "$ref"

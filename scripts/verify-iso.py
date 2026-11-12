@@ -9,6 +9,7 @@ from pathlib import Path
 
 
 MAX_ISO_BYTES = 6_000_000_000  # NFR-011 uses decimal GB.
+MAX_RELEASE_ASSET_BYTES = 2 * 1024**3  # GitHub requires each asset to be under 2 GiB.
 ISO_NAMES = {"forjaos.iso", "forjaos-nvidia-open.iso"}
 MANIFEST_LINE = re.compile(r"([0-9a-f]{64})  (forjaos(?:-nvidia-open)?\.iso)")
 
@@ -19,6 +20,8 @@ def digest_iso(path: Path) -> str:
     size = path.stat().st_size
     if size == 0 or size > MAX_ISO_BYTES:
         raise ValueError(f"ISO size must be greater than zero and at most 6 GB: {size} bytes")
+    if size >= MAX_RELEASE_ASSET_BYTES:
+        raise ValueError(f"ISO must be under 2 GiB for GitHub Release: {size} bytes")
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):

@@ -50,6 +50,14 @@ class VerifyIsoTests(unittest.TestCase):
         self.assertIn("6 GB", result.stderr)
         self.assertFalse((self.directory / "SHA256SUMS").exists())
 
+    def test_github_release_asset_limit(self):
+        with self.iso.open("wb") as stream:
+            stream.truncate(2 * 1024**3)
+        result = self.run_cli("create", self.iso)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("2 GiB", result.stderr)
+        self.assertFalse((self.directory / "SHA256SUMS").exists())
+
     def test_rejects_manifest_paths_and_invalid_digest(self):
         manifest = self.directory / "SHA256SUMS"
         self.iso.write_bytes(b"fixture")

@@ -24,8 +24,8 @@ printf 'sudo %s\n' "$*" >> "$TEST_LOG"
 if [[ "$1" == podman && "$2" == run ]]; then
   while (($#)); do
     if [[ "$1" == --volume && "$2" == *:/output ]]; then
-      mkdir -p "${2%:/output}/bootiso"
-      printf 'ISO fixture' > "${2%:/output}/bootiso/install.iso"
+      mkdir -p "${2%:/output}"
+      printf 'ISO fixture' > "${2%:/output}/$TEST_VARIANT.iso"
       break
     fi
     shift
@@ -35,16 +35,20 @@ FAKE
 chmod +x "$tmp/bin/"*
 
 for variant in forjaos forjaos-nvidia-open; do
+  export TEST_VARIANT="$variant"
   : > "$TEST_LOG"
   bash "$repo/.github/scripts/build-iso.sh" "$variant" "$tmp/$variant"
   test -s "$tmp/$variant/$variant.iso"
   grep -qF "docker://ghcr.io/forjaos-project/$variant:testing" "$TEST_LOG"
   grep -qF "cosign verify --new-bundle-format=false --key $repo/cosign.pub ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
-  grep -qF "sudo podman pull ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
-  grep -qF "sudo podman build --file $repo/image/build_files/installer/Containerfile --build-arg SOURCE_IMAGE=ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
-  grep -qF -- '--type bootc-installer --rootfs btrfs' "$TEST_LOG"
-  grep -qF -- "--installer-payload-ref ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
-  grep -qF -- "$repo/image/build_files/installer/config.toml:/config.toml:ro" "$TEST_LOG"
+  grep -qF "sudo podman build --file $repo/image/build_files/installer/Containerfile --build-arg PAYLOAD_REF=ghcr.io/forjaos-project/$variant@$TEST_DIGEST" "$TEST_LOG"
+  grep -qF -- "--build-arg TARGET_REF=ghcr.io/forjaos-project/$variant:testing" "$TEST_LOG"
+  grep -qF -- '--bootc-default-fs ext4' "$TEST_LOG"
+  grep -qF -- '--output-name' "$TEST_LOG"
+  grep -qF -- 'generic-iso' "$TEST_LOG"
+  if grep -qE -- '--installer-payload-ref|--bootc-installer-payload-ref|--type bootc-installer' "$TEST_LOG"; then
+    echo 'FAIL: network installer embeds the payload' >&2; exit 1
+  fi
   if grep -qF -- '--type anaconda-iso' "$TEST_LOG"; then
     echo 'FAIL: legacy anaconda-iso may install to the first disk without prompting' >&2; exit 1
   fi
@@ -53,11 +57,6 @@ for variant in forjaos forjaos-nvidia-open; do
   run_line="$(grep -n 'sudo podman run' "$TEST_LOG" | head -1 | cut -d: -f1)"
   [[ "$verify_line" -lt "$build_line" && "$build_line" -lt "$run_line" ]]
 done
-
-grep -qF 'unattended = false' "$repo/image/build_files/installer/config.toml"
-if grep -v '^[[:space:]]*#' "$repo/image/build_files/installer/config.toml" | grep -Eq 'clearpart|autopart|unattended = true'; then
-  echo 'FAIL: installer config permits unattended disk changes' >&2; exit 1
-fi
 
 : > "$TEST_LOG"
 export TEST_BAD_SIGNATURE=1

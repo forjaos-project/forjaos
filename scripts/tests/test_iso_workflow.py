@@ -18,6 +18,8 @@ class IsoWorkflowTests(unittest.TestCase):
         self.assertIn("cosign verify-blob", source)
         self.assertIn("--bundle", source)
         self.assertIn("actions/upload-artifact@", source)
+        self.assertIn("'image/build_files/installer/Containerfile'", source)
+        self.assertIn("'image/build_files/installer/configure_installer.py'", source)
 
     def test_pr_job_has_no_release_authority(self):
         source = WORKFLOW.read_text(encoding="utf-8")
