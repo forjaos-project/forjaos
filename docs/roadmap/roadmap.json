@@ -414,7 +414,7 @@
         "FR-014"
       ],
       "phase": "1",
-      "title": "ISO Anaconda via bootc-image-builder, checksum, assinatura, guia de gravação",
+      "title": "ISO Anaconda por rede via image-builder, checksum, assinatura, guia de gravação",
       "status": "doing",
       "agent": "codex",
       "scope": "image/",
