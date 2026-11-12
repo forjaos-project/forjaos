@@ -2,6 +2,7 @@
 """Boot an installer ISO in KVM and retain proof that Anaconda opened."""
 
 import argparse
+import json
 import os
 import shutil
 import socket
@@ -36,17 +37,24 @@ def firmware_drives(code: Path, variables: Path, output: Path) -> list[str]:
 def screenshot(monitor: Path, destination: Path) -> None:
     destination.unlink(missing_ok=True)
     with socket.socket(socket.AF_UNIX) as connection:
-        connection.settimeout(10)
+        connection.settimeout(30)
         connection.connect(str(monitor))
-        try:
-            connection.recv(4096)
-        except socket.timeout:
-            pass
-        connection.sendall(f"screendump {destination}\n".encode())
-        try:
-            connection.recv(4096)
-        except socket.timeout:
-            pass
+        with connection.makefile("rwb") as stream:
+            greeting = json.loads(stream.readline())
+            if "QMP" not in greeting:
+                raise RuntimeError("QEMU did not send a QMP greeting")
+            for command in (
+                {"execute": "qmp_capabilities"},
+                {"execute": "screendump", "arguments": {"filename": str(destination)}},
+            ):
+                stream.write(json.dumps(command).encode() + b"\r\n")
+                stream.flush()
+                while True:
+                    response = json.loads(stream.readline())
+                    if "error" in response:
+                        raise RuntimeError(f"QEMU command failed: {response['error']}")
+                    if "return" in response:
+                        break
     for _ in range(20):
         if destination.is_file() and destination.stat().st_size > 0:
             return
@@ -77,7 +85,7 @@ def boot(iso: Path, output: Path, timeout_seconds: int) -> None:
         "-drive", f"file={disk},format=qcow2,if=virtio",
         "-netdev", "user,id=net0", "-device", "virtio-net-pci,netdev=net0",
         "-vga", "std", "-display", "none", "-vnc", "127.0.0.1:1",
-        "-monitor", f"unix:{monitor},server,nowait",
+        "-qmp", f"unix:{monitor},server,nowait",
         "-serial", f"file:{output / 'serial.log'}", "-no-reboot",
     ]
     with (output / "qemu.log").open("wb") as log:

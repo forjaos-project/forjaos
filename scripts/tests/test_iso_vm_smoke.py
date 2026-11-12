@@ -1,7 +1,10 @@
 """FR-010: a VM screenshot must show the installer, not only its GRUB menu."""
 
 import importlib.util
+import json
+import socket
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -16,6 +19,37 @@ else:
 
 
 class IsoVmSmokeTests(unittest.TestCase):
+    def test_screenshot_negotiates_qmp_before_capture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            monitor = root / "qmp.sock"
+            destination = root / "screen.ppm"
+            commands = []
+            with socket.socket(socket.AF_UNIX) as server:
+                server.bind(str(monitor))
+                server.listen(1)
+
+                def serve():
+                    connection, _ = server.accept()
+                    with connection, connection.makefile("rwb") as stream:
+                        stream.write(b'{"QMP":{"version":{},"capabilities":[]}}\r\n')
+                        stream.flush()
+                        for _ in range(2):
+                            commands.append(json.loads(stream.readline()))
+                            if commands[-1]["execute"] == "screendump":
+                                destination.write_bytes(b"P6\n1 1\n255\n\x00\x00\x00")
+                            stream.write(b'{"return":{}}\r\n')
+                            stream.flush()
+
+                worker = threading.Thread(target=serve, daemon=True)
+                worker.start()
+                module.screenshot(monitor, destination)
+                worker.join(timeout=2)
+            self.assertEqual(commands, [
+                {"execute": "qmp_capabilities"},
+                {"execute": "screendump", "arguments": {"filename": str(destination)}},
+            ])
+
     def test_uses_pflash_with_separate_writable_variables(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
