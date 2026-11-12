@@ -25,6 +25,13 @@ class InstallGuideTests(unittest.TestCase):
         self.assertIn("assinatura do payload", guide)
         self.assertIn("2 GiB", guide)
 
+    def test_candidate_draft_is_not_described_as_stable(self):
+        guide = GUIDE.read_text(encoding="utf-8")
+        self.assertIn("candidate_tag", guide)
+        self.assertIn("rascunho", guide)
+        self.assertIn(":testing", guide)
+        self.assertIn(":stable", guide)
+
 
 if __name__ == "__main__":
     unittest.main()

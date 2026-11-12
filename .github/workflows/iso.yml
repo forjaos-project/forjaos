@@ -1,5 +1,5 @@
 # F1-002 / FR-010 / NFR-011: build and verify both installer ISOs.
-# A main-only manual dispatch creates a draft Release for physical validation.
+# A manual dispatch can create a private candidate from the F1-002 branch.
 name: iso
 
 on:
@@ -25,7 +25,11 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Version tag vX.Y.Z; empty builds testing artifacts only'
+        description: 'Final vX.Y.Z draft from main and stable payload'
+        required: false
+        type: string
+      candidate_tag:
+        description: 'Test draft vX.Y.Z-rc.N from F1-002 and testing payload'
         required: false
         type: string
 
@@ -47,6 +51,31 @@ jobs:
         variant: [forjaos, forjaos-nvidia-open]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, MIT
+      - name: Validate release request
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          REQUEST_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$RELEASE_TAG" && -n "$CANDIDATE_TAG" ]]; then
+            echo 'release and candidate tags are mutually exclusive' >&2
+            exit 2
+          fi
+          if [[ -n "$CANDIDATE_TAG" ]]; then
+            if [[ "$REQUEST_REF" != 'refs/heads/feat/F1-002-iso-anaconda' ]]; then
+              echo 'candidate requires the F1-002 branch' >&2
+              exit 2
+            fi
+            [[ "$CANDIDATE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]
+          elif [[ -n "$RELEASE_TAG" ]]; then
+            if [[ "$REQUEST_REF" != 'refs/heads/main' ]]; then
+              echo 'final release requires main' >&2
+              exit 2
+            fi
+            [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          fi
       - name: Install ISO build tools
         run: |
           sudo apt-get update
@@ -58,7 +87,7 @@ jobs:
         env:
           SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
           VARIANT: ${{ matrix.variant }}
-          IMAGE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' && 'stable' || 'testing' }}
+          IMAGE_CHANNEL: ${{ inputs.release_tag != '' && 'stable' || 'testing' }}
         run: |
           set -euo pipefail
           output="$RUNNER_TEMP/iso-$VARIANT"
@@ -131,7 +160,10 @@ jobs:
 
   release:
     needs: [build, boot]
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release_tag != ''
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      ((github.ref == 'refs/heads/main' && inputs.release_tag != '' && inputs.candidate_tag == '') ||
+       (github.ref == 'refs/heads/feat/F1-002-iso-anaconda' && inputs.candidate_tag != '' && inputs.release_tag == ''))
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -152,11 +184,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
         run: |
           set -euo pipefail
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "release already exists: $RELEASE_TAG" >&2
+          if [[ -n "$CANDIDATE_TAG" ]]; then
+            [[ "$CANDIDATE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]
+            tag="$CANDIDATE_TAG"
+            title="ForjaOS $tag — candidata de teste"
+            notes='Rascunho para validação física. Payload do canal :testing; não publicar como stable.'
+            prerelease=(--prerelease)
+          else
+            [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            tag="$RELEASE_TAG"
+            title="ForjaOS $tag"
+            notes='ISO de instalação por rede. Requer conexão com o GHCR. Publicar após validação física.'
+            prerelease=()
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release already exists: $tag" >&2
             exit 1
           fi
           assets="$RUNNER_TEMP/assets"
@@ -176,11 +221,10 @@ jobs:
               --bundle "$release_dir/$variant.iso.sigstore.json" \
               "$release_dir/$variant.iso"
           done
-          gh release create "$RELEASE_TAG" "$release_dir"/* --draft \
-            --target "$GITHUB_SHA" --title "ForjaOS $RELEASE_TAG" \
-            --notes 'ISO de instalação por rede. Requer conexão com o GHCR. Publicar após validação física.'
+          gh release create "$tag" "$release_dir"/* --draft "${prerelease[@]}" \
+            --target "$GITHUB_SHA" --title "$title" --notes "$notes"
           downloaded="$RUNNER_TEMP/downloaded"
-          gh release download "$RELEASE_TAG" --dir "$downloaded"
+          gh release download "$tag" --dir "$downloaded"
           python3 scripts/verify-iso.py check "$downloaded/SHA256SUMS"
           for variant in forjaos forjaos-nvidia-open; do
             cosign verify-blob --key cosign.pub \

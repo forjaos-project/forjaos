@@ -4,6 +4,8 @@
 
 F1-002 gera as variantes `forjaos.iso` (desktop genérico) e `forjaos-nvidia-open.iso` (NVIDIA open). Estas ISOs contêm o instalador Anaconda, não o sistema completo: a instalação exige **conexão com a internet** para baixar o payload ForjaOS do GHCR. O instalador referencia um digest imutável e deve verificar a assinatura do payload antes de instalá-lo; se a rede ou a verificação falhar, interrompa a instalação. Os artefatos de CI são para validação; só use uma versão publicada em GitHub Release após a validação de release. O fluxo de publicação e os testes físicos ainda precisam ser concluídos. Não confunda o arquivo de CI com uma versão `stable`.
 
+Para validar em hardware antes da publicação, o mantenedor pode despachar `iso.yml` na branch F1-002 com `candidate_tag` no formato `vX.Y.Z-rc.N`. O fluxo constrói a partir de `:testing`, cria um GitHub Release em **rascunho** e pré-lançamento, baixa os assets de volta e confere checksum e assinatura. Essa candidata não é `:stable` e não substitui o release final, que exige `release_tag` em `main` e payload `:stable` após promoção.
+
 Baixe a ISO desejada, seu `SHA256SUMS` e o arquivo `<nome-da-iso>.sigstore.json` do **mesmo** build ou release. Guarde os três no mesmo diretório. O `SHA256SUMS` de cada variante é separado; não substitua um pelo outro. Obtenha também `cosign.pub` do commit associado à imagem. Antes de gravar o pendrive, confira:
 
 ```bash
