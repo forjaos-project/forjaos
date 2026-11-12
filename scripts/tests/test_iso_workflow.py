@@ -51,5 +51,20 @@ class IsoWorkflowTests(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, release_section)
 
+    def test_vm_boot_proves_installer_before_release(self):
+        source = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("'scripts/tests/test_iso_vm_smoke.py'", source)
+        self.assertIn("'.github/scripts/smoke-iso-vm.py'", source)
+        self.assertIn("\n  boot:\n", source)
+        boot_section = source.split("\n  boot:\n", 1)[1].split("\n  release:\n", 1)[0]
+        self.assertIn("needs: build", boot_section)
+        self.assertIn("variant: [forjaos, forjaos-nvidia-open]", boot_section)
+        self.assertIn("smoke-iso-vm.py", boot_section)
+        self.assertIn("qemu-system-x86", boot_section)
+        self.assertIn("tesseract-ocr", boot_section)
+        self.assertIn("upload-artifact@", boot_section)
+        release_section = source.split("\n  release:\n", 1)[1]
+        self.assertIn("needs: [build, boot]", release_section)
+
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - '.github/scripts/build-iso.sh'
+      - '.github/scripts/smoke-iso-vm.py'
       - '.github/workflows/iso.yml'
       - 'image/build_files/installer/**'
       - 'brand/palette.json'
@@ -17,6 +18,7 @@ on:
       - 'scripts/tests/test_build_iso.sh'
       - 'scripts/tests/test_verify_iso.py'
       - 'scripts/tests/test_iso_workflow.py'
+      - 'scripts/tests/test_iso_vm_smoke.py'
       - 'docs/install.md'
   workflow_dispatch:
     inputs:
@@ -85,8 +87,48 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  release:
+  boot:
     needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [forjaos, forjaos-nvidia-open]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, MIT
+      - name: Install KVM and OCR tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qemu-system-x86 qemu-utils ovmf tesseract-ocr
+          test -r /dev/kvm && test -w /dev/kvm
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4, MIT
+        with:
+          name: iso-${{ matrix.variant }}
+          path: ${{ runner.temp }}/iso-${{ matrix.variant }}
+      - name: Boot ISO and detect the ForjaOS installer
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          python3 .github/scripts/smoke-iso-vm.py \
+            --iso "$RUNNER_TEMP/iso-$VARIANT/$VARIANT.iso" \
+            --output "$RUNNER_TEMP/iso-boot-$VARIANT"
+      - name: Upload installer boot evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4, MIT
+        with:
+          name: iso-boot-${{ matrix.variant }}
+          path: |
+            ${{ runner.temp }}/iso-boot-${{ matrix.variant }}/screen.ppm
+            ${{ runner.temp }}/iso-boot-${{ matrix.variant }}/screen-ocr.txt
+            ${{ runner.temp }}/iso-boot-${{ matrix.variant }}/serial.log
+            ${{ runner.temp }}/iso-boot-${{ matrix.variant }}/qemu.log
+          if-no-files-found: warn
+          retention-days: 30
+
+  release:
+    needs: [build, boot]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release_tag != ''
     runs-on: ubuntu-24.04
     permissions:
