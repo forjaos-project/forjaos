@@ -7,8 +7,11 @@ on:
     paths:
       - '.github/scripts/build-iso.sh'
       - '.github/workflows/iso.yml'
-      - 'image/build_files/installer/Containerfile'
-      - 'image/build_files/installer/configure_installer.py'
+      - 'image/build_files/installer/**'
+      - 'brand/palette.json'
+      - 'brand/logo/**'
+      - 'brand/fonts/**'
+      - 'brand/LICENSES.md'
       - 'scripts/tests/test_installer_config.py'
       - 'scripts/verify-iso.py'
       - 'scripts/tests/test_build_iso.sh'

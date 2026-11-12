@@ -18,8 +18,10 @@ class IsoWorkflowTests(unittest.TestCase):
         self.assertIn("cosign verify-blob", source)
         self.assertIn("--bundle", source)
         self.assertIn("actions/upload-artifact@", source)
-        self.assertIn("'image/build_files/installer/Containerfile'", source)
-        self.assertIn("'image/build_files/installer/configure_installer.py'", source)
+        self.assertIn("'image/build_files/installer/**'", source)
+        self.assertIn("'brand/palette.json'", source)
+        self.assertIn("'brand/logo/**'", source)
+        self.assertIn("'brand/fonts/**'", source)
         self.assertIn("THIRD_PARTY_LICENSES.md", source)
 
     def test_pr_job_has_no_release_authority(self):

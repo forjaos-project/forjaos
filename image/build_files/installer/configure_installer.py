@@ -47,7 +47,7 @@ def configure(root: Path, source: str, target: str, public_key: Path) -> None:
     write(root, "/usr/lib/image-builder/bootc/iso.yaml",
           'label: "ForjaOS-Installer"\n'
           'grub2:\n  timeout: 5\n  entries:\n    - name: "Instalar ForjaOS"\n'
-          '      linux: ${kernelpath} ${root} inst.graphical\n'
+          '      linux: ${kernelpath} root=live:CDLABEL=ForjaOS-Installer rd.live.image inst.graphical\n'
           '      initrd: ${initrdpath}\n')
 
 

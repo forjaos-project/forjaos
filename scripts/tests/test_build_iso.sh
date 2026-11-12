@@ -55,6 +55,7 @@ for variant in forjaos forjaos-nvidia-open; do
   grep -qF -- '--bootc-default-fs ext4' "$TEST_LOG"
   grep -qF -- '--output-name' "$TEST_LOG"
   grep -qF -- 'generic-iso' "$TEST_LOG"
+  grep -qF "sudo bash $repo/scripts/check-branding.sh --image localhost/$variant-installer:ci" "$TEST_LOG"
   grep -qF -- '--entrypoint /usr/bin/rpm' "$TEST_LOG"
   if grep -qE -- '--installer-payload-ref|--bootc-installer-payload-ref|--type bootc-installer' "$TEST_LOG"; then
     echo 'FAIL: network installer embeds the payload' >&2; exit 1
@@ -65,7 +66,8 @@ for variant in forjaos forjaos-nvidia-open; do
   verify_line="$(grep -n 'cosign verify' "$TEST_LOG" | head -1 | cut -d: -f1)"
   build_line="$(grep -n 'sudo podman build' "$TEST_LOG" | head -1 | cut -d: -f1)"
   run_line="$(grep -n 'sudo podman run' "$TEST_LOG" | head -1 | cut -d: -f1)"
-  [[ "$verify_line" -lt "$build_line" && "$build_line" -lt "$run_line" ]]
+  brand_line="$(grep -n 'sudo bash.*check-branding.sh' "$TEST_LOG" | head -1 | cut -d: -f1)"
+  [[ "$verify_line" -lt "$build_line" && "$build_line" -lt "$brand_line" && "$brand_line" -lt "$run_line" ]]
 done
 
 export TEST_VARIANT=forjaos

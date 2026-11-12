@@ -38,6 +38,7 @@ sudo podman build \
   --build-arg "PAYLOAD_REF=$ref" \
   --build-arg "TARGET_REF=$image:$channel" \
   --tag "$installer_image" "$repo"
+sudo bash "$repo/scripts/check-branding.sh" --image "$installer_image"
 installer_id="$(sudo podman image inspect --format '{{.Id}}' "$installer_image")"
 sudo podman run --rm --entrypoint /usr/bin/rpm "$installer_image" -qa \
   --queryformat 'P\t%{NAME}\t%{VERSION}-%{RELEASE}\t%{ARCH}\t%{LICENSE}\t%{SOURCERPM}\n[F\t%{FILENAMES}\t%{FILEFLAGS:fflags}\n]' \
