@@ -27,7 +27,8 @@ class PatchISOManifestTests(unittest.TestCase):
             {
                 "type": "org.osbuild.selinux",
                 "options": {
-                    "file_contexts": "etc/selinux/targeted/contexts/files/file_contexts"
+                    "file_contexts": "etc/selinux/targeted/contexts/files/file_contexts",
+                    "exclude_paths": ["sysroot/ostree/repo"],
                 },
             },
         )

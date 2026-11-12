@@ -21,7 +21,13 @@ def patch_manifest(manifest):
     stages = trees[0].get("stages", [])
     if not stages or stages[-1].get("type") != "org.osbuild.container-deploy":
         raise ValueError("expected container-deploy as the final os-tree stage")
-    stages.append({"type": "org.osbuild.selinux", "options": {"file_contexts": FILE_CONTEXTS}})
+    stages.append({
+        "type": "org.osbuild.selinux",
+        "options": {
+            "file_contexts": FILE_CONTEXTS,
+            "exclude_paths": ["sysroot/ostree/repo"],
+        },
+    })
     return patched
 
 
