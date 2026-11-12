@@ -78,6 +78,17 @@ class InstallerConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.configure(self.root, self.source, self.target, self.key)
 
+    def test_anaconda_tmux_starts_via_service_shell_with_selinux_enforcing(self):
+        module.configure(self.root, self.source, self.target, self.key)
+        drop_in = (self.root / "usr/lib/systemd/system/anaconda.service.d/10-forjaos-tmux.conf").read_text()
+        self.assertIn("ExecStart=\n", drop_in)
+        self.assertIn(
+            "ExecStart=/usr/bin/sh -c '/usr/bin/tmux -u -f /usr/share/anaconda/tmux.conf start'",
+            drop_in,
+        )
+        self.assertNotIn("setenforce", drop_in)
+        self.assertNotIn("enforcing=0", drop_in)
+
     def test_installer_branding_uses_project_identity_and_tokens(self):
         branding.generate(self.root / "sources", ROOT / "brand")
         sources = self.root / "sources"

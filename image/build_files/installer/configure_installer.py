@@ -44,6 +44,11 @@ def configure(root: Path, source: str, target: str, public_key: Path) -> None:
     write(root, "/usr/share/anaconda/interactive-defaults.ks",
           "# Interactive install: storage and user choices remain in Anaconda.\n"
           f"bootc --source-imgref registry:{source} --target-imgref {target}\n")
+    # Fedora's default ExecStart invokes tmux directly from init_t, which is
+    # denied for screen_exec_t under enforcing. The shell enters initrc_t.
+    write(root, "/usr/lib/systemd/system/anaconda.service.d/10-forjaos-tmux.conf",
+          "[Service]\nExecStart=\n"
+          "ExecStart=/usr/bin/sh -c '/usr/bin/tmux -u -f /usr/share/anaconda/tmux.conf start'\n")
     write(root, "/usr/lib/image-builder/bootc/iso.yaml",
           'label: "ForjaOS-Installer"\n'
           'grub2:\n  timeout: 5\n  entries:\n    - name: "Instalar ForjaOS"\n'
