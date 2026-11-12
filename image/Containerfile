@@ -13,6 +13,12 @@ FROM ${BASE_IMAGE}
 
 ARG IMAGE_NAME=forjaos-nvidia-open
 
+COPY image/build_files/remove.txt /tmp/remove.txt
+COPY image/build_files/apply_package_policy.sh /tmp/apply_package_policy.sh
+RUN bash /tmp/apply_package_policy.sh /tmp/remove.txt \
+    && dnf clean all \
+    && rm /tmp/remove.txt /tmp/apply_package_policy.sh
+
 COPY --from=branding-builder /tmp/forjaos-branding.rpm /tmp/forjaos-branding.rpm
 COPY --from=branding-builder /tmp/forjaos-plasma.rpm /tmp/forjaos-plasma.rpm
 RUN dnf install -y /tmp/forjaos-branding.rpm && dnf clean all && rm /tmp/forjaos-branding.rpm
