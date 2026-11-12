@@ -2,27 +2,36 @@
 
 # Status — ForjaOS
 
-**Atualizado em:** 2026-11-10 · **Itens:** 21/56 feitos (38 %) · 0 em andamento · 35 a fazer · 0 bloqueados
+**Atualizado em:** 2026-11-12 · **Itens:** 22/56 feitos (39 %) · 0 em andamento · 34 a fazer · 0 bloqueados
 
 Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`. Antes de pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available`.
 
 ## Fase atual
 
-**Fase 0 — Fundação** (semanas 1–2) · DoD: Imagem builda no Actions, assinada, no GHCR; bootc switch para ela funciona em VM
+**Fase 1 — Imagem instalável** (semanas 3–8) · DoD: Pendrive → instalação em dual boot no desktop de referência → docker compose up + Steam em < 15 min; NFR-001, 002, 011, 012 passando
 
 ## Próxima tarefa
 
-**`F0-008` — bootc switch para a imagem em VM + upgrade/rollback testados**
+**`F1-001` — Pacotes removidos/adicionados e serviços padrão da imagem**
 
-- Requisitos: FR-001, FR-008
-- Fase: 0 — Fundação
+- Requisitos: FR-004, FR-005, FR-006, FR-007
+- Fase: 1 — Imagem instalável
 - Estado: a fazer
 
 Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
 
 ## Disponíveis agora (trabalho em paralelo)
 
-- `F0-008` bootc switch para a imagem em VM + upgrade/rollback testados · escopo: image/ · depende de: F0-003
+- `F1-001` Pacotes removidos/adicionados e serviços padrão da imagem · escopo: (definir no claim) · depende de: —
+- `F1-002` ISO Anaconda via bootc-image-builder, checksum, assinatura, guia de gravação · escopo: (definir no claim) · depende de: —
+- `F1-003` Dual boot com Windows, Secure Boot + MOK, pós-instalação automática · escopo: (definir no claim) · depende de: —
+- `F1-004` Notebook híbrido (PRIME offload) e checklist de hardware · escopo: (definir no claim) · depende de: —
+- `F1-005` Gerador de temas a partir do palette.json (Plasma, SDDM, Plymouth, Konsole, VS Code, GTK) · escopo: (definir no claim) · depende de: —
+- `F1-006` Tema Plasma Forja (escuro/claro), layout padrão, wallpapers, atalhos — telas desktop_principal_dock / modo_claro · escopo: (definir no claim) · depende de: —
+- `F1-007` Plymouth, SDDM e GRUB temáticos — telas splash_plymouth / sddm_login / bootloader_grub · escopo: (definir no claim) · depende de: —
+- `F1-008` Konsole tema + forja doctor — tela terminal_konsole_dev_forja_doctor · escopo: (definir no claim) · depende de: —
+- `F1-009` CLI forja: esqueleto Rust, doctor, install unity/claude-code · escopo: (definir no claim) · depende de: —
+- `F1-010` Reproduzir componentes DX na base Bazzite desktop a partir dos scripts ublue-os/bazzite-dx, com verificação de licença · escopo: image/ · depende de: F0-002
 
 Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY §6).
 
@@ -54,17 +63,14 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - `F0-005` THIRD_PARTY_LICENSES.md gerado no CI (G4, ADR-007) · fase 0 — PR #27 · 2026-11-09
 - `F0-006` Logo ForjaOS v1 em SVG (mono, cor, dark/light, ícone 16–512) (FR-053) · fase 0 — PR #8 · 2026-11-09
 - `F0-007` Mascote Guará estático v1 (SVG com camadas nomeadas, 5 estados) (FR-054) · fase 0 — PR #36 · 2026-11-10
+- `F0-008` bootc switch para a imagem em VM + upgrade/rollback testados (FR-001, FR-008) · fase 0 — PR #45 · 2026-11-12
 - `F0-009` Substituir pacotes de identidade e entradas herdadas por forjaos-branding sem quebrar dependências (FR-002, G4) · fase 0 — PR #34 · 2026-11-09 · Remedia parte não visual da falha do workflow na issue #25; temas e wallpapers seguem F1-006/F1-007.
 - `F0-010` Eliminar branding visível no Plasma, launchers e metadados de aplicativos e publicar imagens testing assinadas (FR-002, FR-055) · fase 0 — PR #39 · 2026-11-10 · Correção objetiva da issue #25. Entrega ativos visuais mínimos e amplia o checker; F1-006 mantém layout, alternância de tema e atalhos completos. A divergência Discover/Bazaar está na issue #40.
 - `F1-011` Rebranding mínimo da imagem: ícone ForjaOS (brand/logo/png) no hicolor, LOGO= no os-release e /usr/share/ublue-os/image-info.json apontando para ghcr.io/forjaos-project (FR-002, FR-003, FR-053) · fase 1 — PR #31 · 2026-11-09 · Achados da revisão do PR #9: image-info.json ainda aponta para a imagem Bazzite (lido por ujust e pelas atualizações) e o LOGO foi removido sem substituto. Conferir scripts do Bazzite que testam ID=bazzite.
 
 ## A fazer (por fase)
 
-### Fase 0 — Fundação (em andamento)
-
-- `F0-008` bootc switch para a imagem em VM + upgrade/rollback testados (FR-001, FR-008) · fase 0
-
-### Fase 1 — Imagem instalável (a fazer)
+### Fase 1 — Imagem instalável (em andamento)
 
 - `F1-001` Pacotes removidos/adicionados e serviços padrão da imagem (FR-004, FR-005, FR-006, FR-007) · fase 1
 - `F1-002` ISO Anaconda via bootc-image-builder, checksum, assinatura, guia de gravação (FR-010, FR-014) · fase 1
@@ -115,6 +121,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 
 ## Entregas (mais recentes primeiro)
 
+- **2026-11-12** · PR #45 · Validated signed Bazzite-to-ForjaOS switch, upgrade, and rollback in CI VM with seven deployment states · itens: F0-008
 - **2026-11-10** · PR #39 · Branding visível ForjaOS validado no primeiro login; imagens testing assinadas e checker sem achados. · itens: F0-010
 - **2026-11-10** · PR #36 · Five layered Guara SVG states generated from palette.json with 24 px preview and verified tests · itens: F0-007
 - **2026-11-09** · PR #31 · Identidade ForjaOS nas duas imagens com ícones hicolor, LOGO no os-release e image-info.json próprio por variante · itens: F1-011
@@ -124,4 +131,3 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - **2026-11-09** · PR #20 · Checker de branding para rootfs e imagens OCI, com saída JSON e falha verificada nas duas variantes F0-002 · itens: F0-004
 - **2026-11-09** · PR #23 · Workflow diário para duas imagens bootc com testes antes da publicação, assinatura cosign por digest, promoção testing e issue automática de falha · itens: F0-003
 - **2026-11-09** · PR #9 · Containerfile mínimo sobre bazzite-nvidia-open/bazzite (ADR-0032) com os-release ForjaOS, chave cosign pública e política de assinatura no namespace ghcr.io/forjaos-project; build real e bootc container lint verdes nas duas variantes · itens: F0-002
-- **2026-11-09** · PR #4 · Assinatura cosign por par de chaves (ADR-030): cosign.pub versionada, SIGNING_SECRET verificado pelo workflow signing-preflight · itens: F0-001
