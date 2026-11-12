@@ -54,4 +54,4 @@ RUN printf '%s\n' 'install:x:0:0:root:/root:/usr/libexec/anaconda/run-anaconda' 
     && mkdir -p "$(realpath /root)" \
     && kernel="$(ls /usr/lib/modules)" \
     && DRACUT_NO_XATTR=1 dracut --force --zstd --reproducible --no-hostonly \
-         --add 'anaconda selinux' "/usr/lib/modules/$kernel/initramfs.img" "$kernel"
+         --add anaconda "/usr/lib/modules/$kernel/initramfs.img" "$kernel"
