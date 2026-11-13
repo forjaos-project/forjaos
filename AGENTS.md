@@ -30,6 +30,7 @@ ForjaOS: sistema operacional open source baseado em Linux (Fedora Atomic via Uni
 10. **Cada PR altera só o próprio item no `roadmap.json`** (`claim` → `done`). `docs/STATUS.md` e `docs/roadmap/index.html` são gerados na `main` pelo workflow `roadmap-sync`: nunca editados à mão, nunca commitados em PR.
 11. **Decisão escrita vence.** Mudar uma decisão = novo ADR que revoga o anterior. Não reabra por opinião.
 12. **Não adicione dependência, repositório de terceiros ou licença** sem justificativa no commit e verificação (G4: Apache/MIT/BSD/OFL/CC-BY).
+13. **Proteja o SSD do host Windows** (ADR-0037). O Docker Desktop e seu VHDX ficam no C: SSD; nunca transfira os dados ativos do Docker para o D: HD. Antes de cada build/ISO/VM local ou manutenção do VHDX, rode `powershell -NoProfile -File scripts/host/check-disk.ps1 -Mode Check` e não comece com menos de 160 GiB livres no C:. Mantenha instalado o monitor por minuto de `scripts/host/install-disk-guard.ps1`, que solicita a parada normal do Docker abaixo de 120 GiB; acompanhe o espaço livre durante tarefas pesadas. O monitor tem os limites descritos no ADR.
 
 ## Fluxo
 

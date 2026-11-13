@@ -191,6 +191,22 @@
       "summary": "CI de verificação em PR (verify.yml com os 8 comandos do /test), teste do workflow e remoção de worktree no /ship"
     },
     {
+      "id": "GOV-012",
+      "fr": [
+        "ADR-0037",
+        "NFR-042"
+      ],
+      "phase": "0",
+      "title": "Proteção do espaço livre do SSD em builds locais e Docker Desktop",
+      "status": "done",
+      "scope": "scripts/",
+      "agent": "codex",
+      "claimed_at": "2026-11-12",
+      "pr": 52,
+      "merged_at": "2026-11-12",
+      "summary": "Reserva de 160 GiB antes de testes locais, monitor de 1 minuto e parada normal do Docker abaixo de 120 GiB no SSD C:"
+    },
+    {
       "id": "F0-001",
       "fr": [
         "ADR-002",
