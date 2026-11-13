@@ -51,19 +51,21 @@ class IsoWorkflowTests(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, release_section)
 
-    def test_candidate_is_draft_from_f1_branch_and_uses_testing_payload(self):
+    def test_testing_isos_are_unsigned_and_final_release_is_signed(self):
         source = WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("candidate_tag:", source)
-        self.assertIn("Validate release request", source)
-        self.assertIn("release and candidate tags are mutually exclusive", source)
-        self.assertIn("candidate requires the F1-002 branch", source)
+        self.assertNotIn("candidate_tag", source)
         self.assertIn("final release requires main", source)
         self.assertIn("inputs.release_tag != '' && 'stable' || 'testing'", source)
+        build_section = source.split("\n  boot:\n", 1)[0]
+        unsigned_build = build_section.split("- name: Build and verify Anaconda ISO\n", 1)[1].split("      - name: Sign final ISO\n", 1)[0]
+        self.assertNotIn("SIGNING_SECRET", unsigned_build)
+        sign_step = build_section.split("- name: Sign final ISO\n", 1)[1].split("      - name:", 1)[0]
+        self.assertIn("if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''", sign_step)
+        self.assertIn("SIGNING_SECRET:", sign_step)
+        self.assertIn("name: Upload final ISO signature", build_section)
         release_section = source.split("\n  release:\n", 1)[1]
-        self.assertIn("github.ref == 'refs/heads/feat/F1-002-iso-anaconda'", release_section)
-        self.assertIn("inputs.candidate_tag != ''", release_section)
-        self.assertIn("v[0-9]+\\.[0-9]+\\.[0-9]+-rc\\.[0-9]+", release_section)
-        self.assertIn("--prerelease", release_section)
+        self.assertIn("github.ref == 'refs/heads/main'", release_section)
+        self.assertNotIn("--prerelease", release_section)
         self.assertIn("--draft", release_section)
         self.assertIn("gh release download", release_section)
         self.assertIn("cosign verify-blob", release_section)

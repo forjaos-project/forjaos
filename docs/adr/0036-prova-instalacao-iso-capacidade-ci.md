@@ -1,6 +1,6 @@
 # ADR-0036 — Prova de instalação da ISO e capacidade do CI
 
-**Status:** aceito · **Data:** 2026-11-12 · **Aprovação:** mantenedor, 2026-11-12 (opção B) · **Revoga parcialmente:** ADR-0035, somente quanto ao local de execução da instalação completa em VM · **Relacionados:** F1-002, FR-010, FR-014, NFR-011, NFR-020, ADR-024, ADR-0033
+**Status:** supersedido por ADR-0039 · **Data:** 2026-11-12 · **Aprovação original:** mantenedor, 2026-11-12 (opção B) · **Relacionados:** F1-002, FR-010, FR-014, NFR-011, NFR-020, ADR-024, ADR-0033
 
 ## Contexto verificado
 

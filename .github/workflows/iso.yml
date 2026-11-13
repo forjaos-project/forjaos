@@ -1,5 +1,5 @@
 # F1-002 / FR-010 / NFR-011: build and verify both installer ISOs.
-# A manual dispatch can create a private candidate from the F1-002 branch.
+# Test ISOs are unsigned. The final release is signed after verification.
 name: iso
 
 on:
@@ -28,10 +28,6 @@ on:
         description: 'Final vX.Y.Z draft from main and stable payload'
         required: false
         type: string
-      candidate_tag:
-        description: 'Test draft vX.Y.Z-rc.N from F1-002 and testing payload'
-        required: false
-        type: string
 
 permissions:
   contents: read
@@ -55,21 +51,10 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
-          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
           REQUEST_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          if [[ -n "$RELEASE_TAG" && -n "$CANDIDATE_TAG" ]]; then
-            echo 'release and candidate tags are mutually exclusive' >&2
-            exit 2
-          fi
-          if [[ -n "$CANDIDATE_TAG" ]]; then
-            if [[ "$REQUEST_REF" != 'refs/heads/feat/F1-002-iso-anaconda' ]]; then
-              echo 'candidate requires the F1-002 branch' >&2
-              exit 2
-            fi
-            [[ "$CANDIDATE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]
-          elif [[ -n "$RELEASE_TAG" ]]; then
+          if [[ -n "$RELEASE_TAG" ]]; then
             if [[ "$REQUEST_REF" != 'refs/heads/main' ]]; then
               echo 'final release requires main' >&2
               exit 2
@@ -85,7 +70,6 @@ jobs:
           cosign-release: 'v3.1.4'
       - name: Build and verify Anaconda ISO
         env:
-          SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
           VARIANT: ${{ matrix.variant }}
           IMAGE_CHANNEL: ${{ inputs.release_tag != '' && 'stable' || 'testing' }}
         run: |
@@ -94,6 +78,16 @@ jobs:
           bash .github/scripts/build-iso.sh "$VARIANT" "$output" "$IMAGE_CHANNEL"
           python3 scripts/verify-iso.py create "$output/$VARIANT.iso"
           python3 scripts/verify-iso.py check "$output/SHA256SUMS"
+          printf 'ISO bytes: %s\n' "$(stat -c %s "$output/$VARIANT.iso")" >> "$GITHUB_STEP_SUMMARY"
+          cat "$output/SHA256SUMS" >> "$GITHUB_STEP_SUMMARY"
+      - name: Sign final ISO
+        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+        env:
+          SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/iso-$VARIANT"
           bash scripts/check-signing-key.sh cosign.pub
           CHECK_SIGNING_KEY="${SIGNING_SECRET//$'\r'/}"
           export CHECK_SIGNING_KEY COSIGN_PASSWORD=""
@@ -102,8 +96,6 @@ jobs:
             --bundle "$output/$VARIANT.iso.sigstore.json" "$output/$VARIANT.iso" >/dev/null
           cosign verify-blob --key cosign.pub \
             --bundle "$output/$VARIANT.iso.sigstore.json" "$output/$VARIANT.iso"
-          printf 'ISO bytes: %s\n' "$(stat -c %s "$output/$VARIANT.iso")" >> "$GITHUB_STEP_SUMMARY"
-          cat "$output/SHA256SUMS" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload verified ISO and proof
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4, MIT
         with:
@@ -111,11 +103,19 @@ jobs:
           path: |
             ${{ runner.temp }}/iso-${{ matrix.variant }}/${{ matrix.variant }}.iso
             ${{ runner.temp }}/iso-${{ matrix.variant }}/SHA256SUMS
-            ${{ runner.temp }}/iso-${{ matrix.variant }}/${{ matrix.variant }}.iso.sigstore.json
             ${{ runner.temp }}/iso-${{ matrix.variant }}/${{ matrix.variant }}-grub.cfg
             ${{ runner.temp }}/iso-${{ matrix.variant }}/${{ matrix.variant }}-osbuild-manifest.json
             ${{ runner.temp }}/iso-${{ matrix.variant }}/THIRD_PARTY_LICENSES.md
           compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload final ISO signature
+        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4, MIT
+        with:
+          name: iso-signature-${{ matrix.variant }}
+          path: ${{ runner.temp }}/iso-${{ matrix.variant }}/${{ matrix.variant }}.iso.sigstore.json
           if-no-files-found: error
           retention-days: 7
 
@@ -162,8 +162,7 @@ jobs:
     needs: [build, boot]
     if: >-
       github.event_name == 'workflow_dispatch' &&
-      ((github.ref == 'refs/heads/main' && inputs.release_tag != '' && inputs.candidate_tag == '') ||
-       (github.ref == 'refs/heads/feat/F1-002-iso-anaconda' && inputs.candidate_tag != '' && inputs.release_tag == ''))
+      github.ref == 'refs/heads/main' && inputs.release_tag != ''
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -177,6 +176,14 @@ jobs:
         with:
           name: iso-forjaos-nvidia-open
           path: ${{ runner.temp }}/assets/forjaos-nvidia-open
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4, MIT
+        with:
+          name: iso-signature-forjaos
+          path: ${{ runner.temp }}/assets/forjaos
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4, MIT
+        with:
+          name: iso-signature-forjaos-nvidia-open
+          path: ${{ runner.temp }}/assets/forjaos-nvidia-open
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3, Apache-2.0
         with:
           cosign-release: 'v3.1.4'
@@ -184,22 +191,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
         run: |
           set -euo pipefail
-          if [[ -n "$CANDIDATE_TAG" ]]; then
-            [[ "$CANDIDATE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]
-            tag="$CANDIDATE_TAG"
-            title="ForjaOS $tag — candidata de teste"
-            notes='Rascunho para validação física. Payload do canal :testing; não publicar como stable.'
-            prerelease=(--prerelease)
-          else
-            [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-            tag="$RELEASE_TAG"
-            title="ForjaOS $tag"
-            notes='ISO de instalação por rede. Requer conexão com o GHCR. Publicar após validação física.'
-            prerelease=()
-          fi
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          tag="$RELEASE_TAG"
+          title="ForjaOS $tag"
+          notes='ISO de instalação por rede. Requer conexão com o GHCR. Publicar após validação física.'
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "release already exists: $tag" >&2
             exit 1
@@ -221,7 +218,7 @@ jobs:
               --bundle "$release_dir/$variant.iso.sigstore.json" \
               "$release_dir/$variant.iso"
           done
-          gh release create "$tag" "$release_dir"/* --draft "${prerelease[@]}" \
+          gh release create "$tag" "$release_dir"/* --draft \
             --target "$GITHUB_SHA" --title "$title" --notes "$notes"
           downloaded="$RUNNER_TEMP/downloaded"
           gh release download "$tag" --dir "$downloaded"
