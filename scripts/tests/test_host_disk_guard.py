@@ -1,5 +1,8 @@
 """Windows host reserve behavior; all threshold probes are dry runs."""
 
+import html
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -86,6 +89,68 @@ class HostDiskGuardTests(unittest.TestCase):
              "-Mode", "Watch", "-FreeGiBOverride", "119", "-TestMode",
              "-DockerCliOverride", str(stub)],
             text=True, capture_output=True, timeout=15, check=False,
+        )
+
+    def test_verify_rejects_tampered_task_or_script(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "check-disk.ps1"
+            shutil.copyfile(SCRIPT, target)
+            xml_path = root / "task.xml"
+            good_xml = self.task_xml(target)
+            xml_path.write_text(good_xml, encoding="utf-8")
+
+            good = self.verify_fixture(xml_path, target, "Ready")
+            self.assertEqual(good.returncode, 0, good.stderr)
+            self.assertIn("RESULT=VERIFIED", good.stdout)
+
+            xml_path.write_text(good_xml.replace("IgnoreNew", "Parallel"), encoding="utf-8")
+            bad_schedule = self.verify_fixture(xml_path, target, "Ready")
+            self.assertNotEqual(bad_schedule.returncode, 0)
+
+            xml_path.write_text(good_xml, encoding="utf-8")
+            disabled = self.verify_fixture(xml_path, target, "Disabled")
+            self.assertNotEqual(disabled.returncode, 0)
+
+            target.write_text("tampered", encoding="utf-8")
+            stale = self.verify_fixture(xml_path, target, "Ready")
+            self.assertNotEqual(stale.returncode, 0, stale.stdout + stale.stderr)
+
+    def verify_fixture(self, xml_path: Path, target: Path, state: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(INSTALLER),
+             "-Mode", "Verify", "-TestMode", "-TaskXmlPath", str(xml_path),
+             "-InstalledScriptPath", str(target), "-TaskState", state],
+            text=True, capture_output=True, timeout=15, check=False,
+        )
+
+    def task_xml(self, target: Path) -> str:
+        sid = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+             "[Security.Principal.WindowsIdentity]::GetCurrent().User.Value"],
+            text=True, capture_output=True, timeout=15, check=True,
+        ).stdout.strip()
+        command = Path(os.environ["SystemRoot"]) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+        arguments = f'-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{target}" -Mode Watch'
+        def escaped(value: object) -> str:
+            return html.escape(str(value), quote=True)
+        return (
+            '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">'
+            '<Triggers><CalendarTrigger><StartBoundary>2026-11-12T00:00:00</StartBoundary>'
+            '<Repetition><Interval>PT1M</Interval><Duration>P1D</Duration></Repetition>'
+            '<ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>'
+            '</CalendarTrigger></Triggers>'
+            f'<Principals><Principal><UserId>{escaped(sid)}</UserId>'
+            '<LogonType>InteractiveToken</LogonType></Principal></Principals>'
+            '<Settings><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>'
+            '<StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>'
+            '<ExecutionTimeLimit>PT3M</ExecutionTimeLimit>'
+            '<MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>'
+            '<StartWhenAvailable>true</StartWhenAvailable></Settings>'
+            f'<Actions><Exec><Command>{escaped(command)}</Command>'
+            f'<Arguments>{escaped(arguments)}</Arguments>'
+            f'<WorkingDirectory>{escaped(target.parent)}</WorkingDirectory>'
+            '</Exec></Actions></Task>'
         )
 
 
