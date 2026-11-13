@@ -1,6 +1,6 @@
 # ADR-0035: a dedicated Anaconda environment; the ForjaOS payload stays remote.
 # Fedora bootc 45, linux/amd64, pinned to an immutable image manifest.
-FROM quay.io/fedora/fedora-bootc@sha256:056aaa1c51c47e475d99b44a0ee61431348e4e74322f3562667789c87719a0db AS branding-builder
+FROM quay.io/fedora/fedora-bootc@sha256:1de1292a5ed2e244e9d5a404a31d225c3423ac5a9b477642fa82e2d88355abc8 AS branding-builder
 RUN dnf install -y rpm-build fedora-logos && dnf clean all
 COPY image/build_files/installer/generate_branding.py /tmp/generate_branding.py
 COPY image/build_files/installer/build_branding_rpm.sh /tmp/build_branding_rpm.sh
@@ -10,7 +10,7 @@ RUN python3 /tmp/generate_branding.py --sources /tmp/branding-sources --brand /t
     && bash /tmp/build_branding_rpm.sh /tmp/forjaos-branding.spec \
          /tmp/branding-sources /tmp/forjaos-branding.rpm
 
-FROM quay.io/fedora/fedora-bootc@sha256:056aaa1c51c47e475d99b44a0ee61431348e4e74322f3562667789c87719a0db
+FROM quay.io/fedora/fedora-bootc@sha256:1de1292a5ed2e244e9d5a404a31d225c3423ac5a9b477642fa82e2d88355abc8
 
 # Fedora repository packages only. The installer does not add dependencies to
 # the published ForjaOS system image.
