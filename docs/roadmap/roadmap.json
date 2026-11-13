@@ -198,10 +198,13 @@
       ],
       "phase": "0",
       "title": "Proteção do espaço livre do SSD em builds locais e Docker Desktop",
-      "status": "doing",
+      "status": "done",
       "scope": "scripts/",
       "agent": "codex",
-      "claimed_at": "2026-11-12"
+      "claimed_at": "2026-11-12",
+      "pr": 52,
+      "merged_at": "2026-11-12",
+      "summary": "Reserva de 160 GiB antes de testes locais, monitor de 1 minuto e parada normal do Docker abaixo de 120 GiB no SSD C:"
     },
     {
       "id": "F0-001",
