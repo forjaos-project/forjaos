@@ -3,25 +3,6 @@
 name: iso
 
 on:
-  pull_request:
-    paths:
-      - '.github/scripts/build-iso.sh'
-      - '.github/scripts/osbuild'
-      - '.github/scripts/smoke-iso-vm.py'
-      - '.github/workflows/iso.yml'
-      - 'image/build_files/installer/**'
-      - 'brand/palette.json'
-      - 'brand/logo/**'
-      - 'brand/fonts/**'
-      - 'brand/LICENSES.md'
-      - 'scripts/tests/test_installer_config.py'
-      - 'scripts/verify-iso.py'
-      - 'scripts/tests/test_build_iso.sh'
-      - 'scripts/tests/test_verify_iso.py'
-      - 'scripts/tests/test_iso_workflow.py'
-      - 'scripts/tests/test_iso_vm_smoke.py'
-      - 'scripts/tests/test_patch_iso_manifest.py'
-      - 'docs/install.md'
   workflow_dispatch:
     inputs:
       release_tag:
@@ -38,7 +19,6 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     strategy:

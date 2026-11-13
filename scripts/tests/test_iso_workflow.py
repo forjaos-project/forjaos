@@ -18,19 +18,16 @@ class IsoWorkflowTests(unittest.TestCase):
         self.assertIn("cosign verify-blob", source)
         self.assertIn("--bundle", source)
         self.assertIn("actions/upload-artifact@", source)
-        self.assertIn("'image/build_files/installer/**'", source)
-        self.assertIn("'brand/palette.json'", source)
-        self.assertIn("'brand/logo/**'", source)
-        self.assertIn("'brand/fonts/**'", source)
+        self.assertIn("workflow_dispatch:", source)
         self.assertIn("THIRD_PARTY_LICENSES.md", source)
         self.assertIn("-grub.cfg", source)
 
-    def test_pr_job_has_no_release_authority(self):
+    def test_iso_build_is_manual_not_automatic_on_pr(self):
         source = WORKFLOW.read_text(encoding="utf-8")
         build_section = source.split("\n  release:\n", 1)[0]
-        self.assertIn("pull_request:", source)
+        self.assertNotIn("pull_request:", source)
         self.assertIn("workflow_dispatch:", source)
-        self.assertIn("github.event.pull_request.head.repo.full_name == github.repository", build_section)
+        self.assertNotIn("github.event.pull_request", build_section)
         self.assertIn("contents: read", build_section)
         self.assertNotIn("contents: write", build_section)
         self.assertNotIn("gh release create", build_section)
@@ -72,8 +69,7 @@ class IsoWorkflowTests(unittest.TestCase):
 
     def test_vm_boot_proves_installer_before_release(self):
         source = WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("'scripts/tests/test_iso_vm_smoke.py'", source)
-        self.assertIn("'.github/scripts/smoke-iso-vm.py'", source)
+        self.assertIn("workflow_dispatch:", source)
         self.assertIn("\n  boot:\n", source)
         boot_section = source.split("\n  boot:\n", 1)[1].split("\n  release:\n", 1)[0]
         self.assertIn("needs: build", boot_section)
