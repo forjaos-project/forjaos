@@ -55,8 +55,10 @@ RUN printf '%s\n' 'install:x:0:0:root:/root:/usr/libexec/anaconda/run-anaconda' 
     && mkdir -p "$(realpath /root)" \
     && kernel="$(ls /usr/lib/modules)" \
     && DRACUT_NO_XATTR=1 dracut --force --zstd --reproducible --no-hostonly \
-         --add-drivers iwlwifi \
+         --force-drivers "iwlwifi iwldvm" \
          --add anaconda "/usr/lib/modules/$kernel/initramfs.img" "$kernel" \
     && test -f /usr/share/licenses/iwlwifi-dvm-firmware/LICENCE.iwlwifi_firmware \
     && lsinitrd "/usr/lib/modules/$kernel/initramfs.img" \
-         | grep -Fq 'iwlwifi-5000-5.ucode'
+         | grep -Fq 'iwlwifi-5000-5.ucode' \
+    && lsinitrd "/usr/lib/modules/$kernel/initramfs.img" \
+         | grep -Fq 'iwldvm.ko'
