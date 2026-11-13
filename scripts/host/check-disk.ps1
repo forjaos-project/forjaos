@@ -23,10 +23,13 @@ function Write-GuardEvent([string]$message) {
 }
 
 if ($TestMode) {
+    $stubPath = if ($DockerCliOverride) { [IO.Path]::GetFullPath($DockerCliOverride) } else { '' }
+    $tempRoot = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'
     if ($DryRun -or $FreeGiBOverride -lt 0 -or -not $DockerCliOverride -or
         -not (Test-Path -LiteralPath $DockerCliOverride) -or
-        ([IO.Path]::GetFullPath($DockerCliOverride) -eq [IO.Path]::GetFullPath($dockerCli))) {
-        Write-Error 'TestMode requires a free-space override and a non-Docker stub CLI.'
+        -not $stubPath.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        ([IO.Path]::GetFileName($stubPath) -ine 'docker-stub.cmd')) {
+        Write-Error 'TestMode requires a free-space override and docker-stub.cmd under TEMP as the stub CLI.'
         exit 3
     }
     $dockerCli = $DockerCliOverride

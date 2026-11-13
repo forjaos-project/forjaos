@@ -83,6 +83,13 @@ class HostDiskGuardTests(unittest.TestCase):
                              "desktop stop --timeout 120")
             self.assertIn("STOP_FAILED", (Path(directory) / "guard-output" / "events.log").read_text())
 
+    def test_test_mode_rejects_non_stub_executable(self):
+        real_executable = Path(os.environ["SystemRoot"]) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+        result = self.probe_real_stop_with_stub(real_executable)
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("stub CLI", result.stderr)
+        self.assertNotIn("RESULT=STOPPED_DOCKER", result.stdout)
+
     def probe_real_stop_with_stub(self, stub: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(SCRIPT),
