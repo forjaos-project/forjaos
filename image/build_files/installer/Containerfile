@@ -17,6 +17,7 @@ FROM quay.io/fedora/fedora-bootc@sha256:056aaa1c51c47e475d99b44a0ee61431348e4e74
 RUN dnf install -y --setopt=install_weak_deps=False \
       anaconda anaconda-install-img-deps anaconda-dracut \
       dracut-config-generic dracut-network dracut-live \
+      iwlwifi-dvm-firmware \
       net-tools grub2-efi-x64-cdboot plymouth \
       default-fonts-core-sans default-fonts-other-sans google-noto-sans-cjk-fonts \
       xorriso squashfs-tools isomd5sum \
@@ -54,4 +55,8 @@ RUN printf '%s\n' 'install:x:0:0:root:/root:/usr/libexec/anaconda/run-anaconda' 
     && mkdir -p "$(realpath /root)" \
     && kernel="$(ls /usr/lib/modules)" \
     && DRACUT_NO_XATTR=1 dracut --force --zstd --reproducible --no-hostonly \
-         --add anaconda "/usr/lib/modules/$kernel/initramfs.img" "$kernel"
+         --add-drivers iwlwifi \
+         --add anaconda "/usr/lib/modules/$kernel/initramfs.img" "$kernel" \
+    && test -f /usr/share/licenses/iwlwifi-dvm-firmware/LICENCE.iwlwifi_firmware \
+    && lsinitrd "/usr/lib/modules/$kernel/initramfs.img" \
+         | grep -Fq 'iwlwifi-5000-5.ucode'
