@@ -2,7 +2,7 @@
 
 # Status — ForjaOS
 
-**Atualizado em:** 2026-11-12 · **Itens:** 23/56 feitos (41 %) · 0 em andamento · 33 a fazer · 0 bloqueados
+**Atualizado em:** 2026-11-12 · **Itens:** 24/57 feitos (42 %) · 0 em andamento · 33 a fazer · 0 bloqueados
 
 Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`. Antes de pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available`.
 
@@ -55,6 +55,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - `GOV-009` Higiene do repositório: .gitignore, .gitattributes (LF), remoção de .pyc e .lnk, nome forjaos-project/forjaos (NFR-042) · fase 0 — 2026-11-09
 - `GOV-010` Trabalho em paralelo Claude Code + Codex: claim/done por item, escopo e dependências, gerados só na main (NFR-042) · fase 0 — PR #2 · 2026-11-09
 - `GOV-011` CI de verificação em PR: unittest (scripts/tests, brand/tests), run-shell-tests, check-tokens, check-agents-sync, roadmap validate --branch, gen_tela_specs --check, build_logo --check (NFR-040, NFR-041, NFR-042) · fase 0 — PR #16 · 2026-11-09 · Hoje nenhum workflow roda esses testes (só roadmap-sync e signing-preflight). PRs do roadmap-sync abertos com GITHUB_TOKEN não disparam workflows: não marcar o job como status check obrigatório da main sem resolver isso, senão o bot trava.
+- `GOV-012` Proteção do espaço livre do SSD em builds locais e Docker Desktop (ADR-0037, NFR-042) · fase 0 — PR #52 · 2026-11-12
 - `F0-001` Org GitHub + GHCR + cosign: segredos e permissões do repositório (ADR-002, G6) · fase 0 — PR #4 · 2026-11-09
 - `F0-002` Containerfile mínimo FROM bazzite-nvidia-open:stable + os-release ForjaOS (FR-001, FR-003) · fase 0 — PR #9 · 2026-11-09
 - `F0-003` Workflow GitHub Actions: podman build → testes de imagem → cosign → push :testing diário (ADR-002, NFR-040) · fase 0 — PR #23 · 2026-11-09
@@ -122,6 +123,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 
 - **2026-11-12** · PR #48 · Remoção condicional do Waydroid e contrato verificável de pacotes e serviços nas duas imagens, conforme ADR-0034 · itens: F1-001
 - **2026-11-12** · PR #45 · Validated signed Bazzite-to-ForjaOS switch, upgrade, and rollback in CI VM with seven deployment states · itens: F0-008
+- **2026-11-12** · PR #52 · Reserva de 160 GiB antes de testes locais, monitor de 1 minuto e parada normal do Docker abaixo de 120 GiB no SSD C: · itens: GOV-012
 - **2026-11-10** · PR #39 · Branding visível ForjaOS validado no primeiro login; imagens testing assinadas e checker sem achados. · itens: F0-010
 - **2026-11-10** · PR #36 · Five layered Guara SVG states generated from palette.json with 24 px preview and verified tests · itens: F0-007
 - **2026-11-09** · PR #31 · Identidade ForjaOS nas duas imagens com ícones hicolor, LOGO no os-release e image-info.json próprio por variante · itens: F1-011
@@ -129,4 +131,3 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - **2026-11-09** · PR #8 · Logo ForjaOS v1: marca, logotipo horizontal e ícone de app em SVG (cor sobre escuro, cor sobre claro e mono) e PNG 16–512, gerados de palette.json com wordmark Plus Jakarta Sans em contornos · itens: F0-006
 - **2026-11-09** · PR #27 · CI gera e anexa inventário de licenças RPM por variante da imagem construída, inclusive quando branding bloqueia a publicação · itens: F0-005
 - **2026-11-09** · PR #20 · Checker de branding para rootfs e imagens OCI, com saída JSON e falha verificada nas duas variantes F0-002 · itens: F0-004
-- **2026-11-09** · PR #23 · Workflow diário para duas imagens bootc com testes antes da publicação, assinatura cosign por digest, promoção testing e issue automática de falha · itens: F0-003
