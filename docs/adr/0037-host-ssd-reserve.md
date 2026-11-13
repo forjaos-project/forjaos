@@ -1,6 +1,6 @@
 # ADR-0037 — Reserva de espaço no SSD do host de desenvolvimento
 
-**Status:** aceito · **Data:** 2026-11-12 · **Aprovação:** mantenedor, 2026-11-12 · **Relacionados:** GOV-012, NFR-040, NFR-042, F1-002
+**Status:** aceito · **Data:** 2026-11-12 · **Aprovação:** mantenedor, 2026-11-12 · **Relacionados:** GOV-012, NFR-042, F1-002
 
 ## Contexto
 
