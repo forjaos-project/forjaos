@@ -7,6 +7,7 @@ from pathlib import Path
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "host" / "check-disk.ps1"
+INSTALLER = SCRIPT.with_name("install-disk-guard.ps1")
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows host guard")
@@ -44,6 +45,17 @@ class HostDiskGuardTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn("RESULT=STOPPED_DOCKER", result.stdout)
+
+    def test_installer_plans_one_minute_guard_on_c(self):
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(INSTALLER),
+             "-Mode", "Plan"],
+            text=True, capture_output=True, timeout=15, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("RESULT=PLAN", result.stdout)
+        self.assertIn("INTERVAL_MIN=1", result.stdout)
+        self.assertIn("TARGET=C:", result.stdout)
 
 
 if __name__ == "__main__":
