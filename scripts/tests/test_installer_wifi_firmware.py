@@ -14,8 +14,9 @@ class InstallerWifiFirmwareTests(unittest.TestCase):
         containerfile = CONTAINERFILE.read_text(encoding="utf-8")
         self.assertIn("iwlwifi-dvm-firmware", containerfile)
         self.assertIn("iwlwifi-5000-5.ucode", containerfile)
-        self.assertIn("--add-drivers iwlwifi", containerfile)
+        self.assertIn('--force-drivers "iwlwifi iwldvm"', containerfile)
         self.assertIn("grep -Fq 'iwlwifi-5000-5.ucode'", containerfile)
+        self.assertIn("grep -Fq 'iwldvm.ko'", containerfile)
         self.assertIn("/usr/share/licenses/iwlwifi-dvm-firmware/LICENCE.iwlwifi_firmware", containerfile)
 
     def test_iso_license_inventory_includes_firmware_package_notice(self):
