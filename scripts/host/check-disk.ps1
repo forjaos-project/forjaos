@@ -2,7 +2,9 @@ param(
     [ValidateSet('Check', 'Watch')]
     [string]$Mode = 'Check',
     [double]$FreeGiBOverride = -1,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$TestMode,
+    [string]$DockerCliOverride
 )
 
 $minStartGiB = 160
@@ -20,8 +22,18 @@ function Write-GuardEvent([string]$message) {
     Add-Content -LiteralPath $log -Value ('{0:o} {1}' -f (Get-Date), $message)
 }
 
-if ($FreeGiBOverride -ge 0 -and -not $DryRun) {
-    Write-Error 'FreeGiBOverride requires DryRun.'
+if ($TestMode) {
+    if ($DryRun -or $FreeGiBOverride -lt 0 -or -not $DockerCliOverride -or
+        -not (Test-Path -LiteralPath $DockerCliOverride) -or
+        ([IO.Path]::GetFullPath($DockerCliOverride) -eq [IO.Path]::GetFullPath($dockerCli))) {
+        Write-Error 'TestMode requires a free-space override and a non-Docker stub CLI.'
+        exit 3
+    }
+    $dockerCli = $DockerCliOverride
+    $guardDir = Join-Path (Split-Path -Parent $DockerCliOverride) 'guard-output'
+    $log = Join-Path $guardDir 'events.log'
+} elseif ($DockerCliOverride -or ($FreeGiBOverride -ge 0 -and -not $DryRun)) {
+    Write-Error 'Overrides require DryRun or TestMode with a stub CLI.'
     exit 3
 }
 
@@ -61,7 +73,7 @@ if ($DryRun) {
     exit 0
 }
 
-if (-not (Get-Process -Name 'com.docker.backend' -ErrorAction SilentlyContinue)) {
+if (-not $TestMode -and -not (Get-Process -Name 'com.docker.backend' -ErrorAction SilentlyContinue)) {
     Write-Output "C_FREE_GIB=$freeText STOP_GIB=$stopGiB RESULT=DOCKER_ALREADY_STOPPED"
     exit 0
 }

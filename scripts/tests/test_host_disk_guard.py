@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -56,6 +57,36 @@ class HostDiskGuardTests(unittest.TestCase):
         self.assertIn("RESULT=PLAN", result.stdout)
         self.assertIn("INTERVAL_MIN=1", result.stdout)
         self.assertIn("TARGET=C:", result.stdout)
+
+    def test_watch_uses_graceful_stop_and_logs_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            stub = Path(directory) / "docker-stub.cmd"
+            stub.write_text('@echo off\necho %* > "%~dp0called.txt"\nexit /b 0\n')
+            result = self.probe_real_stop_with_stub(stub)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("RESULT=STOPPED_DOCKER", result.stdout)
+            self.assertEqual((Path(directory) / "called.txt").read_text().strip(),
+                             "desktop stop --timeout 120")
+            self.assertIn("DOCKER_STOPPED", (Path(directory) / "guard-output" / "events.log").read_text())
+
+    def test_watch_reports_stop_failure_without_force(self):
+        with tempfile.TemporaryDirectory() as directory:
+            stub = Path(directory) / "docker-stub.cmd"
+            stub.write_text('@echo off\necho %* > "%~dp0called.txt"\nexit /b 7\n')
+            result = self.probe_real_stop_with_stub(stub)
+            self.assertEqual(result.returncode, 3, result.stderr)
+            self.assertNotIn("RESULT=STOPPED_DOCKER", result.stdout)
+            self.assertEqual((Path(directory) / "called.txt").read_text().strip(),
+                             "desktop stop --timeout 120")
+            self.assertIn("STOP_FAILED", (Path(directory) / "guard-output" / "events.log").read_text())
+
+    def probe_real_stop_with_stub(self, stub: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(SCRIPT),
+             "-Mode", "Watch", "-FreeGiBOverride", "119", "-TestMode",
+             "-DockerCliOverride", str(stub)],
+            text=True, capture_output=True, timeout=15, check=False,
+        )
 
 
 if __name__ == "__main__":
