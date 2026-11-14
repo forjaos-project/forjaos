@@ -2,7 +2,11 @@ ARG BASE_IMAGE=ghcr.io/ublue-os/bazzite-nvidia-open:stable
 FROM ${BASE_IMAGE} AS branding-builder
 ARG IMAGE_NAME=forjaos-nvidia-open
 # Build-only: grub2-tools-extra supplies grub2-mkfont; this stage is not shipped.
-RUN dnf install -y rpm-build jetbrains-mono-fonts grub2-tools-extra && dnf clean all
+RUN dnf install -y cargo rust rpm-build jetbrains-mono-fonts grub2-tools-extra && dnf clean all
+COPY cli/Cargo.toml cli/Cargo.lock /tmp/forja-cli/
+COPY cli/src/ /tmp/forja-cli/src/
+RUN cargo build --manifest-path /tmp/forja-cli/Cargo.toml --locked --release \
+    && install -D -m 0755 /tmp/forja-cli/target/release/forja /tmp/forja
 COPY image/build_files/ /tmp/forjaos-build/
 COPY brand/ /tmp/brand/
 RUN bash /tmp/forjaos-build/build_branding_rpm.sh \
@@ -27,6 +31,7 @@ RUN bash /tmp/install_dx_tools.sh \
 
 COPY --from=branding-builder /tmp/forjaos-branding.rpm /tmp/forjaos-branding.rpm
 COPY --from=branding-builder /tmp/forjaos-plasma.rpm /tmp/forjaos-plasma.rpm
+COPY --from=branding-builder /tmp/forja /usr/bin/forja
 RUN dnf install -y /tmp/forjaos-branding.rpm && dnf clean all && rm /tmp/forjaos-branding.rpm
 RUN dnf install -y /tmp/forjaos-plasma.rpm \
     && dnf remove -y --no-autoremove plasma-lookandfeel-fedora f45-backgrounds-kde \
