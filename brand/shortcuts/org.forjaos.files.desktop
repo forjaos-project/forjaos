@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Forja Files
+Name[pt_BR]=Arquivos Forja
+Comment=Open the file manager
+Comment[pt_BR]=Abrir o gerenciador de arquivos
+Exec=dolphin
+TryExec=dolphin
+Icon=system-file-manager
+NoDisplay=true
+X-KDE-Shortcuts=Meta+E
