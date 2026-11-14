@@ -80,8 +80,6 @@ class ThemeGeneratorTests(unittest.TestCase):
                     ET.parse(svg)
 
     def test_repository_assets_are_current(self):
-        result = self.run_generator(ROOT)
-        self.assertEqual(result.returncode, 0, result.stderr)
         result = self.run_generator(ROOT, "--check")
         self.assertEqual(result.returncode, 0, result.stderr)
 
