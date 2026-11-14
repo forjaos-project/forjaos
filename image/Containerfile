@@ -19,6 +19,11 @@ RUN bash /tmp/apply_package_policy.sh /tmp/remove.txt \
     && dnf clean all \
     && rm /tmp/remove.txt /tmp/apply_package_policy.sh
 
+COPY image/build_files/install_dx_tools.sh /tmp/install_dx_tools.sh
+RUN bash /tmp/install_dx_tools.sh \
+    && dnf clean all \
+    && rm /tmp/install_dx_tools.sh
+
 COPY --from=branding-builder /tmp/forjaos-branding.rpm /tmp/forjaos-branding.rpm
 COPY --from=branding-builder /tmp/forjaos-plasma.rpm /tmp/forjaos-plasma.rpm
 RUN dnf install -y /tmp/forjaos-branding.rpm && dnf clean all && rm /tmp/forjaos-branding.rpm
