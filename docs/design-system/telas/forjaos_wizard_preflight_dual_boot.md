@@ -45,7 +45,7 @@ Sem ícones Material no protótipo. Ícones necessários na implementação vêm
 - [ ] Cores e fontes usam tokens de `brand/palette.json`
 - [ ] Captura lado a lado em `docs/design-system/telas/forjaos_wizard_preflight_dual_boot/compare-AAAA-MM-DD.png` (mesma resolução)
 - [ ] `scripts/check-tokens.sh` OK
-- [ ] `grep -nE 'Jarvis|devos|nftables|24\.04|arm64|RTX 4070'` vazio no código da tela
+- [ ] Nenhum termo de branding obsoleto aparece no código da tela
 - [ ] Revisor (contexto limpo, ADR-033) registrou `visual: fiel`
 
 ## Pendências e divergências conhecidas
