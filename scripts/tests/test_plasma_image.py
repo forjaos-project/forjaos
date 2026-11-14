@@ -50,6 +50,7 @@ class PlasmaImageTests(unittest.TestCase):
         self.assertIn('grub2-mkfont --size=12 --name="JetBrains Mono"', font_builder)
         self.assertIn('JetBrainsMono12.pf2', font_builder)
         containerfile = CONTAINERFILE.read_text(encoding="utf-8")
+        self.assertIn("dnf install -y rpm-build jetbrains-mono-fonts", containerfile)
         self.assertIn("build_plasma_rpm.sh", containerfile)
         self.assertIn("dnf install -y /tmp/forjaos-plasma.rpm", containerfile)
         self.assertIn("dnf remove -y --no-autoremove plasma-lookandfeel-fedora f45-backgrounds-kde", containerfile)
