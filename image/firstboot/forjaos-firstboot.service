@@ -1,0 +1,12 @@
+[Unit]
+Description=ForjaOS first login wizard
+After=graphical-session.target
+ConditionPathExists=!%h/.config/forjaos/firstboot-complete
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/libexec/forjaos/firstboot.py
+Restart=no
+
+[Install]
+WantedBy=graphical-session.target
