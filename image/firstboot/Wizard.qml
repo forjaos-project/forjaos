@@ -14,6 +14,7 @@ ApplicationWindow {
     property string mascot: "Guará"
     property string profile: "minimal"
     property bool unity: false
+    property string keyProvider: ""
     property string status: ""
     property real setupProgress: 0
     property bool finished: false
@@ -116,12 +117,14 @@ ApplicationWindow {
                 Button { visible: wizard.step === 3; text: "Abrir gh auth login"; onClicked: wizard.status = bridge.githubLogin() }
                 ComboBox { id: provider; visible: wizard.step === 3; model: ["anthropic", "openai", "openrouter", "nous"] }
                 TextField { id: apiKey; visible: wizard.step === 3; placeholderText: "Chave de API (opcional)"; echoMode: TextInput.Password; Layout.fillWidth: true }
-                Button { visible: wizard.step === 3; text: "Salvar no KWallet"; onClicked: { wizard.status = bridge.storeKey(provider.currentText, apiKey.text); apiKey.clear() } }
+                Button { visible: wizard.step === 3; text: "Salvar no KWallet"; onClicked: { wizard.status = bridge.storeKey(provider.currentText, apiKey.text); if (wizard.status.indexOf("salva") >= 0) wizard.keyProvider = provider.currentText; apiKey.clear() } }
                 Label { visible: wizard.step === 4; text: wizard.tr("O Unity Hub pode ser instalado em segundo plano com o instalador oficial.", "Unity Hub can be installed in the background using its official installer."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 CheckBox { visible: wizard.step === 4; text: "Instalar Unity Hub"; onCheckedChanged: wizard.unity = checked }
-                Label { visible: wizard.step === 5; text: "Mascote: " + wizard.mascot + "\nPerfil: " + wizard.profile + "\nIdioma: " + wizard.language + "\nTeclado: " + wizard.keyboard + "\nUnity Hub: " + (wizard.unity ? "sim" : "não"); color: "#f1f5f9"; font.pixelSize: 18 }
+                Label { visible: wizard.step === 5; text: "Mascote: " + wizard.mascot + "\nPerfil: " + wizard.profile + "\nIdioma: " + wizard.language + "\nTeclado: " + wizard.keyboard + "\nUnity Hub: " + (wizard.unity ? "sim" : "não") + "\nChave no KWallet: " + (wizard.keyProvider || "nenhuma"); color: "#f1f5f9"; font.pixelSize: 18 }
                 Label { visible: wizard.step === 5; text: wizard.tr("Reproduzir no terminal", "Reproduce in terminal"); color: "#94a3b8" }
                 Label { visible: wizard.step === 5; text: wizard.setupCommand; color: "#00e5ff"; font.family: "monospace"; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
+                Label { visible: wizard.step === 5 && wizard.keyProvider.length > 0; text: "forja keys set " + wizard.keyProvider; color: "#00e5ff"; font.family: "monospace" }
+                Label { visible: wizard.step === 5; text: "gh auth login"; color: "#00e5ff"; font.family: "monospace" }
                 Button { visible: wizard.step === 5; text: wizard.tr("Copiar comando", "Copy command"); onClicked: bridge.copyText(wizard.setupCommand) }
                 Label { visible: wizard.step === 5; text: wizard.tr("Progresso da instalação", "Installation progress"); color: "#94a3b8" }
                 ProgressBar { visible: wizard.step === 5; value: wizard.setupProgress; Layout.fillWidth: true }

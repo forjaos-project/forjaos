@@ -20,7 +20,7 @@ PROFILES = {
 # product recipes are delivered. A successful Flatpak/Brew command alone is
 # not evidence that the PRD profile is complete.
 PENDING = {
-    "web": ["Chrome", "Postman"],
+    "web": ["Chrome (instalação assistida com RPM oficial)"],
     "backend": ["Postgres container"],
     "gamedev": ["Godot export templates", "Aseprite license check"],
     "devops": ["Terraform", "AWS CLI", "GCP CLI", "Azure CLI"],
@@ -67,6 +67,8 @@ def main():
         commands.append(["brew", "install", *brew])
     if flatpaks:
         commands.append(["flatpak", "install", "--user", "--noninteractive", "flathub", *flatpaks])
+    if args.profile == "web":
+        commands.append(["/usr/bin/python3", "/usr/libexec/forjaos/install_postman.py"])
     if args.unity:
         commands.append(["forja", "install", "unity", "--yes"])
     for index, command in enumerate(commands):

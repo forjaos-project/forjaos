@@ -28,6 +28,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Gerencia chaves de API no KWallet
+    Keys {
+        #[command(subcommand)]
+        action: KeysAction,
+    },
     /// Aplica um perfil de primeiro boot e o nome do mascote
     Setup {
         #[arg(long)]
@@ -52,6 +57,12 @@ enum Command {
         #[command(subcommand)]
         package: InstallPackage,
     },
+}
+
+#[derive(Subcommand)]
+enum KeysAction {
+    /// Lê uma chave sem eco e a grava no KWallet
+    Set { provider: String },
 }
 
 #[derive(Subcommand)]
@@ -86,6 +97,14 @@ fn main() {
     let cli = Cli::from_arg_matches(&matches).expect("parse CLI arguments");
     let _language = cli.lang;
     let code = match cli.command {
+        Command::Keys { action: KeysAction::Set { provider } } => {
+            match std::process::Command::new("/usr/bin/python3")
+                .args(["/usr/libexec/forjaos/keys.py", &provider])
+                .status() {
+                Ok(status) => status.code().unwrap_or(1),
+                Err(error) => { eprintln!("forja keys: {error}"); 1 }
+            }
+        }
         Command::Setup {
             profile,
             mascot,
