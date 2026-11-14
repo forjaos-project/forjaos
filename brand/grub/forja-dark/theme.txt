@@ -1,7 +1,7 @@
 # Generated from brand/palette.json by build_themes.py. Do not edit.
 title-text: "ForjaOS"
 title-color: "#dfe2f0"
-title-font: "unicode"
+title-font: "Plus Jakarta Sans 24"
 message-color: "#94a3b8"
 message-bg-color: "#0a0d14"
 desktop-color: "#0a0d14"
@@ -11,7 +11,7 @@ desktop-color: "#0a0d14"
   top = 20%
   width = 100%
   height = 60%
-  item_font = "unicode"
+  item_font = "JetBrains Mono 12"
   item_color = "#dfe2f0"
   selected_item_color = "#00363d"
   item_height = 40

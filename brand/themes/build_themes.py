@@ -131,7 +131,7 @@ def _grub_theme(theme):
     return f'''# Generated from brand/palette.json by build_themes.py. Do not edit.
 title-text: "ForjaOS"
 title-color: "{colors['on-surface']}"
-title-font: "unicode"
+title-font: "Plus Jakarta Sans 24"
 message-color: "{colors['text-muted']}"
 message-bg-color: "{background}"
 desktop-color: "{background}"
@@ -141,7 +141,7 @@ desktop-color: "{background}"
   top = {dimensions['grub_menu_top_percent']}%
   width = {dimensions['grub_menu_width_percent']}%
   height = {dimensions['grub_menu_height_percent']}%
-  item_font = "unicode"
+  item_font = "JetBrains Mono 12"
   item_color = "{colors['on-surface']}"
   selected_item_color = "{colors['on-primary']}"
   item_height = {PALETTE['dimensions']['button_dialog']}

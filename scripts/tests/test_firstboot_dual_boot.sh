@@ -12,6 +12,8 @@ mkdir -p "$TMP/bin"
 mkdir -p "$TMP/efi"
 mkdir -p "$TMP/theme-source/forja-dark"
 printf 'theme contents\n' > "$TMP/theme-source/forja-dark/theme.txt"
+printf 'ui font\n' > "$TMP/theme-source/forja-dark/PlusJakartaSans24.pf2"
+printf 'mono font\n' > "$TMP/theme-source/forja-dark/JetBrainsMono12.pf2"
 printf 'GRUB_TIMEOUT=5\nGRUB_THEME="/boot/old/theme.txt"\n' > "$TMP/grub-defaults"
 
 cat > "$TMP/bin/efibootmgr" <<'EOF'
@@ -54,6 +56,8 @@ bash "$SCRIPT"
 grep -Fx "GRUB_THEME=\"$FORJAOS_GRUB_THEME_BOOT_DIR/theme.txt\"" "$FORJAOS_GRUB_DEFAULTS"
 grep -Fx 'GRUB_TIMEOUT=5' "$FORJAOS_GRUB_DEFAULTS"
 [[ -f "$FORJAOS_GRUB_THEME_BOOT_DIR/theme.txt" ]]
+[[ -f "$FORJAOS_GRUB_THEME_BOOT_DIR/PlusJakartaSans24.pf2" ]]
+[[ -f "$FORJAOS_GRUB_THEME_BOOT_DIR/JetBrainsMono12.pf2" ]]
 [[ "$(cat "$GRUB_MKCONFIG_CALLS")" == "-o $FORJAOS_GRUB_CONFIG" ]]
 [[ "$(cat "$BOOT_REMOUNT_CALLS")" == $'rw\nro' ]]
 
