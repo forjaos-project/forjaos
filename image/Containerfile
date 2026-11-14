@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=ghcr.io/ublue-os/bazzite-nvidia-open:stable
 FROM ${BASE_IMAGE} AS branding-builder
 ARG IMAGE_NAME=forjaos-nvidia-open
-RUN dnf install -y rpm-build && dnf clean all
+RUN dnf install -y rpm-build jetbrains-mono-fonts && dnf clean all
 COPY image/build_files/ /tmp/forjaos-build/
 COPY brand/ /tmp/brand/
 RUN bash /tmp/forjaos-build/build_branding_rpm.sh \
