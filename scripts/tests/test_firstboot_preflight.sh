@@ -12,12 +12,14 @@ grep -Fq 'property string secureBootState: "unknown"' "$qml"
 grep -Fq 'property string mokState: "unknown"' "$qml"
 
 grep -Fq 'Inicialização Rápida' "$qml"
+grep -Fq 'Por padrão, o ForjaOS monta NTFS em somente leitura' "$qml"
 grep -Fq 'BitLocker' "$qml"
 grep -Fq 'somente leitura' "$qml"
 grep -Fq 'Enroll MOK' "$qml"
 grep -Fq 'Windows encontrado' "$qml"
 grep -Fq 'Secure Boot' "$qml"
 grep -Fq 'MOK' "$qml"
+grep -Fq 'A detecção de sistema ainda não está conectada' "$qml"
 grep -Fq 'image/firstboot/Preflight.qml /usr/share/forjaos/firstboot/Preflight.qml' "$containerfile"
 
 if grep -nE 'clearpart|autopart|ignoredisk|zerombr|mokutil --import|rm -rf|dd ' "$qml"; then
