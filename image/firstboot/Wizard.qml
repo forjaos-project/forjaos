@@ -22,6 +22,7 @@ ApplicationWindow {
 
     header: Rectangle {
         height: 64
+        visible: !wizard.showPreflight
         color: "#161b26"
         RowLayout {
             anchors.fill: parent
@@ -71,10 +72,39 @@ ApplicationWindow {
                 Label { visible: wizard.step === 0; text: "Escolha o idioma. O teclado pode ser ajustado nas configurações do Plasma."; color: "#94a3b8"; wrapMode: Text.WordWrap }
                 ComboBox { visible: wizard.step === 0; model: ["Português (Brasil)", "English (US)"]; onCurrentIndexChanged: wizard.language = currentIndex === 0 ? "pt-BR" : "en-US" }
                 ComboBox { visible: wizard.step === 0; model: ["Teclado brasileiro (ABNT2)", "US International"]; onCurrentIndexChanged: wizard.keyboard = currentIndex === 0 ? "br" : "us" }
-                Label { visible: wizard.step === 1; text: "Escolha o nome do Guará. Voz e wake word entram em uma etapa futura."; color: "#94a3b8"; wrapMode: Text.WordWrap }
-                ComboBox { visible: wizard.step === 1; model: ["Guará", "Tupã", "Jaci", "Iara", "Ipê", "Boto", "Curió", "Arara"]; onCurrentTextChanged: wizard.mascot = currentText }
-                Label { visible: wizard.step === 2; text: "Selecione o perfil. A instalação dos pacotes depende da F2-002."; color: "#94a3b8"; wrapMode: Text.WordWrap }
-                ComboBox { visible: wizard.step === 2; model: ["minimal", "web", "backend", "gamedev", "devops", "ai"]; onCurrentTextChanged: wizard.profile = currentText }
+                Label { visible: wizard.step === 1; text: "Escolha o nome do mascote. A prévia de voz será exibida quando houver vozes instaladas."; color: "#94a3b8"; wrapMode: Text.WordWrap }
+                Flow {
+                    visible: wizard.step === 1
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Repeater {
+                        model: ["Guará", "Tupã", "Jaci", "Iara", "Ipê", "Boto", "Curió", "Arara"]
+                        delegate: Rectangle {
+                            width: 140; height: 96; radius: 12
+                            color: "#1e2433"
+                            border.color: wizard.mascot === modelData ? "#00e5ff" : "#3b494c"
+                            Label { anchors.centerIn: parent; text: modelData; color: "#f1f5f9"; font.pixelSize: 18 }
+                            MouseArea { anchors.fill: parent; onClicked: { customName.clear(); wizard.mascot = modelData } }
+                        }
+                    }
+                }
+                TextField { id: customName; visible: wizard.step === 1; placeholderText: "Nome personalizado (opcional)"; maximumLength: 24; onTextChanged: { if (text.trim().length) wizard.mascot = text.trim() } }
+                Label { visible: wizard.step === 2; text: "Selecione o perfil. A instalação disponível será iniciada em segundo plano e o status mostrará pendências."; color: "#94a3b8"; wrapMode: Text.WordWrap }
+                Flow {
+                    visible: wizard.step === 2
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Repeater {
+                        model: ["web", "backend", "gamedev", "devops", "ai", "minimal"]
+                        delegate: Rectangle {
+                            width: 220; height: 86; radius: 10
+                            color: "#1e2433"
+                            border.color: wizard.profile === modelData ? "#00e5ff" : "#3b494c"
+                            Label { anchors.centerIn: parent; text: modelData; color: "#f1f5f9"; font.pixelSize: 18 }
+                            MouseArea { anchors.fill: parent; onClicked: wizard.profile = modelData }
+                        }
+                    }
+                }
                 Label { visible: wizard.step === 3; text: "Autentique sua conta GitHub no terminal. Chaves de API só podem ser cadastradas no KWallet."; color: "#94a3b8"; wrapMode: Text.WordWrap }
                 Button { visible: wizard.step === 3; text: "Abrir gh auth login"; onClicked: wizard.status = bridge.githubLogin() }
                 ComboBox { id: provider; visible: wizard.step === 3; model: ["anthropic", "openai", "openrouter", "nous"] }
@@ -83,7 +113,7 @@ ApplicationWindow {
                 Label { visible: wizard.step === 4; text: "O Unity Hub pode ser instalado em segundo plano com o instalador oficial."; color: "#94a3b8"; wrapMode: Text.WordWrap }
                 CheckBox { visible: wizard.step === 4; text: "Instalar Unity Hub"; onCheckedChanged: wizard.unity = checked }
                 Label { visible: wizard.step === 5; text: "Mascote: " + wizard.mascot + "\nPerfil: " + wizard.profile + "\nIdioma: " + wizard.language + "\nTeclado: " + wizard.keyboard + "\nUnity Hub: " + (wizard.unity ? "sim" : "não"); color: "#f1f5f9"; font.pixelSize: 18 }
-                Label { visible: wizard.step === 5; text: "forja setup --profile " + wizard.profile + " --mascot " + wizard.mascot.toLowerCase(); color: "#00e5ff"; font.family: "monospace" }
+                Label { visible: wizard.step === 5; text: "forja setup --profile " + wizard.profile + " --mascot " + JSON.stringify(wizard.mascot) + " --language " + wizard.language + " --keyboard " + wizard.keyboard + (wizard.unity ? " --unity" : ""); color: "#00e5ff"; font.family: "monospace"; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
                 Item { Layout.fillHeight: true }
                 Label { text: wizard.status; color: "#94a3b8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
             }
