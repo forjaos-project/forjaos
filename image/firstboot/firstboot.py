@@ -24,9 +24,15 @@ class Bridge(QObject):
         except (OSError, ValueError):
             return "Preparando configuração..."
         if state.get("status") == "complete":
+            if state.get("wakeword") == "training_pending":
+                return "Configuração concluída. Treino do nome personalizado pendente."
+            if state.get("wakeword") == "model_pending":
+                return "Configuração concluída. Modelo de wake word pendente."
             return "Configuração concluída."
         if state.get("status") == "failed":
             return "Configuração pendente em " + state.get("step", "perfil") + ". Rode forja setup novamente."
+        if state.get("status") == "partial":
+            return "Perfil parcial. Pendências: " + ", ".join(state.get("pending", []))
         return "Configurando " + state.get("step", "perfil") + " em segundo plano..."
 
     @Slot(str, str, result=str)
@@ -45,7 +51,8 @@ class Bridge(QObject):
 
     @Slot(str, str, str, str, bool, result=str)
     def finish(self, name, profile, language, keyboard, install_unity):
-        if (name not in NAMES or profile not in PROFILES or language not in {"pt-BR", "en-US"}
+        valid_name = 2 <= len(name) <= 24 and all(ch.isalpha() or ch in " -'" for ch in name)
+        if (not valid_name or profile not in PROFILES or language not in {"pt-BR", "en-US"}
                 or keyboard not in {"br", "us"}):
             return "Escolhas inválidas; nenhuma configuração foi gravada."
         command = ["forja", "setup", "--profile", profile, "--mascot", name,
