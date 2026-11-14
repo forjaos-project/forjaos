@@ -40,4 +40,6 @@ if grep -nE 'clearpart|autopart|ignoredisk|zerombr|mokutil --import|rm -rf|dd ' 
   exit 1
 fi
 
+node "$ROOT/scripts/tests/test_firstboot_preflight_state.js"
+
 echo 'firstboot preflight tests passed'
