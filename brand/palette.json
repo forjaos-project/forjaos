@@ -254,7 +254,19 @@
     "window_min_margin": 24,
     "docs_header_height": 64,
     "docs_sidebar_width": 288,
-    "docs_content_max_width": 1520
+    "docs_content_max_width": 1520,
+    "grub_menu_left_percent": 0,
+    "grub_menu_top_percent": 20,
+    "grub_menu_width_percent": 100,
+    "grub_menu_height_percent": 60,
+    "grub_menu_item_padding": 20,
+    "grub_menu_item_spacing": 12,
+    "plymouth_logo_vertical_offset": 16,
+    "plymouth_progress_max_width": 512,
+    "plymouth_progress_side_margin": 32,
+    "plymouth_progress_height": 3,
+    "plymouth_progress_min_width": 1,
+    "plymouth_progress_vertical_gap": 24
   },
   "motion": {
     "duration_fast_ms": 120,

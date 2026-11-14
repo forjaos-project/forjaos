@@ -50,6 +50,8 @@ Qualquer item abaixo reprova o PR no gate *review*:
 | Botão | 36 px (toolbar) / 40 px (diálogo) | Alabaster §Buttons |
 | Checkbox | 16 px, raio 4 | Alabaster §Checkbox |
 | Docs/site: cabeçalho 64 px, sidebar 288 px, conteúdo máx. 1520 px | tela `forjaos_docs_*` | NFR-043 |
+| GRUB: menu em `left 0%`, `top 20%`, largura `100%`, altura `60%`, padding 20 px e gap 12 px | `dimensions.grub_menu_*` | spec `forjaos_bootloader_grub` |
+| Plymouth: logo com offset vertical 16 px; barra máx. 512×3 px, margem horizontal 32 px, gap vertical 24 px e largura mínima 1 px | `dimensions.plymouth_*` | FR-056 (logo e barra fina) |
 
 - **Responsivo (site/docs):** ≥ 1280 px multi-pane; < 1280 px painéis colapsam em drawers e gutter cai para `sm`.
 

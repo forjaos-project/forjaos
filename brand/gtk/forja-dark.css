@@ -1,0 +1,14 @@
+/* Generated from brand/palette.json by build_themes.py. Do not edit. */
+@define-color window_bg_color #070a11;
+@define-color view_bg_color #10141e;
+@define-color view_fg_color #dfe2f0;
+@define-color headerbar_bg_color #10141e;
+@define-color headerbar_fg_color #dfe2f0;
+@define-color card_bg_color #161b26;
+@define-color accent_bg_color #00e5ff;
+@define-color accent_fg_color #070a11;
+@define-color success_color #10b981;
+@define-color warning_color #f59e0b;
+@define-color error_color #f43f5e;
+
+* { font-family: 'Plus Jakarta Sans'; }
