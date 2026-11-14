@@ -21,8 +21,3 @@
 
 ## Telas desta pasta
 `forjaos_docs_documenta_o_t_cnica_oficial`, `forjaos_o_sistema_operacional_para_quem_desenvolve_e_joga`.
-
-## Antes de começar aqui
-1. `python3 scripts/roadmap.py available` → o item escolhido tem escopo desta pasta? Se não, pare.
-2. `AGENTS.md` da raiz → regras e fluxo valem integralmente.
-3. Telas desta pasta → leia a spec em `docs/design-system/telas/` **antes** do `code.html`.

@@ -22,8 +22,3 @@
 
 ## Telas desta pasta
 `forjaos_wizard_de_primeiro_boot`, `forjaos_wizard_de_primeiro_boot_passo_6_resumo_conclus_o` (QML em `image/firstboot/`); layout de painel/dock do desktop em conjunto com `brand/`.
-
-## Antes de começar aqui
-1. `python3 scripts/roadmap.py available` → o item escolhido tem escopo desta pasta? Se não, pare.
-2. `AGENTS.md` da raiz → regras e fluxo valem integralmente.
-3. Telas desta pasta → leia a spec em `docs/design-system/telas/` **antes** do `code.html`.
