@@ -60,6 +60,17 @@ class PlasmaImageTests(unittest.TestCase):
         self.assertLess(containerfile.index("dnf install -y /tmp/forjaos-plasma.rpm"),
                         containerfile.index("python3 /tmp/configure_plasma.py"))
 
+    def test_grub_font_tool_is_declared_in_builder_stage(self):
+        containerfile = CONTAINERFILE.read_text(encoding="utf-8")
+        builder_stage = containerfile.split(
+            "FROM ${BASE_IMAGE} AS branding-builder", maxsplit=1
+        )[1].split("\nFROM ${BASE_IMAGE}\n", maxsplit=1)[0]
+
+        self.assertIn(
+            "RUN dnf install -y rpm-build jetbrains-mono-fonts grub2-tools-extra",
+            builder_stage,
+        )
+
     def test_profile_cleanup_is_scoped_to_usr_share(self):
         source = PROFILE.read_text(encoding="utf-8")
         self.assertIn('"usr/share/kde-settings/', source)
