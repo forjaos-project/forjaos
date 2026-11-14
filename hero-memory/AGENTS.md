@@ -23,8 +23,3 @@
 
 ## Telas desta pasta
 `forjaos_visualizador_de_mem_ria_linha_do_tempo_di_ria`, `forjaos_visualizador_do_grafo_da_mem_ria_fr_135`.
-
-## Antes de começar aqui
-1. `python3 scripts/roadmap.py available` → o item escolhido tem escopo desta pasta? Se não, pare.
-2. `AGENTS.md` da raiz → regras e fluxo valem integralmente.
-3. Telas desta pasta → leia a spec em `docs/design-system/telas/` **antes** do `code.html`.
