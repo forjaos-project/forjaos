@@ -12,7 +12,8 @@ PROFILES = {
     "minimal": ([], []),
     "web": (["node", "pnpm"], []),
     "backend": (["openjdk", "go", "python"], ["io.dbeaver.DBeaverCommunity"]),
-    "gamedev": ([], ["org.godotengine.Godot", "org.blender.Blender", "org.kde.krita"]),
+    "gamedev": ([], ["org.godotengine.Godot", "org.blender.Blender", "org.kde.krita",
+                      "net.lutris.Lutris", "com.heroicgameslauncher.hgl", "com.vysp3r.ProtonPlus"]),
     "devops": (["kubectl", "k9s", "helm", "ansible"], []),
     "ai": (["ollama"], []),
 }
@@ -198,6 +199,9 @@ def main():
         ])
     if args.vscode_devcontainers:
         commands.append(["/usr/bin/python3", "/usr/libexec/forjaos/install_vscode_devcontainers.py"])
+        if args.profile == "gamedev":
+            commands.append([str(Path.home() / ".local/bin/code"), "--install-extension",
+                             "geequlim.godot-tools"])
     if flatpaks:
         commands.append(["flatpak", "remote-add", "--user", "--if-not-exists",
                          "flathub", "https://flathub.org/repo/flathub.flatpakrepo"])

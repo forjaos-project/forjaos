@@ -1,0 +1,12 @@
+[Unit]
+Description=Hold ForjaOS game session settings
+PartOf=hero-game.target
+Before=hero-game.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/libexec/forjaos/game_mode.py session
+Restart=on-failure
+MemoryMax=64M
+CPUQuota=10%
+Nice=10

@@ -81,6 +81,11 @@ enum Command {
         #[command(subcommand)]
         action: DockerAction,
     },
+    /// Controla o Modo Jogo do usuário
+    GameMode {
+        #[command(subcommand)]
+        action: GameModeAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -184,6 +189,25 @@ enum DockerAction {
     },
 }
 
+#[derive(Subcommand)]
+enum GameModeAction {
+    /// Mantém o Modo Jogo ativo até ser desligado
+    On {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Desliga o Modo Jogo até o jogo atual sair
+    Off {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Informa se o Modo Jogo está ativo
+    Status {
+        #[arg(long)]
+        json: bool,
+    },
+}
+
 fn main() {
     let args = std::env::args_os().collect::<Vec<OsString>>();
     let lang = selected_language(&args);
@@ -278,6 +302,25 @@ fn main() {
             DockerAction::Install { yes, json } => dev::docker_install(yes, json),
             DockerAction::SetupRootless { json } => dev::docker_setup_rootless(json),
         },
+        Command::GameMode { action } => {
+            let (operation, json) = match action {
+                GameModeAction::On { json } => ("on", json),
+                GameModeAction::Off { json } => ("off", json),
+                GameModeAction::Status { json } => ("status", json),
+            };
+            let mut process = std::process::Command::new("/usr/bin/python3");
+            process.args(["/usr/libexec/forjaos/game_mode.py", operation]);
+            if json {
+                process.arg("--json");
+            }
+            match process.status() {
+                Ok(status) => status.code().unwrap_or(1),
+                Err(error) => {
+                    eprintln!("forja game-mode: {error}");
+                    1
+                }
+            }
+        }
     };
     std::process::exit(code);
 }
@@ -443,6 +486,16 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                             .about("Configure rootless Docker after reboot")
                             .mut_arg("json", |arg| arg.help("Output JSON"))
                     })
+            })
+            .mut_subcommand("game-mode", |game| {
+                game.about("Control per-user Game Mode")
+                    .mut_subcommand("on", |on| {
+                        on.about("Keep Game Mode active until turned off")
+                    })
+                    .mut_subcommand("off", |off| {
+                        off.about("Turn off Game Mode until the current game exits")
+                    })
+                    .mut_subcommand("status", |status| status.about("Show Game Mode state"))
             });
     }
     command = command
@@ -492,6 +545,17 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                     localized_help(setup, lang, "forja docker setup-rootless")
                 });
             localized_help(docker, lang, "forja docker")
+        })
+        .mut_subcommand("game-mode", |game| {
+            let game = game
+                .mut_subcommand("on", |on| localized_help(on, lang, "forja game-mode on"))
+                .mut_subcommand("off", |off| {
+                    localized_help(off, lang, "forja game-mode off")
+                })
+                .mut_subcommand("status", |status| {
+                    localized_help(status, lang, "forja game-mode status")
+                });
+            localized_help(game, lang, "forja game-mode")
         });
     localized_help(command, lang, "forja")
 }
@@ -530,6 +594,7 @@ mod tests {
         assert!(names.contains(&"box"));
         assert!(names.contains(&"docker"));
         assert!(names.contains(&"install"));
+        assert!(names.contains(&"game-mode"));
     }
 
     #[test]
@@ -539,6 +604,7 @@ mod tests {
             .to_string();
         assert!(help.contains("Create rootless Distrobox environments with Podman"));
         assert!(help.contains("Install and configure Docker CE rootless"));
+        assert!(help.contains("Control per-user Game Mode"));
         assert!(!help.contains("Cria ambientes Distrobox"));
     }
 }
