@@ -48,9 +48,14 @@ def main():
     args = parser.parse_args()
     if not 2 <= len(args.mascot) <= 24 or not all(ch.isalpha() or ch in " -'" for ch in args.mascot):
         parser.error("invalid mascot name")
+    wakeword = "model_pending" if args.mascot in NAMES else "training_pending"
     CONFIG.mkdir(mode=0o700, parents=True, exist_ok=True)
     state = CONFIG / "firstboot-state.json"
-    private_json(state, {"status": "running", "profile": args.profile})
+    private_json(CONFIG / "firstboot.json", {"profile": args.profile, "mascot": args.mascot,
+                                              "language": args.language, "keyboard": args.keyboard,
+                                              "unity": args.unity, "wakeword": wakeword})
+    (CONFIG / "firstboot-complete").touch(mode=0o600)
+    private_json(state, {"status": "running", "profile": args.profile, "done": 0, "total": 0})
     persona_dir = Path.home() / ".config" / "hero"
     persona_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     persona = persona_dir / "persona.toml"
@@ -75,15 +80,10 @@ def main():
             private_json(state, {"status": "failed", "profile": args.profile,
                                  "step": command[0], "done": index, "total": len(commands)})
             return 1
-    wakeword = "model_pending" if args.mascot in NAMES else "training_pending"
-    private_json(CONFIG / "firstboot.json", {"profile": args.profile, "mascot": args.mascot,
-                                              "language": args.language, "keyboard": args.keyboard,
-                                              "wakeword": wakeword})
     pending = PENDING.get(args.profile, [])
     private_json(state, {"status": "partial" if pending else "complete",
                          "profile": args.profile, "wakeword": wakeword, "pending": pending,
                          "done": len(commands), "total": len(commands)})
-    (CONFIG / "firstboot-complete").touch(mode=0o600)
     return 2 if pending else 0
 
 
