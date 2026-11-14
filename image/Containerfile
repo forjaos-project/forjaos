@@ -36,6 +36,7 @@ COPY brand/logo/png/ /tmp/forjaos-icons/
 COPY image/build_files/configure_startup.sh /tmp/configure_startup.sh
 COPY image/build_files/rebuild_initramfs.sh /tmp/rebuild_initramfs.sh
 COPY image/build_files/firstboot/ /tmp/forjaos-firstboot/
+COPY image/firstboot/Preflight.qml /usr/share/forjaos/firstboot/Preflight.qml
 
 RUN install -D -m 0755 /tmp/forjaos-firstboot/setup-dual-boot.sh \
       /usr/libexec/forjaos/setup-dual-boot.sh \
