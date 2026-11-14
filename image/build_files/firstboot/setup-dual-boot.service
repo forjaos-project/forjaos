@@ -1,0 +1,15 @@
+[Unit]
+Description=Configure safe Windows dual-boot defaults
+After=local-fs.target
+ConditionPathExists=!/var/lib/forjaos/dual-boot-setup.complete
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/forjaos/setup-dual-boot.sh
+MemoryMax=64M
+CPUQuota=10%
+Nice=10
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
