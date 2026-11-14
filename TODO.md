@@ -13,7 +13,6 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 ### Fase 1 — Imagem instalável
 
-- [ ] `F1-003` Dual boot com Windows, Secure Boot + MOK, pós-instalação automática (FR-011, FR-012, FR-013) — Codex pegou
 - [ ] `F1-009` CLI forja: esqueleto Rust, doctor, install unity/claude-code (FR-042, FR-060)
 - [ ] `F1-010` Reproduzir componentes DX na base Bazzite desktop a partir dos scripts ublue-os/bazzite-dx, com verificação de licença (FR-001, FR-005, ADR-0032)
 - [x] `F1-010` Ferramentas DX livres dos scripts ublue-os/bazzite-dx na base desktop, com conferência das licenças RPM no build. VS Code, Docker CE e repositórios externos aguardam a decisão prevista no ADR-0034; tamanho da ISO fica para o build final (FR-001, FR-005, ADR-0032)
@@ -63,14 +62,15 @@ Testes, medições de NFR, boot/instalação das ISOs e validação em hardware 
 
 - [ ] Rodar toda a suíte de testes e corrigir o que quebrar
 - [ ] `F1-004` Notebook híbrido (PRIME offload) e checklist de hardware (FR-015, FR-016) — depende do notebook de referência estar disponível (§10.2)
-- [ ] `F5-001` Validação física completa (§11) nos 2 hardwares com registro em docs/releases/ (ADR-024, G5)
+- [ ] `F5-001` Validação física completa (§11) nos 2 hardwares com registro em docs/releases/ (ADR-024, G5). No Dell Inspiron de teste, o Anaconda iniciou e conectou à rede; o particionador parou com `no free partition slots` apesar de 97,66 GiB livres. Repetir após a correção da partição e validar Windows, GRUB e Secure Boot/MOK.
 - [ ] Gerar a ISO final e subir no GitHub Release
 
-## Feito (29)
+## Feito (30)
 
 - [x] `F1-006` Layout (dock com Code/Godot), atalho Meta+E, temas e wallpapers instalados no rpm forjaos-plasma. Faltam: Super+Espaço, Super+G e Super+M (dependem do HERO e do Modo Jogo)
-- [x] `F1-007` Plymouth forjaos-dark como padrão (embutido no initramfs) e temas GRUB instalados em /usr/share/grub/themes. Faltam: ativar o tema GRUB na instalação (junto do F1-003) e fontes PF2. O SDDM não se aplica: a base usa o Plasma Login Manager, que não aceita tema QML de terceiros; o login já usa o wallpaper ForjaOS
+- [x] `F1-007` Plymouth forjaos-dark como padrão (embutido no initramfs), temas GRUB instalados em /usr/share/grub/themes e fontes PF2 geradas. O serviço de primeiro boot do F1-003 ativa o tema GRUB. O SDDM não se aplica: a base usa o Plasma Login Manager, que não aceita tema QML de terceiros; o login já usa o wallpaper ForjaOS
 - [x] `F1-008` Perfil Konsole ForjaOS (JetBrains Mono 13, esquema Forja Dark) como padrão e `forja doctor` com --json e código de saída. Faltam: zsh+starship (F2-002) e o `forja` embutido na imagem (F1-009)
+- [x] `F1-003` Dual boot: preflight de segurança Dual Boot/MOK, NTFS somente leitura, ajuste do relógio local ao detectar Windows e ativação do tema/fontes GRUB no primeiro boot. O host do wizard integra a tela QML em F2-001; aceitação física de instalação e boot fica em F5-001.
 - [x] `GOV-001` ADRs 026–028 (monorepo, tokens canônicos, precedência protótipo × PRD) e nota no PRD
 - [x] `GOV-002` brand/palette.json (fonte única de tokens) + scripts/check-tokens.sh
 - [x] `GOV-003` docs/dev/METHODOLOGY.md — 5 gates (plan, code, test, review, ship)
