@@ -207,6 +207,20 @@
       "summary": "Reserva de 160 GiB antes de testes locais, monitor de 1 minuto e parada normal do Docker abaixo de 120 GiB no SSD C:"
     },
     {
+      "id": "GOV-013",
+      "fr": [
+        "ADR-0041",
+        "NFR-040",
+        "NFR-042"
+      ],
+      "phase": "0",
+      "title": "Testes, build e ISO locais; gate test por item vai para o build final; GitHub só guarda código e ISO final",
+      "status": "doing",
+      "scope": "docs/",
+      "agent": "claude",
+      "claimed_at": "2026-11-14"
+    },
+    {
       "id": "F0-001",
       "fr": [
         "ADR-002",
