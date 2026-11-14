@@ -452,10 +452,13 @@
       ],
       "phase": "1",
       "title": "Gerador de temas a partir do palette.json (Plasma, SDDM, Plymouth, Konsole, VS Code, GTK)",
-      "status": "doing",
+      "status": "done",
       "agent": "codex",
       "scope": "brand/",
-      "claimed_at": "2026-11-14"
+      "claimed_at": "2026-11-14",
+      "pr": 57,
+      "merged_at": "2026-11-14",
+      "summary": "Gera temas de desktop a partir da paleta canônica com validação de drift"
     },
     {
       "id": "F1-006",
