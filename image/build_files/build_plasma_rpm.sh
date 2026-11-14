@@ -26,15 +26,9 @@ cp -a "$brand_root/plymouth/." "$workdir/SOURCES/plymouth/"
 cp -a "$brand_root/grub/." "$workdir/SOURCES/grub/"
 cp -a "$brand_root/konsole/." "$workdir/SOURCES/konsole/"
 find "$workdir/SOURCES/plymouth" "$workdir/SOURCES/grub" "$workdir/SOURCES/konsole" -type f -exec chmod 0644 {} +
-for theme in dark light; do
-  grub_theme="$workdir/SOURCES/grub/forja-$theme"
-  grub2-mkfont --size=24 --name="Plus Jakarta Sans" \
-    --output="$grub_theme/PlusJakartaSans24.pf2" \
-    "$workdir/SOURCES/fonts/PlusJakartaSans-VF.ttf"
-  grub2-mkfont --size=12 --name="JetBrains Mono" \
-    --output="$grub_theme/JetBrainsMono12.pf2" \
-    "$workdir/SOURCES/fonts/JetBrainsMono-Regular.otf"
-done
+bash "$brand_root/themes/build_grub_fonts.sh" "$workdir/SOURCES/grub" \
+  "$workdir/SOURCES/fonts/PlusJakartaSans-VF.ttf" \
+  "$workdir/SOURCES/fonts/JetBrainsMono-Regular.otf"
 cp "$brand_root/LICENSES.md" "$brand_root/fonts/OFL.txt" "$workdir/SOURCES/licenses/"
 rpmbuild -bb "$build_files/forjaos-plasma.spec" \
   --define "_topdir $workdir" \
