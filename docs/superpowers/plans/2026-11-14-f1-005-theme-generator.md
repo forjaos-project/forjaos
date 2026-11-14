@@ -21,7 +21,7 @@ Python 3 (biblioteca padrão), JSON, CSS/QSS, INI, SVG e arquivos de tema própr
 
 - `brand/themes/build_themes.py` — conversão dos tokens, renderizadores por formato e gravação/check de saídas.
 - `brand/plasma/build_plasma.py` — integração do Plasma ao fluxo unificado, mantendo a API existente.
-- `brand/sddm/`, `brand/plymouth/`, `brand/konsole/`, `brand/vscode/`, `brand/gtk/`, `brand/firefox/` — ativos gerados para cada consumidor.
+- `brand/sddm/`, `brand/qml/`, `brand/grub/`, `brand/plymouth/`, `brand/konsole/`, `brand/vscode/`, `brand/gtk/`, `brand/firefox/` — ativos gerados para cada consumidor conforme a tabela de tradução de `DESIGN-RULES.md`.
 - `brand/tests/test_theme_generator.py` — cobertura do contrato, conteúdo, paleta e idempotência de cada destino.
 - `brand/LICENSES.md` — registrar os geradores e os formatos como código/arte próprios, sem novas licenças.
 - `docs/superpowers/plans/2026-11-14-f1-005-theme-generator.md` — este plano.
@@ -37,7 +37,7 @@ Python 3 (biblioteca padrão), JSON, CSS/QSS, INI, SVG e arquivos de tema própr
 
 ### 2. Implementar renderizadores de formatos e orquestração — FR-051
 
-- Arquivos: `brand/themes/build_themes.py`, saídas em `brand/{sddm,plymouth,konsole,vscode,gtk,firefox}/`.
+- Arquivos: `brand/themes/build_themes.py`, saídas em `brand/{sddm,qml,grub,plymouth,konsole,vscode,gtk,firefox}/`.
 - Teste: os contratos da tarefa 1 passam; duas execuções idênticas produzem bytes idênticos; `--check` detecta saída ausente ou alterada.
 - DoD: cada saída dark/light deriva dos tokens e contém apenas tokens admitidos; transparência é achatada sobre `canvas` quando o formato exigir opacidade; Firefox só é escrito quando solicitado.
 - Commit: `feat(brand): generate themes from canonical palette`.

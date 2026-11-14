@@ -1,0 +1,9 @@
+# Generated from brand/palette.json by build_themes.py. Do not edit.
+[Plymouth Theme]
+Name=ForjaOS Dark
+Description=ForjaOS Dark boot splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/forjaos-dark
+ScriptFile=/usr/share/plymouth/themes/forjaos-dark/forjaos.script

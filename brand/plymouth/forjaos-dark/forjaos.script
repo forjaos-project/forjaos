@@ -1,0 +1,29 @@
+# Generated from brand/palette.json by build_themes.py. Do not edit.
+# Canvas token: #070a11
+Window.SetBackgroundTopColor(0.027451, 0.039216, 0.066667);
+Window.SetBackgroundBottomColor(0.027451, 0.039216, 0.066667);
+
+logo_image = Image("special://logo");
+logo_sprite = Sprite(logo_image);
+logo_sprite.SetX(Window.GetWidth() / 2 - logo_image.GetWidth() / 2);
+logo_sprite.SetY(Window.GetHeight() / 2 - logo_image.GetHeight() / 2 - 16);
+
+bar_width = Math.Min(512, Window.GetWidth() - 64);
+bar_y = Window.GetHeight() / 2 + logo_image.GetHeight() / 2 + 24;
+bar_background_image = Image("progress-background.svg").Scale(bar_width, 3);
+bar_fill_image = Image("progress-fill.svg").Scale(bar_width, 3);
+bar_background = Sprite(bar_background_image);
+bar_background.SetX(Window.GetWidth() / 2 - bar_width / 2);
+bar_background.SetY(bar_y);
+bar_fill = Sprite(bar_fill_image);
+bar_fill.SetX(Window.GetWidth() / 2 - bar_width / 2);
+bar_fill.SetY(bar_y);
+    bar_fill.SetImage(bar_fill_image.Scale(1, 3));
+
+fun boot_progress_callback(duration, progress)
+{
+    width = Math.Max(1, Math.Int(bar_width * Math.Clamp(progress, 0, 1)));
+    bar_fill.SetImage(bar_fill_image.Scale(width, 3));
+}
+
+Plymouth.SetBootProgressFunction(boot_progress_callback);
