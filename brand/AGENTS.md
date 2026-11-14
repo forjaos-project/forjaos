@@ -8,6 +8,7 @@
 
 ## Toolchain e testes
 - `scripts/check-tokens.sh` (obrigatório); `qmllint` em QML; SVG otimizado (`svgo`) com camadas nomeadas preservadas.
+- `python3 brand/themes/build_themes.py --check` confirma que Plasma, SDDM, Plymouth, GRUB, Konsole, VS Code, GTK, QML e `tokens.css` continuam gerados da paleta.
 - Captura de cada superfície (Plasma, SDDM, Plymouth, GRUB, Konsole, VS Code) no release (FR-051).
 - Mascote: animação a 60 fps no plasmoid (FR-054, FR-123).
 

@@ -111,6 +111,12 @@ class ThemeGeneratorTests(unittest.TestCase):
             result = self.run_generator(output, "--check")
             self.assertNotEqual(result.returncode, 0)
 
+    def test_generators_and_outputs_are_in_license_inventory(self):
+        licenses = (ROOT / "brand/LICENSES.md").read_text(encoding="utf-8")
+        self.assertIn("brand/themes/build_themes.py", licenses)
+        self.assertIn("CC BY-SA 4.0", licenses)
+        self.assertIn("Apache-2.0", licenses)
+
 
 if __name__ == "__main__":
     unittest.main()
