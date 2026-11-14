@@ -16,6 +16,8 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 - [ ] `F1-003` Dual boot com Windows, Secure Boot + MOK, pós-instalação automática (FR-011, FR-012, FR-013) — Codex pegou
 - [ ] `F1-009` CLI forja: esqueleto Rust, doctor, install unity/claude-code (FR-042, FR-060)
 - [ ] `F1-010` Reproduzir componentes DX na base Bazzite desktop a partir dos scripts ublue-os/bazzite-dx, com verificação de licença (FR-001, FR-005, ADR-0032)
+- [x] `F1-010` Ferramentas DX livres dos scripts ublue-os/bazzite-dx na base desktop, com conferência das licenças RPM no build. VS Code, Docker CE e repositórios externos aguardam a decisão prevista no ADR-0034; tamanho da ISO fica para o build final (FR-001, FR-005, ADR-0032)
+
 
 ### Fase 2 — Experiência dev/gamedev
 
