@@ -452,7 +452,10 @@
       ],
       "phase": "1",
       "title": "Gerador de temas a partir do palette.json (Plasma, SDDM, Plymouth, Konsole, VS Code, GTK)",
-      "status": "todo"
+      "status": "doing",
+      "agent": "codex",
+      "scope": "brand/",
+      "claimed_at": "2026-11-14"
     },
     {
       "id": "F1-006",
