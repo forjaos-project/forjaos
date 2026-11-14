@@ -175,7 +175,7 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: 4
                                 Text { text: copy.title; color: "#dfe2f0"; font.family: "Plus Jakarta Sans"; font.pixelSize: 24; font.weight: Font.Bold }
-                                Text { text: copy.intro; color: "#94a3b8"; font.family: "Inter"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                Text { text: copy.intro; color: "#94a3b8"; font.family: "Plus Jakarta Sans"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                             }
                         }
 
@@ -221,7 +221,7 @@ Item {
                                     ColumnLayout {
                                         Layout.fillWidth: true; spacing: 4
                                         Text { text: modelData.title; color: "#dfe2f0"; font.family: "Plus Jakarta Sans"; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                        Text { text: modelData.body; color: "#94a3b8"; font.family: "Inter"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                        Text { text: modelData.body; color: "#94a3b8"; font.family: "Plus Jakarta Sans"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                     }
                                 }
                             }
@@ -254,7 +254,7 @@ Item {
                                         background: Rectangle { color: "#161b26"; radius: 6 }
                                     }
                                 }
-                                Text { text: copy.secureBody; color: "#94a3b8"; font.family: "Inter"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                Text { text: copy.secureBody; color: "#94a3b8"; font.family: "Plus Jakarta Sans"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                 Label {
                                     text: window.secureBootState === "yes" ? copy.enabled : window.secureBootState === "no" ? copy.disabled : copy.unavailable
                                     color: window.secureBootState === "yes" ? "#10b981" : "#f59e0b"
@@ -268,7 +268,7 @@ Item {
                                         required property string modelData
                                         Layout.fillWidth: true; spacing: 10
                                         Text { text: "0" + (index + 1); color: "#00e5ff"; font.family: "JetBrains Mono"; font.pixelSize: 11 }
-                                        Text { text: modelData; color: "#dfe2f0"; font.family: "Inter"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                        Text { text: modelData; color: "#dfe2f0"; font.family: "Plus Jakarta Sans"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                     }
                                 }
                                 Label {
@@ -279,7 +279,7 @@ Item {
                                 }
                             }
                         }
-                        Text { text: copy.stateNote; color: "#94a3b8"; font.family: "Inter"; font.pixelSize: 11; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                        Text { text: copy.stateNote; color: "#94a3b8"; font.family: "Plus Jakarta Sans"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                     }
                 }
             }
@@ -287,7 +287,7 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 64
-                Text { text: copy.footer; color: "#94a3b8"; font.family: "Inter"; font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                Text { text: copy.footer; color: "#94a3b8"; font.family: "Plus Jakarta Sans"; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                 Button {
                     text: copy.continueLabel
                     Layout.preferredHeight: 42
