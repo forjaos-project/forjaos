@@ -11,6 +11,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = ROOT / "image/build_files/forjaos-plasma.spec"
 BUILDER = ROOT / "image/build_files/build_plasma_rpm.sh"
+GRUB_FONT_BUILDER = ROOT / "brand/themes/build_grub_fonts.sh"
 CONTAINERFILE = ROOT / "image/Containerfile"
 PROFILE = ROOT / "image/build_files/configure_plasma.py"
 IDENTITY_SPEC = ROOT / "image/build_files/forjaos-branding.spec"
@@ -41,7 +42,15 @@ class PlasmaImageTests(unittest.TestCase):
         self.assertIn("f45-backgrounds-kde", builder)
         self.assertIn("base_look_evr", builder)
         self.assertIn("base_wallpaper_evr", builder)
+        self.assertIn('bash "$brand_root/themes/build_grub_fonts.sh"', builder)
+        self.assertIn('bash "$brand_root/themes/build_grub_fonts.sh"', builder)
+        font_builder = GRUB_FONT_BUILDER.read_text(encoding="utf-8")
+        self.assertIn('grub2-mkfont --size=24 --name="Plus Jakarta Sans"', font_builder)
+        self.assertIn('PlusJakartaSans24.pf2', font_builder)
+        self.assertIn('grub2-mkfont --size=12 --name="JetBrains Mono"', font_builder)
+        self.assertIn('JetBrainsMono12.pf2', font_builder)
         containerfile = CONTAINERFILE.read_text(encoding="utf-8")
+        self.assertIn("dnf install -y rpm-build jetbrains-mono-fonts", containerfile)
         self.assertIn("build_plasma_rpm.sh", containerfile)
         self.assertIn("dnf install -y /tmp/forjaos-plasma.rpm", containerfile)
         self.assertIn("dnf remove -y --no-autoremove plasma-lookandfeel-fedora f45-backgrounds-kde", containerfile)
@@ -50,6 +59,17 @@ class PlasmaImageTests(unittest.TestCase):
                         containerfile.index("dnf install -y /tmp/forjaos-plasma.rpm"))
         self.assertLess(containerfile.index("dnf install -y /tmp/forjaos-plasma.rpm"),
                         containerfile.index("python3 /tmp/configure_plasma.py"))
+
+    def test_grub_font_tool_is_declared_in_builder_stage(self):
+        containerfile = CONTAINERFILE.read_text(encoding="utf-8")
+        builder_stage = containerfile.split(
+            "FROM ${BASE_IMAGE} AS branding-builder", maxsplit=1
+        )[1].split("\nFROM ${BASE_IMAGE}\n", maxsplit=1)[0]
+
+        self.assertIn(
+            "RUN dnf install -y rpm-build jetbrains-mono-fonts grub2-tools-extra",
+            builder_stage,
+        )
 
     def test_profile_cleanup_is_scoped_to_usr_share(self):
         source = PROFILE.read_text(encoding="utf-8")

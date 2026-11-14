@@ -20,6 +20,16 @@ Confira que a saída do `sha256sum` mostra `<nome-da-iso>: OK`. Para a variante 
 
 Use um pendrive de pelo menos 8 GB, sem dados que precisem ser preservados, e uma conexão confiável com o GHCR durante a instalação. A gravação apaga ou substitui o conteúdo do dispositivo escolhido. Para validar FR-014, repita os três métodos abaixo em mídia de teste e registre o resultado separadamente. Mantenha Secure Boot no estado exigido pelo cenário de validação; a confirmação de MOK e dual boot pertence a F1-003.
 
+## Dual boot com Windows e Secure Boot (FR-011, FR-012, FR-013)
+
+Antes de instalar ao lado do Windows, faça backup dos arquivos e guarde a chave de recuperação do BitLocker em local acessível fora do computador. A Inicialização Rápida mantém o kernel do Windows em hibernação após o desligamento; o ForjaOS mantém NTFS em somente leitura para não gravar nesse estado ([documentação da Microsoft sobre Inicialização Rápida](https://learn.microsoft.com/en-us/troubleshoot/windows-client/setup-upgrade-and-drivers/fast-startup-causes-system-hibernation-shutdown-fail)). Mantenha BitLocker ativo; mudanças de firmware ou software de boot podem pedir a chave de recuperação ([documentação da Microsoft sobre BitLocker](https://support.microsoft.com/en-us/windows/security/encryption/bitlocker-overview)). Em dispositivos gerenciados, siga a orientação do administrador antes de alterar a proteção.
+
+No Anaconda, escolha o disco que contém o Windows e use apenas o espaço livre ou a opção interativa de liberar espaço. Confira a tela de resumo antes de iniciar: as partições Windows, EFI e de recuperação precisam permanecer preservadas; não use uma opção que apague o disco inteiro. Na primeira inicialização UEFI, o serviço do ForjaOS instala o tema no `/boot` e regenera a configuração do GRUB. Confirme que Windows aparece no menu e inicialize-o para validar o acesso; se não aparecer, use a entrada Windows Boot Manager no menu do firmware. Esse fluxo ainda precisa de validação em hardware antes do release.
+
+Mantenha Secure Boot habilitado. No primeiro reinício, se o MokManager abrir, escolha `Enroll MOK`, confirme a chave Universal Blue e reinicie. Se o enrollment precisar ser solicitado após a instalação, use `ujust enroll-secure-boot-key`; o MokManager pedirá a senha `universalblue` no próximo boot. Após o boot, confirme o estado com `mokutil --sb-state` e, na variante NVIDIA, confira o assinante do módulo com `modinfo -F signer nvidia`. Consulte o [guia oficial de Secure Boot do Bazzite](https://docs.bazzite.gg/General/Installation_Guide/secure_boot/).
+
+Com Windows detectado no primeiro boot, o ForjaOS ajusta o relógio local para o modo compatível e monta volumes NTFS em somente leitura por padrão. Fast Startup pode deixar NTFS em estado inconsistente; BitLocker pode exigir a chave de recuperação após alterações no boot. O componente visual do aviso já está incluído na imagem; sua exibição depende da integração com o host do wizard FR-020.
+
 ### Fedora Media Writer
 
 1. Abra Fedora Media Writer e escolha a opção de imagem personalizada.

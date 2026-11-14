@@ -1,7 +1,8 @@
 ARG BASE_IMAGE=ghcr.io/ublue-os/bazzite-nvidia-open:stable
 FROM ${BASE_IMAGE} AS branding-builder
 ARG IMAGE_NAME=forjaos-nvidia-open
-RUN dnf install -y rpm-build && dnf clean all
+# Build-only: grub2-tools-extra supplies grub2-mkfont; this stage is not shipped.
+RUN dnf install -y rpm-build jetbrains-mono-fonts grub2-tools-extra && dnf clean all
 COPY image/build_files/ /tmp/forjaos-build/
 COPY brand/ /tmp/brand/
 RUN bash /tmp/forjaos-build/build_branding_rpm.sh \
@@ -35,6 +36,20 @@ COPY cosign.pub /tmp/forjaos.pub
 COPY brand/logo/png/ /tmp/forjaos-icons/
 COPY image/build_files/configure_startup.sh /tmp/configure_startup.sh
 COPY image/build_files/rebuild_initramfs.sh /tmp/rebuild_initramfs.sh
+COPY image/build_files/firstboot/ /tmp/forjaos-firstboot/
+COPY image/firstboot/Preflight.qml /usr/share/forjaos/firstboot/Preflight.qml
+COPY image/firstboot/PreflightState.js /usr/share/forjaos/firstboot/PreflightState.js
+
+RUN install -D -m 0755 /tmp/forjaos-firstboot/setup-dual-boot.sh \
+      /usr/libexec/forjaos/setup-dual-boot.sh \
+    && install -D -m 0644 /tmp/forjaos-firstboot/setup-dual-boot.service \
+      /usr/lib/systemd/system/forjaos-setup-dual-boot.service \
+    && install -D -m 0644 /tmp/forjaos-firstboot/90-forjaos-ntfs-readonly.rules \
+      /usr/lib/udev/rules.d/90-forjaos-ntfs-readonly.rules \
+    && mkdir -p /usr/lib/systemd/system/multi-user.target.wants \
+    && ln -s ../forjaos-setup-dual-boot.service \
+      /usr/lib/systemd/system/multi-user.target.wants/forjaos-setup-dual-boot.service \
+    && rm -r /tmp/forjaos-firstboot
 
 RUN python3 /tmp/configure_image.py \
       --root / \
