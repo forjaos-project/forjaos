@@ -71,18 +71,25 @@ class Bridge(QObject):
             return "KWallet indisponível; a chave não foi salva."
         return "Chave salva no KWallet." if result.returncode == 0 else "KWallet recusou a chave."
 
-    @Slot(str, str, str, str, bool, bool, result=str)
-    def finish(self, name, profile, language, keyboard, install_unity, install_claude):
+    @Slot(str, str, str, str, bool, bool, bool, bool, bool, result=str)
+    def finish(self, name, profile, language, keyboard, install_github, install_unity,
+               install_claude, install_devcontainers, install_vscode_devcontainers):
         valid_name = 2 <= len(name) <= 24 and all(ch.isalpha() or ch in " -'" for ch in name)
         if (not valid_name or profile not in PROFILES or language not in {"pt-BR", "en-US"}
                 or keyboard not in {"br", "us"}):
             return "Escolhas inválidas; nenhuma configuração foi gravada."
         command = ["forja", "setup", "--profile", profile, "--mascot", name,
                    "--language", language, "--keyboard", keyboard]
+        if install_github:
+            command.append("--github")
         if install_unity:
             command.append("--unity")
         if install_claude:
             command.append("--claude-code")
+        if install_devcontainers:
+            command.append("--devcontainers")
+        if install_vscode_devcontainers:
+            command.append("--vscode-devcontainers")
         try:
             subprocess.Popen(command, stdin=subprocess.DEVNULL,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -98,6 +105,23 @@ class Bridge(QObject):
         except OSError:
             return "GitHub CLI indisponível. Configure depois com gh auth login."
         return "Autenticação aberta no terminal."
+
+    @Slot(result=str)
+    def sshAdd(self):
+        try:
+            subprocess.Popen(["konsole", "-e", "forja", "keys", "ssh-add"], start_new_session=True)
+        except OSError:
+            return "Abra um terminal e execute forja keys ssh-add."
+        return "Chaves SSH serão solicitadas pelo KWallet."
+
+    @Slot(result=str)
+    def dockerSetup(self):
+        try:
+            subprocess.Popen(["konsole", "-e", "forja", "docker", "install"],
+                             start_new_session=True)
+        except OSError:
+            return "Abra um terminal e execute forja docker install."
+        return "Instalador Docker aberto no terminal; ele solicita confirmação e senha de administrador."
 
 
 def main():

@@ -54,6 +54,8 @@ COPY image/firstboot/PreflightState.js /usr/share/forjaos/firstboot/PreflightSta
 COPY image/firstboot/Wizard.qml /usr/share/forjaos/firstboot/Wizard.qml
 COPY image/firstboot/firstboot.py /usr/libexec/forjaos/firstboot.py
 COPY image/firstboot/setup_profile.py /usr/libexec/forjaos/setup_profile.py
+COPY image/firstboot/install_homebrew.py /usr/libexec/forjaos/install_homebrew.py
+COPY image/firstboot/install_vscode_devcontainers.py /usr/libexec/forjaos/install_vscode_devcontainers.py
 COPY image/firstboot/keys.py /usr/libexec/forjaos/keys.py
 COPY image/firstboot/install_postman.py /usr/libexec/forjaos/install_postman.py
 COPY image/firstboot/install_chrome.py /usr/libexec/forjaos/install_chrome.py

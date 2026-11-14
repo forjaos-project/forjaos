@@ -11,8 +11,12 @@ ForjaOS: diagnóstico, instalação e assistente em um comando
 Uso: forja [OPÇÕES] <COMANDO>
 
 Comandos:
+  keys     Gerencia chaves de API no KWallet
+  setup    Aplica um perfil de primeiro boot e o nome do mascote
   doctor   Verifica o sistema (kernel, GPU, Docker, Git, IA, serviços, portas) e sai com código ≠ 0 se algo crítico falhar
   install  Instala ferramentas de desenvolvimento no espaço do usuário
+  box      Cria ambientes Distrobox rootless usando Podman
+  docker   Instala e configura Docker CE em modo rootless
 
 Opções:
       --lang <LANG>  Idioma da ajuda: pt-br ou en [default: pt-br] [possible values: pt-br, en]
@@ -36,6 +40,9 @@ Opções:
 
 - [Instalação do Unity Hub para Linux](https://docs.unity.com/en-us/hub/install-hub-linux)
 - [Instalação do Claude Code](https://code.claude.com/docs/en/getting-started)
+- [Instalação do Homebrew no Linux](https://docs.brew.sh/Homebrew-on-Linux)
+- [Documentação do VS Code para Linux](https://code.visualstudio.com/docs/setup/linux)
+- [Dev Containers CLI](https://github.com/devcontainers/cli)
 
 ## `forja install`
 
@@ -47,10 +54,25 @@ Uso: forja install <COMANDO>
 Comandos:
   unity        Baixa o Unity Hub oficial como AppImage em ~/.local
   claude-code  Instala Claude Code pelo instalador oficial da Anthropic
+  homebrew              Instala Homebrew no diretório do usuário
+  devcontainers         Instala o CLI oficial Dev Containers no usuário
+  vscode-devcontainers  Instala VS Code e a extensão Dev Containers para o usuário
 
 Opções:
   -h, --help  Exibe ajuda
 ```
+
+## `forja box`
+
+`forja box create ubuntu|arch|fedora [--name <NOME>]` cria uma Distrobox rootless usando Podman e entra no ambiente. Com `--json`, cria sem entrar e retorna o comando de entrada em JSON.
+
+## `forja docker`
+
+`forja docker install` solicita confirmação, configura a fonte oficial e instala Docker CE via `rpm-ostree`; exige reinicialização. Depois, `forja docker setup-rootless` configura o serviço do usuário sem ativar o daemon privilegiado.
+
+## Instalação opcional de VS Code
+
+`forja install vscode-devcontainers` instala Homebrew, Node.js, Dev Containers CLI, VS Code oficial e a extensão Dev Containers para o usuário atual. A instalação requer confirmação (`--yes` para automação); o VS Code proprietário não é incluído na imagem.
 
 ## `forja install unity`
 

@@ -5,7 +5,7 @@ set -euo pipefail
 # https://github.com/ublue-os/bazzite-dx/blob/main/build_files/20-install-apps.sh
 # The desktop base already supplies the login manager, gaming stack and Podman.
 packages=(
-  android-tools bcc bpftop bpftrace ccache flatpak-builder git-subtree
+  android-tools bcc bpftop bpftrace ccache flatpak-builder git-credential-libsecret git-subtree gh ksshaskpass
   google-noto-sans-fonts nicstat numactl podman-machine podman-tui
   python3-ramalama restic rclone sysprof tiptop usbmuxd waypipe zsh
   rocm-hip rocm-opencl rocm-clinfo rocm-smi
