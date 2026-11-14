@@ -57,3 +57,11 @@ Ejetar e inicializar a mídia faz parte do teste. O comando acima é documentaç
 ## Registro do aceite
 
 Em cada release, registre em `docs/releases/` a versão, SHA-256, tamanho das duas ISOs, identificadores dos pendrives de teste, método usado, hardware, estado de Secure Boot, boot do instalador e resultado. Uma ISO que compila em CI ainda não prova gravação ou instalação física. A instalação em dual boot nos hardwares de referência é coberta pelo caminho de validação do PRD §11 e pelos itens seguintes do roadmap.
+
+## Primeiro boot
+
+No primeiro login, o wizard abre com o aviso de dual boot e depois apresenta seis passos: idioma e teclado, mascote, perfil, contas, instaladores opcionais e resumo. É possível pular; nesse caso o perfil mínimo é salvo. Com rede, as instalações escolhidas rodam em segundo plano. Sem rede, as escolhas ficam salvas e `forja setup` pode repetir a instalação depois.
+
+O comando exibido no resumo reproduz o perfil, o mascote, o idioma, o teclado e os instaladores opcionais. Para contas, `gh auth login` e `forja keys set <provedor>` pedem as credenciais interativamente; a chave de API vai somente ao KWallet. O estado das instalações fica em `~/.config/forjaos/firstboot-state.json` e não contém credenciais.
+
+O perfil web instala o RPM oficial do Chrome dentro de uma Distrobox de usuário e o arquivo Linux oficial do Postman em `~/.local`. O perfil gamedev instala Godot, Blender e Krita pelo Flathub e baixa os templates oficiais correspondentes à versão instalada do Godot. A prévia de voz e os modelos wake word pertencem à F4; o wizard mostra essa pendência sem simular disponibilidade.

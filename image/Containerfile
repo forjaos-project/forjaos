@@ -56,6 +56,9 @@ COPY image/firstboot/firstboot.py /usr/libexec/forjaos/firstboot.py
 COPY image/firstboot/setup_profile.py /usr/libexec/forjaos/setup_profile.py
 COPY image/firstboot/keys.py /usr/libexec/forjaos/keys.py
 COPY image/firstboot/install_postman.py /usr/libexec/forjaos/install_postman.py
+COPY image/firstboot/install_chrome.py /usr/libexec/forjaos/install_chrome.py
+COPY image/firstboot/install_godot_templates.py /usr/libexec/forjaos/install_godot_templates.py
+COPY image/firstboot/install_hermes.py /usr/libexec/forjaos/install_hermes.py
 COPY image/firstboot/forjaos-firstboot.service /usr/lib/systemd/user/forjaos-firstboot.service
 RUN mkdir -p /usr/lib/systemd/user/graphical-session.target.wants \
     && ln -s ../forjaos-firstboot.service \

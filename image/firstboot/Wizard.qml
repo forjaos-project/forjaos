@@ -14,19 +14,24 @@ ApplicationWindow {
     property string mascot: "Guará"
     property string profile: "minimal"
     property bool unity: false
-    property string keyProvider: ""
+    property bool claudeCode: false
+    property var keyProviders: []
+    property bool githubRequested: false
     property string status: ""
     property real setupProgress: 0
+    property string setupLog: ""
     property bool finished: false
     property bool showPreflight: true
     function tr(pt, en) { return language === "pt-BR" ? pt : en }
     readonly property string setupCommand: "forja setup --profile " + profile + " --mascot "
         + JSON.stringify(mascot) + " --language " + language + " --keyboard " + keyboard
-        + (unity ? " --unity" : "")
+        + (unity ? " --unity" : "") + (claudeCode ? " --claude-code" : "")
+        + (githubRequested ? " --github" : "")
+        + keyProviders.map(function(provider) { return " --api-key " + provider }).join("")
     readonly property var stepNames: language === "pt-BR"
         ? ["Idioma", "Mascote", "Perfil", "Contas", "Instaladores", "Resumo"]
         : ["Language", "Mascot", "Profile", "Accounts", "Installers", "Summary"]
-    Timer { interval: 1200; repeat: true; running: wizard.finished; onTriggered: { wizard.status = bridge.setupStatus(); wizard.setupProgress = bridge.setupProgress() } }
+    Timer { interval: 1200; repeat: true; running: wizard.finished; onTriggered: { wizard.status = bridge.setupStatus(); wizard.setupProgress = bridge.setupProgress(); wizard.setupLog = bridge.setupLog() } }
 
     header: Rectangle {
         height: 64
@@ -113,21 +118,42 @@ ApplicationWindow {
                         }
                     }
                 }
+                Label {
+                    visible: wizard.step === 2
+                    text: wizard.profile === "web" ? "Node · pnpm · Chrome (RPM oficial em Distrobox) · Postman (arquivo oficial)"
+                        : wizard.profile === "backend" ? "Java · Go · Python · PostgreSQL container · DBeaver"
+                        : wizard.profile === "gamedev" ? "Godot · templates de exportação · Blender · Krita · Unity opcional"
+                        : wizard.profile === "devops" ? "kubectl · k9s · Helm · Terraform · AWS · GCP · Azure"
+                        : wizard.profile === "ai" ? "Ollama · Hermes Agent · Codex CLI · Jupyter · modelo sugerido: Qwen3 8B Q4"
+                        : "Base sem ferramentas adicionais"
+                    color: "#94a3b8"
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                }
                 Label { visible: wizard.step === 3; text: wizard.tr("Autentique sua conta GitHub no terminal. Chaves de API só podem ser cadastradas no KWallet.", "Sign in to GitHub in the terminal. API keys are stored only in KWallet."); color: "#94a3b8"; wrapMode: Text.WordWrap }
-                Button { visible: wizard.step === 3; text: "Abrir gh auth login"; onClicked: wizard.status = bridge.githubLogin() }
+                Button { visible: wizard.step === 3; text: "Abrir gh auth login"; onClicked: { wizard.status = bridge.githubLogin(); wizard.githubRequested = wizard.status.indexOf("aberta") >= 0 } }
                 ComboBox { id: provider; visible: wizard.step === 3; model: ["anthropic", "openai", "openrouter", "nous"] }
                 TextField { id: apiKey; visible: wizard.step === 3; placeholderText: "Chave de API (opcional)"; echoMode: TextInput.Password; Layout.fillWidth: true }
-                Button { visible: wizard.step === 3; text: "Salvar no KWallet"; onClicked: { wizard.status = bridge.storeKey(provider.currentText, apiKey.text); if (wizard.status.indexOf("salva") >= 0) wizard.keyProvider = provider.currentText; apiKey.clear() } }
+                Button { visible: wizard.step === 3; text: "Salvar no KWallet"; onClicked: { wizard.status = bridge.storeKey(provider.currentText, apiKey.text); if (wizard.status === "Chave salva no KWallet." && wizard.keyProviders.indexOf(provider.currentText) < 0) wizard.keyProviders = wizard.keyProviders.concat([provider.currentText]); apiKey.clear() } }
                 Label { visible: wizard.step === 4; text: wizard.tr("O Unity Hub pode ser instalado em segundo plano com o instalador oficial.", "Unity Hub can be installed in the background using its official installer."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 CheckBox { visible: wizard.step === 4; text: "Instalar Unity Hub"; onCheckedChanged: wizard.unity = checked }
-                Label { visible: wizard.step === 5; text: "Mascote: " + wizard.mascot + "\nPerfil: " + wizard.profile + "\nIdioma: " + wizard.language + "\nTeclado: " + wizard.keyboard + "\nUnity Hub: " + (wizard.unity ? "sim" : "não") + "\nChave no KWallet: " + (wizard.keyProvider || "nenhuma"); color: "#f1f5f9"; font.pixelSize: 18 }
+                CheckBox { visible: wizard.step === 4; text: "Instalar Claude Code"; onCheckedChanged: wizard.claudeCode = checked }
+                Label { visible: wizard.step === 5; text: "Mascote: " + wizard.mascot + "\nPerfil: " + wizard.profile + "\nIdioma: " + wizard.language + "\nTeclado: " + wizard.keyboard + "\nUnity Hub: " + (wizard.unity ? "sim" : "não") + "\nClaude Code: " + (wizard.claudeCode ? "sim" : "não") + "\nChaves no KWallet: " + (wizard.keyProviders.length ? wizard.keyProviders.join(", ") : "nenhuma"); color: "#f1f5f9"; font.pixelSize: 18 }
                 Label { visible: wizard.step === 5; text: wizard.tr("Reproduzir no terminal", "Reproduce in terminal"); color: "#94a3b8" }
                 Label { visible: wizard.step === 5; text: wizard.setupCommand; color: "#00e5ff"; font.family: "monospace"; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
-                Label { visible: wizard.step === 5 && wizard.keyProvider.length > 0; text: "forja keys set " + wizard.keyProvider; color: "#00e5ff"; font.family: "monospace" }
+                Label { visible: wizard.step === 5 && wizard.keyProviders.length > 0; text: wizard.keyProviders.map(function(provider) { return "forja keys set " + provider }).join("\n"); color: "#00e5ff"; font.family: "monospace" }
                 Label { visible: wizard.step === 5; text: "gh auth login"; color: "#00e5ff"; font.family: "monospace" }
                 Button { visible: wizard.step === 5; text: wizard.tr("Copiar comando", "Copy command"); onClicked: bridge.copyText(wizard.setupCommand) }
                 Label { visible: wizard.step === 5; text: wizard.tr("Progresso da instalação", "Installation progress"); color: "#94a3b8" }
                 ProgressBar { visible: wizard.step === 5; value: wizard.setupProgress; Layout.fillWidth: true }
+                Rectangle {
+                    visible: wizard.step === 5
+                    color: "#080b11"
+                    radius: 8
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 128
+                    Label { anchors.fill: parent; anchors.margins: 12; text: wizard.setupLog || wizard.tr("Aguardando instalação", "Waiting for installation"); color: "#94a3b8"; font.family: "monospace"; wrapMode: Text.WordWrap }
+                }
                 Item { Layout.fillHeight: true }
                 Label { text: wizard.status; color: "#94a3b8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
             }
@@ -155,12 +181,13 @@ ApplicationWindow {
             anchors.margins: 16
             Button { text: wizard.tr("Voltar", "Back"); enabled: wizard.step > 0 && !wizard.finished; onClicked: wizard.step-- }
             Item { Layout.fillWidth: true }
-            Button { text: wizard.tr("Pular wizard", "Skip wizard"); onClicked: { wizard.profile = "minimal"; wizard.unity = false; wizard.status = bridge.finish(wizard.mascot, wizard.profile, wizard.language, wizard.keyboard, false); wizard.finished = wizard.status.indexOf("iniciada") >= 0 } }
+            Button { text: wizard.tr("Pular wizard", "Skip wizard"); enabled: !wizard.finished; onClicked: { wizard.profile = "minimal"; wizard.unity = false; wizard.claudeCode = false; wizard.status = bridge.finish(wizard.mascot, wizard.profile, wizard.language, wizard.keyboard, false, false); wizard.finished = wizard.status.indexOf("iniciada") >= 0 } }
             Button {
                 text: wizard.step === 5 ? wizard.tr("Finalizar e entrar no desktop", "Finish and enter desktop") : wizard.tr("Avançar", "Next")
+                enabled: !wizard.finished
                 onClicked: {
                     if (wizard.step < 5) wizard.step++
-                    else { wizard.status = bridge.finish(wizard.mascot, wizard.profile, wizard.language, wizard.keyboard, wizard.unity); wizard.finished = wizard.status.indexOf("iniciada") >= 0 }
+                    else { wizard.status = bridge.finish(wizard.mascot, wizard.profile, wizard.language, wizard.keyboard, wizard.unity, wizard.claudeCode); wizard.finished = wizard.status.indexOf("iniciada") >= 0 }
                 }
             }
             Button { visible: wizard.finished; text: wizard.tr("Entrar no desktop", "Enter desktop"); onClicked: wizard.close() }
