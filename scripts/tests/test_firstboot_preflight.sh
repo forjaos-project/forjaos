@@ -21,6 +21,7 @@ grep -Fq 'Secure Boot' "$qml"
 grep -Fq 'MOK' "$qml"
 grep -Fq 'A detecção de sistema ainda não está conectada' "$qml"
 grep -Fq 'image/firstboot/Preflight.qml /usr/share/forjaos/firstboot/Preflight.qml' "$containerfile"
+grep -Fq 'image/firstboot/PreflightState.js /usr/share/forjaos/firstboot/PreflightState.js' "$containerfile"
 
 if grep -Fq 'font.family: "Inter"' "$qml"; then
   echo 'preflight explanatory copy must use the UI typeface' >&2
