@@ -4,7 +4,9 @@ mod doctor;
 mod install;
 
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
+use clap_complete::{generate, Shell};
 use std::ffi::OsString;
+use std::io;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum Language {
@@ -59,6 +61,8 @@ enum Command {
         vscode_devcontainers: bool,
         #[arg(long = "api-key")]
         api_keys: Vec<String>,
+        #[arg(long)]
+        json: bool,
     },
     /// Verifica o sistema (kernel, GPU, Docker, Git, IA, serviços, portas) e sai com código ≠ 0 se algo crítico falhar
     Doctor {
@@ -86,12 +90,53 @@ enum Command {
         #[command(subcommand)]
         action: GameModeAction,
     },
+    /// Atalhos para o Compose do projeto atual
+    Up {
+        #[arg(long)]
+        json: bool,
+    },
+    Down {
+        #[arg(long)]
+        json: bool,
+    },
+    Logs {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Gera completions para o shell informado
+    Completions {
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+    /// Gera um relatório sanitizado para diagnóstico
+    Report {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Baixa e prepara a atualização bootc
+    Update {
+        #[arg(short, long)]
+        yes: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Agenda a implantação anterior para o próximo boot
+    Rollback {
+        #[arg(short, long)]
+        yes: bool,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
 enum KeysAction {
     /// Lê uma chave sem eco e a grava no KWallet
-    Set { provider: String },
+    Set {
+        provider: String,
+        #[arg(long)]
+        json: bool,
+    },
     /// Adiciona chaves SSH ao agente do usuário com prompt KWallet
     SshAdd {
         #[arg(long)]
@@ -218,18 +263,32 @@ fn main() {
     let _language = cli.lang;
     let code = match cli.command {
         Command::Keys {
-            action: KeysAction::Set { provider },
+            action: KeysAction::Set { provider, json },
         } => {
-            match std::process::Command::new("/usr/bin/python3")
+            let result = std::process::Command::new("/usr/bin/python3")
                 .args(["/usr/libexec/forjaos/keys.py", &provider])
-                .status()
-            {
+                .stdout(if json {
+                    std::process::Stdio::null()
+                } else {
+                    std::process::Stdio::inherit()
+                })
+                .status();
+            let code = match result {
                 Ok(status) => status.code().unwrap_or(1),
                 Err(error) => {
-                    eprintln!("forja keys: {error}");
+                    if !json {
+                        eprintln!("forja keys: {error}");
+                    }
                     1
                 }
+            };
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"command":"keys set", "provider":provider, "status": if code == 0 { "ok" } else { "error" }, "exit_code":code})
+                );
             }
+            code
         }
         Command::Keys {
             action: KeysAction::SshAdd { json },
@@ -245,6 +304,7 @@ fn main() {
             devcontainers,
             vscode_devcontainers,
             api_keys,
+            json,
         } => {
             let mut command = std::process::Command::new("/usr/bin/python3");
             command.arg("/usr/libexec/forjaos/setup_profile.py").args([
@@ -275,10 +335,26 @@ fn main() {
             for provider in api_keys {
                 command.args(["--api-key", &provider]);
             }
+            if json {
+                command.stdout(std::process::Stdio::null());
+            }
             match command.status() {
-                Ok(status) => status.code().unwrap_or(1),
+                Ok(status) => {
+                    let code = status.code().unwrap_or(1);
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::json!({"command":"setup", "status": if code == 0 { "ok" } else { "error" }, "exit_code":code})
+                        );
+                    }
+                    code
+                }
                 Err(error) => {
-                    eprintln!("forja setup: {error}");
+                    if json {
+                        println!("{}", serde_json::json!({"command":"setup", "status":"error"}));
+                    } else {
+                        eprintln!("forja setup: {error}");
+                    }
                     1
                 }
             }
@@ -321,6 +397,16 @@ fn main() {
                 }
             }
         }
+        Command::Up { json } => dev::compose("up", json),
+        Command::Down { json } => dev::compose("down", json),
+        Command::Logs { json } => dev::compose("logs", json),
+        Command::Completions { shell } => {
+            generate(shell, &mut Cli::command(), "forja", &mut io::stdout());
+            0
+        }
+        Command::Report { json } => doctor::report(json),
+        Command::Update { yes, json } => dev::bootc_action("upgrade", yes, json),
+        Command::Rollback { yes, json } => dev::bootc_action("rollback", yes, json),
     };
     std::process::exit(code);
 }
@@ -496,12 +582,52 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                         off.about("Turn off Game Mode until the current game exits")
                     })
                     .mut_subcommand("status", |status| status.about("Show Game Mode state"))
+            })
+            .mut_subcommand("up", |action| {
+                action.about("Start current project services")
+            })
+            .mut_subcommand("down", |action| {
+                action.about("Stop current project services")
+            })
+            .mut_subcommand("logs", |action| action.about("Show current project logs"))
+            .mut_subcommand("completions", |completion| {
+                completion.about("Generate shell completion script")
+            })
+            .mut_subcommand("report", |report| {
+                report
+                    .about("Create a sanitized diagnostic report")
+                    .mut_arg("json", |arg| arg.help("Output JSON only"))
+            })
+            .mut_subcommand("up", |action| {
+                action.mut_arg("json", |arg| arg.help("Output JSON"))
+            })
+            .mut_subcommand("down", |action| {
+                action.mut_arg("json", |arg| arg.help("Output JSON"))
+            })
+            .mut_subcommand("logs", |action| {
+                action.mut_arg("json", |arg| arg.help("Output JSON"))
+            })
+            .mut_subcommand("update", |action| {
+                action
+                    .about("Download and queue a bootc update")
+                    .mut_arg("yes", |arg| arg.help("Confirm without interaction"))
+                    .mut_arg("json", |arg| arg.help("Output JSON"))
+            })
+            .mut_subcommand("rollback", |action| {
+                action
+                    .about("Queue the previous bootc deployment")
+                    .mut_arg("yes", |arg| arg.help("Confirm without interaction"))
+                    .mut_arg("json", |arg| arg.help("Output JSON"))
             });
     }
     command = command
         .mut_subcommand("keys", |keys| {
             let keys = keys
-                .mut_subcommand("set", |set| localized_help(set, lang, "forja keys set"))
+                .mut_subcommand("set", |set| {
+                    let help = if lang == Language::En { "Output JSON" } else { "Emite JSON" };
+                    localized_help(set, lang, "forja keys set")
+                        .mut_arg("json", |arg| arg.help(help))
+                })
                 .mut_subcommand("ssh-add", |ssh| {
                     localized_help(ssh, lang, "forja keys ssh-add")
                 });
@@ -509,6 +635,10 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
         })
         .mut_subcommand("doctor", |doctor| {
             localized_help(doctor, lang, "forja doctor")
+        })
+        .mut_subcommand("setup", |setup| {
+            let help = if lang == Language::En { "Output JSON" } else { "Emite JSON" };
+            localized_help(setup, lang, "forja setup").mut_arg("json", |arg| arg.help(help))
         })
         .mut_subcommand("install", |install| {
             let install = install
@@ -556,6 +686,46 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                     localized_help(status, lang, "forja game-mode status")
                 });
             localized_help(game, lang, "forja game-mode")
+        })
+        .mut_subcommand("up", |action| localized_help(action, lang, "forja up"))
+        .mut_subcommand("down", |action| localized_help(action, lang, "forja down"))
+        .mut_subcommand("logs", |action| localized_help(action, lang, "forja logs"))
+        .mut_subcommand("completions", |completion| {
+            localized_help(completion, lang, "forja completions")
+        })
+        .mut_subcommand("report", |report| {
+            report
+                .about("Gera um relatório de diagnóstico sanitizado")
+                .mut_arg("json", |arg| arg.help("Emite somente JSON"))
+        })
+        .mut_subcommand("up", |action| {
+            localized_help(action, lang, "forja up").mut_arg("json", |arg| arg.help("Emite JSON"))
+        })
+        .mut_subcommand("down", |action| {
+            localized_help(action, lang, "forja down").mut_arg("json", |arg| arg.help("Emite JSON"))
+        })
+        .mut_subcommand("logs", |action| {
+            localized_help(action, lang, "forja logs").mut_arg("json", |arg| arg.help("Emite JSON"))
+        })
+        .mut_subcommand("update", |action| {
+            let about = if lang == Language::En {
+                "Download and queue a bootc update"
+            } else {
+                "Baixa e prepara a atualização bootc"
+            };
+            localized_help(action.about(about), lang, "forja update")
+                .mut_arg("yes", |arg| arg.help("Confirma sem interação"))
+                .mut_arg("json", |arg| arg.help("Emite JSON"))
+        })
+        .mut_subcommand("rollback", |action| {
+            let about = if lang == Language::En {
+                "Queue the previous bootc deployment"
+            } else {
+                "Agenda a implantação bootc anterior"
+            };
+            localized_help(action.about(about), lang, "forja rollback")
+                .mut_arg("yes", |arg| arg.help("Confirma sem interação"))
+                .mut_arg("json", |arg| arg.help("Emite JSON"))
         });
     localized_help(command, lang, "forja")
 }

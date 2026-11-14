@@ -17,6 +17,14 @@ Commands:
   install  Install optional development tools for the current user
   box      Create rootless Distrobox environments with Podman
   docker   Install and configure Docker CE rootless
+  game-mode Control per-user Game Mode
+  up       Start current project Compose services
+  down     Stop current project Compose services
+  logs     Show current project Compose logs
+  report   Create a sanitized diagnostic report
+  completions Generate shell completion script
+  update   Download and queue a bootc update
+  rollback Queue the previous deployment for next boot
 
 Options:
       --lang <LANG>  Help language: pt-br or en [default: en] [possible values: pt-br, en]
@@ -77,6 +85,18 @@ While active, the target requests the `performance` power profile and Plasma Do 
 ## `forja docker`
 
 `forja docker install` asks for confirmation, configures the official source and installs Docker CE via `rpm-ostree`; a reboot is required. Then `forja docker setup-rootless` configures the user service without enabling the privileged daemon.
+
+## Compose and reports
+
+`forja up`, `forja down` and `forja logs` use `podman compose` and look for `compose.yaml`, `compose.yml`, `docker-compose.yaml` or `docker-compose.yml` in the current directory. `up` starts services in the background. Each command accepts `--json`, returning only status and exit code.
+
+`forja report [--json]` collects the same checks as `doctor` and prints a report without environment variables or personal paths. Review the details before attaching it to an issue.
+
+`forja completions bash|zsh|fish` prints a completion script for the selected shell.
+
+`forja update` downloads and queues a bootc update; `forja rollback` queues the previous deployment for the next boot and discards a staged update, if present. Both show the route and context and ask for `[s/N]` confirmation; `--yes` confirms explicitly and `--json` returns only the result.
+
+The `ai`, `mascot` and `memory` commands depend on HERO and Memory backends that are not available in this stage.
 
 ## Optional VS Code installation
 

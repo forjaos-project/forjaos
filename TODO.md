@@ -20,7 +20,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 - [x] `F2-002` Experiência dev: Podman rootless, Docker CE rootless opcional, Git via keyring, Distrobox, Dev Containers CLI e VS Code opcional, Homebrew e zsh + Starship (FR-030–FR-035). VS Code e Docker ficam fora da imagem e exigem escolha explícita no primeiro boot.
 - [x] `F2-003` Jogos e gamedev: Steam e steam-devices preservados; gamescope, MangoHud e Bluetooth na imagem; perfil gamedev instala Godot com templates, ProtonPlus, Lutris e Heroic; Godot Tools entra no VS Code quando escolhido; Modo Jogo ativa `hero-game.target` para Steam/gamescope, Não perturbe e perfil performance. Integração com HERO/Memória e medição de FPS ficam em F4-004; jogos e controles em hardware ficam para o build final (FR-040, FR-041, FR-043, FR-044).
-- [ ] `F2-004` CLI forja completo: subcomandos, --json, completions, confirmação [s/N] (FR-060, FR-061, FR-062, FR-063)
+- [ ] `F2-004` CLI forja completo: subcomandos, --json, completions, confirmação [s/N] (FR-060, FR-061, FR-062, FR-063). Avanço parcial: Compose, relatório, completions, update/rollback com confirmação e --json nos comandos existentes. `ai` requer o barramento D-Bus do HERO; `mascot`/`memory` dependem de F3/F4.
 - [ ] `F2-005` forja mcp register + Trivy no CI (FR-111, NFR-026)
 
 ### Fase 3 — HERO v0 nativo (texto + sistema)

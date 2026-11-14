@@ -109,7 +109,7 @@ fn gpu() -> (Check, Check) {
 fn git_auth() -> Check {
     let helper = run_cmd("git", &["config", "--global", "credential.helper"]).unwrap_or_default();
     if helper.contains("libsecret") || helper.contains("manager") {
-        check("Git auth", Status::Ok, helper, false, None)
+        check("Git auth", Status::Ok, "helper do sistema configurado", false, None)
     } else {
         check(
             "Git auth",
@@ -354,4 +354,30 @@ pub fn run(json: bool) -> i32 {
         println!("Sugestão: {}", p.chip(hint));
     }
     i32::from(critical_failure)
+}
+
+/// Emite um relatório reproduzível sem variáveis de ambiente, caminhos pessoais ou segredos.
+pub fn report(json: bool) -> i32 {
+    let checks = collect();
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&checks).expect("serialize report")
+        );
+    } else {
+        println!("Relatório de diagnóstico ForjaOS");
+        for check in checks {
+            let status = match check.status {
+                Status::Ok => "OK",
+                Status::Warn => "AVISO",
+                Status::Fail => "FALHA",
+            };
+            println!("{status:<6} {:<16} {}", check.name, check.detail);
+            if let Some(hint) = check.hint {
+                println!("       sugestão: {hint}");
+            }
+        }
+        println!("Revise o conteúdo antes de anexar o relatório a uma issue.");
+    }
+    0
 }

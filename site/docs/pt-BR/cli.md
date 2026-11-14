@@ -17,6 +17,14 @@ Comandos:
   install  Instala ferramentas de desenvolvimento no espaço do usuário
   box      Cria ambientes Distrobox rootless usando Podman
   docker   Instala e configura Docker CE em modo rootless
+  game-mode Controla o Modo Jogo do usuário
+  up       Inicia os serviços Compose do projeto atual
+  down     Para os serviços Compose do projeto atual
+  logs     Exibe os logs Compose do projeto atual
+  report   Gera um relatório de diagnóstico sanitizado
+  completions Gera script de completion do shell
+  update   Baixa e prepara a atualização bootc
+  rollback Agenda a implantação anterior para o próximo boot
 
 Opções:
       --lang <LANG>  Idioma da ajuda: pt-br ou en [default: pt-br] [possible values: pt-br, en]
@@ -75,6 +83,18 @@ O alvo solicita o perfil de energia `performance` e Não perturbe no Plasma enqu
 ## `forja docker`
 
 `forja docker install` solicita confirmação, configura a fonte oficial e instala Docker CE via `rpm-ostree`; exige reinicialização. Depois, `forja docker setup-rootless` configura o serviço do usuário sem ativar o daemon privilegiado.
+
+## Compose e relatório
+
+`forja up`, `forja down` e `forja logs` usam `podman compose` e procuram um dos arquivos `compose.yaml`, `compose.yml`, `docker-compose.yaml` ou `docker-compose.yml` no diretório atual. `up` inicia os serviços em segundo plano. Cada comando aceita `--json`, que retorna apenas status e código de saída.
+
+`forja report [--json]` coleta as mesmas verificações do `doctor` e mostra um relatório sem variáveis de ambiente ou caminhos pessoais. Revise os detalhes antes de anexar a uma issue.
+
+`forja completions bash|zsh|fish` imprime o script de completion para o shell indicado.
+
+`forja update` baixa e prepara uma atualização bootc; `forja rollback` agenda a implantação anterior para o próximo boot e descarta uma atualização staged, se houver. Ambos mostram rota e contexto e pedem confirmação `[s/N]`; `--yes` confirma explicitamente e `--json` retorna somente o resultado.
+
+Os comandos `ai`, `mascot` e `memory` dependem dos backends HERO e Memória que ainda não estão disponíveis nesta etapa.
 
 ## Instalação opcional de VS Code
 
