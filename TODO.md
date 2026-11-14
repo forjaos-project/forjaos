@@ -6,7 +6,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 ## Em andamento
 
-- (nada)
+- `F2-001` Wizard de primeiro boot (6 passos): host QML, integração com `forja setup` e perfis em implementação.
 
 ## Falta implementar
 
@@ -18,7 +18,6 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 ### Fase 2 — Experiência dev/gamedev
 
-- [ ] `F2-001` Wizard de primeiro boot (6 passos) — telas wizard_de_primeiro_boot e passo_6 (FR-020, FR-021, FR-022, FR-023, FR-024)
 - [ ] `F2-002` Experiência dev: Docker/Podman rootless, Git via keyring, distrobox, devcontainers, brew (FR-030, FR-031, FR-032, FR-033, FR-034)
 - [ ] `F2-003` Jogos e gamedev: Steam/Proton herdados, Godot, Modo Jogo (hero-game.target), controles (FR-040, FR-041, FR-043, FR-044)
 - [ ] `F2-004` CLI forja completo: subcomandos, --json, completions, confirmação [s/N] (FR-060, FR-061, FR-062, FR-063)

@@ -18,6 +18,8 @@ FROM ${BASE_IMAGE}
 
 ARG IMAGE_NAME=forjaos-nvidia-open
 
+RUN dnf install -y python3-pyside6 libsecret && dnf clean all
+
 COPY image/build_files/remove.txt /tmp/remove.txt
 COPY image/build_files/apply_package_policy.sh /tmp/apply_package_policy.sh
 RUN bash /tmp/apply_package_policy.sh /tmp/remove.txt \
@@ -49,6 +51,13 @@ COPY image/build_files/rebuild_initramfs.sh /tmp/rebuild_initramfs.sh
 COPY image/build_files/firstboot/ /tmp/forjaos-firstboot/
 COPY image/firstboot/Preflight.qml /usr/share/forjaos/firstboot/Preflight.qml
 COPY image/firstboot/PreflightState.js /usr/share/forjaos/firstboot/PreflightState.js
+COPY image/firstboot/Wizard.qml /usr/share/forjaos/firstboot/Wizard.qml
+COPY image/firstboot/firstboot.py /usr/libexec/forjaos/firstboot.py
+COPY image/firstboot/setup_profile.py /usr/libexec/forjaos/setup_profile.py
+COPY image/firstboot/forjaos-firstboot.service /usr/lib/systemd/user/forjaos-firstboot.service
+RUN mkdir -p /usr/lib/systemd/user/graphical-session.target.wants \
+    && ln -s ../forjaos-firstboot.service \
+      /usr/lib/systemd/user/graphical-session.target.wants/forjaos-firstboot.service
 
 RUN install -D -m 0755 /tmp/forjaos-firstboot/setup-dual-boot.sh \
       /usr/libexec/forjaos/setup-dual-boot.sh \
