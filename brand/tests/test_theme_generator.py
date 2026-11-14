@@ -83,6 +83,41 @@ class ThemeGeneratorTests(unittest.TestCase):
         result = self.run_generator(ROOT, "--check")
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_grub_and_plymouth_layout_uses_palette_dimensions(self):
+        dimensions = PALETTE["dimensions"]
+        grub = (ROOT / "brand/grub/forja-dark/theme.txt").read_text(encoding="utf-8")
+        self.assertIn(f"left = {dimensions['grub_menu_left_percent']}%", grub)
+        self.assertIn(f"top = {dimensions['grub_menu_top_percent']}%", grub)
+        self.assertIn(f"width = {dimensions['grub_menu_width_percent']}%", grub)
+        self.assertIn(f"height = {dimensions['grub_menu_height_percent']}%", grub)
+        self.assertIn(f"item_padding = {dimensions['grub_menu_item_padding']}", grub)
+        self.assertIn(f"item_spacing = {dimensions['grub_menu_item_spacing']}", grub)
+
+        script = (ROOT / "brand/plymouth/forjaos-dark/forjaos.script").read_text(encoding="utf-8")
+        self.assertIn(
+            f"logo_sprite.SetY(Window.GetHeight() / 2 - logo_image.GetHeight() / 2 - "
+            f"{dimensions['plymouth_logo_vertical_offset']});",
+            script,
+        )
+        self.assertIn(
+            f"bar_width = Math.Min({dimensions['plymouth_progress_max_width']}, "
+            f"Window.GetWidth() - {2 * dimensions['plymouth_progress_side_margin']});",
+            script,
+        )
+        self.assertIn(
+            f"bar_y = Window.GetHeight() / 2 + logo_image.GetHeight() / 2 + "
+            f"{dimensions['plymouth_progress_vertical_gap']};",
+            script,
+        )
+        self.assertIn(
+            f"bar_fill.SetImage(bar_fill_image.Scale({dimensions['plymouth_progress_min_width']}, "
+            f"{dimensions['plymouth_progress_height']}));",
+            script,
+        )
+        svg = (ROOT / "brand/plymouth/forjaos-dark/progress-fill.svg").read_text(encoding="utf-8")
+        self.assertIn(f'width="{dimensions["plymouth_progress_max_width"]}"', svg)
+        self.assertIn(f'height="{dimensions["plymouth_progress_height"]}"', svg)
+
     def test_firefox_userchrome_is_only_generated_when_requested(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

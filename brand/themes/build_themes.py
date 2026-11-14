@@ -75,6 +75,7 @@ QtObject {{
 
 
 def _plymouth_script(theme):
+    dimensions = PALETTE["dimensions"]
     canvas = _colors(theme)["canvas"]
     red, green, blue = _rgba(canvas)
     return f'''# Generated from brand/palette.json by build_themes.py. Do not edit.
@@ -85,24 +86,24 @@ Window.SetBackgroundBottomColor({red:.6f}, {green:.6f}, {blue:.6f});
 logo_image = Image("special://logo");
 logo_sprite = Sprite(logo_image);
 logo_sprite.SetX(Window.GetWidth() / 2 - logo_image.GetWidth() / 2);
-logo_sprite.SetY(Window.GetHeight() / 2 - logo_image.GetHeight() / 2 - 16);
+logo_sprite.SetY(Window.GetHeight() / 2 - logo_image.GetHeight() / 2 - {dimensions['plymouth_logo_vertical_offset']});
 
-bar_width = Math.Min(512, Window.GetWidth() - 64);
-bar_y = Window.GetHeight() / 2 + logo_image.GetHeight() / 2 + 24;
-bar_background_image = Image("progress-background.svg").Scale(bar_width, 3);
-bar_fill_image = Image("progress-fill.svg").Scale(bar_width, 3);
+bar_width = Math.Min({dimensions['plymouth_progress_max_width']}, Window.GetWidth() - {2 * dimensions['plymouth_progress_side_margin']});
+bar_y = Window.GetHeight() / 2 + logo_image.GetHeight() / 2 + {dimensions['plymouth_progress_vertical_gap']};
+bar_background_image = Image("progress-background.svg").Scale(bar_width, {dimensions['plymouth_progress_height']});
+bar_fill_image = Image("progress-fill.svg").Scale(bar_width, {dimensions['plymouth_progress_height']});
 bar_background = Sprite(bar_background_image);
 bar_background.SetX(Window.GetWidth() / 2 - bar_width / 2);
 bar_background.SetY(bar_y);
 bar_fill = Sprite(bar_fill_image);
 bar_fill.SetX(Window.GetWidth() / 2 - bar_width / 2);
 bar_fill.SetY(bar_y);
-    bar_fill.SetImage(bar_fill_image.Scale(1, 3));
+bar_fill.SetImage(bar_fill_image.Scale({dimensions['plymouth_progress_min_width']}, {dimensions['plymouth_progress_height']}));
 
 fun boot_progress_callback(duration, progress)
 {{
-    width = Math.Max(1, Math.Int(bar_width * Math.Clamp(progress, 0, 1)));
-    bar_fill.SetImage(bar_fill_image.Scale(width, 3));
+    width = Math.Max({dimensions['plymouth_progress_min_width']}, Math.Int(bar_width * Math.Clamp(progress, 0, 1)));
+    bar_fill.SetImage(bar_fill_image.Scale(width, {dimensions['plymouth_progress_height']}));
 }}
 
 Plymouth.SetBootProgressFunction(boot_progress_callback);
@@ -124,6 +125,7 @@ ScriptFile=/usr/share/plymouth/themes/forjaos-{theme}/forjaos.script
 
 
 def _grub_theme(theme):
+    dimensions = PALETTE["dimensions"]
     colors = PALETTE["themes"][theme]["colors"]
     background = colors.get("void", colors["canvas"])
     return f'''# Generated from brand/palette.json by build_themes.py. Do not edit.
@@ -135,24 +137,26 @@ message-bg-color: "{background}"
 desktop-color: "{background}"
 
 + boot_menu {{
-  left = 0%
-  top = 20%
-  width = 100%
-  height = 60%
+  left = {dimensions['grub_menu_left_percent']}%
+  top = {dimensions['grub_menu_top_percent']}%
+  width = {dimensions['grub_menu_width_percent']}%
+  height = {dimensions['grub_menu_height_percent']}%
   item_font = "unicode"
   item_color = "{colors['on-surface']}"
   selected_item_color = "{colors['on-primary']}"
   item_height = {PALETTE['dimensions']['button_dialog']}
-  item_padding = 20
-  item_spacing = 12
+  item_padding = {dimensions['grub_menu_item_padding']}
+  item_spacing = {dimensions['grub_menu_item_spacing']}
 }}
 '''
 
 
 def _progress_svg(color, name):
+    width = PALETTE["dimensions"]["plymouth_progress_max_width"]
+    height = PALETTE["dimensions"]["plymouth_progress_height"]
     return f'''<!-- Generated from brand/palette.json by build_themes.py. Do not edit. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="3" viewBox="0 0 512 3">
-  <rect id="{name}" width="512" height="3" fill="{color}"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  <rect id="{name}" width="{width}" height="{height}" fill="{color}"/>
 </svg>
 '''
 

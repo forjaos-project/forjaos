@@ -18,7 +18,7 @@ bar_background.SetY(bar_y);
 bar_fill = Sprite(bar_fill_image);
 bar_fill.SetX(Window.GetWidth() / 2 - bar_width / 2);
 bar_fill.SetY(bar_y);
-    bar_fill.SetImage(bar_fill_image.Scale(1, 3));
+bar_fill.SetImage(bar_fill_image.Scale(1, 3));
 
 fun boot_progress_callback(duration, progress)
 {
