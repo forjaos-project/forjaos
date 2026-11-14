@@ -170,11 +170,22 @@ def configure(root: Path) -> None:
     remove_inherited_apps(root)
 
 
+def configure_boot_and_terminal(root: Path) -> None:
+    """Select the ForjaOS Plymouth theme (embedded later by the initramfs rebuild) and Konsole profile."""
+    plymouth = within_root(root, "etc/plymouth/plymouthd.conf")
+    plymouth.parent.mkdir(parents=True, exist_ok=True)
+    plymouth.write_text("[Daemon]\nTheme=forjaos-dark\nShowDelay=0\nDeviceTimeout=8\n", encoding="utf-8")
+    konsolerc = within_root(root, "etc/xdg/konsolerc")
+    konsolerc.parent.mkdir(parents=True, exist_ok=True)
+    konsolerc.write_text("[Desktop Entry]\nDefaultProfile=ForjaOS.profile\n", encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True)
     args = parser.parse_args()
     configure(args.root.resolve())
+    configure_boot_and_terminal(args.root.resolve())
 
 
 if __name__ == "__main__":

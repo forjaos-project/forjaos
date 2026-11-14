@@ -138,7 +138,8 @@ Rectangle {{
     }}
 }}
 '''
-    files[look / "contents" / "layouts" / "org.kde.plasma.desktop-layout.js"] = f'''// First-login layout for FR-052. Optional launchers are added by their feature packages.
+    files[look / "contents" / "layouts" / "org.kde.plasma.desktop-layout.js"] = f'''// First-login layout for FR-052. Launchers for apps that are not installed (Code, Godot) are skipped by Plasma;
+// Git, Docker, Unity and HERO launchers are added by their own feature packages.
 var top = new Panel;
 top.location = "top";
 top.height = {PALETTE["dimensions"]["topbar_height"]};
@@ -161,6 +162,8 @@ var tasks = dock.addWidget("org.kde.plasma.icontasks");
 tasks.currentConfigGroup = ["General"];
 tasks.writeConfig("launchers", [
     "applications:org.kde.konsole.desktop",
+    "applications:code.desktop",
+    "applications:org.godotengine.Godot.desktop",
     "applications:org.kde.dolphin.desktop",
     "applications:org.kde.plasma-systemmonitor.desktop",
     "preferred://browser"

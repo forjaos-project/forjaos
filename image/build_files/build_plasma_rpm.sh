@@ -19,7 +19,12 @@ mkdir -p "$workdir/SOURCES/wallpapers" "$workdir/SOURCES/fonts" \
   "$workdir/SOURCES/shortcuts" "$workdir/SOURCES/licenses"
 cp "$brand_root/wallpapers/ForjaOS/"*.png "$workdir/SOURCES/wallpapers/"
 cp "$brand_root/fonts/PlusJakartaSans-VF.ttf" "$workdir/SOURCES/fonts/"
-cp "$brand_root/shortcuts/org.forjaos.terminal.desktop" "$workdir/SOURCES/shortcuts/"
+cp "$brand_root/shortcuts/"*.desktop "$workdir/SOURCES/shortcuts/"
+mkdir -p "$workdir/SOURCES/plymouth" "$workdir/SOURCES/grub" "$workdir/SOURCES/konsole"
+cp -a "$brand_root/plymouth/." "$workdir/SOURCES/plymouth/"
+cp -a "$brand_root/grub/." "$workdir/SOURCES/grub/"
+cp -a "$brand_root/konsole/." "$workdir/SOURCES/konsole/"
+find "$workdir/SOURCES/plymouth" "$workdir/SOURCES/grub" "$workdir/SOURCES/konsole" -type f -exec chmod 0644 {} +
 cp "$brand_root/LICENSES.md" "$brand_root/fonts/OFL.txt" "$workdir/SOURCES/licenses/"
 rpmbuild -bb "$build_files/forjaos-plasma.spec" \
   --define "_topdir $workdir" \

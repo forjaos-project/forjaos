@@ -10,7 +10,8 @@ Requires:       jetbrains-mono-fonts
 
 %description
 Project-owned Plasma dark/light theme, first-login layout, 4K wallpapers,
-Plus Jakarta Sans UI font, and terminal global shortcut. Exact compatibility
+Plus Jakarta Sans UI font, global shortcuts (terminal, files), Plymouth and GRUB
+themes, and the Konsole profile. Exact compatibility
 capabilities preserve the inherited KDE dependency graph during replacement.
 
 %prep
@@ -29,7 +30,17 @@ for wallpaper in %{_sourcedir}/wallpapers/*.png; do
     install -Dm0644 "$wallpaper" "%{buildroot}/usr/share/wallpapers/ForjaOS/${wallpaper##*/}"
 done
 install -Dm0644 %{_sourcedir}/fonts/PlusJakartaSans-VF.ttf %{buildroot}/usr/share/fonts/plus-jakarta-sans/PlusJakartaSans-VF.ttf
-install -Dm0644 %{_sourcedir}/shortcuts/org.forjaos.terminal.desktop %{buildroot}/usr/share/kglobalaccel/org.forjaos.terminal.desktop
+for shortcut in %{_sourcedir}/shortcuts/*.desktop; do
+    install -Dm0644 "$shortcut" "%{buildroot}/usr/share/kglobalaccel/${shortcut##*/}"
+done
+for theme in dark light; do
+    mkdir -p "%{buildroot}/usr/share/plymouth/themes/forjaos-$theme" "%{buildroot}/usr/share/grub/themes/forja-$theme"
+    cp -a "%{_sourcedir}/plymouth/forjaos-$theme/." "%{buildroot}/usr/share/plymouth/themes/forjaos-$theme/"
+    cp -a "%{_sourcedir}/grub/forja-$theme/." "%{buildroot}/usr/share/grub/themes/forja-$theme/"
+done
+install -Dm0644 %{_sourcedir}/konsole/ForjaOS.profile %{buildroot}/usr/share/konsole/ForjaOS.profile
+install -Dm0644 "%{_sourcedir}/konsole/Forja Dark.colorscheme" "%{buildroot}/usr/share/konsole/Forja Dark.colorscheme"
+install -Dm0644 "%{_sourcedir}/konsole/Forja Light.colorscheme" "%{buildroot}/usr/share/konsole/Forja Light.colorscheme"
 install -Dm0644 %{_sourcedir}/licenses/LICENSES.md %{buildroot}/usr/share/licenses/forjaos-plasma/LICENSES.md
 install -Dm0644 %{_sourcedir}/licenses/OFL.txt %{buildroot}/usr/share/licenses/forjaos-plasma/OFL.txt
 
@@ -44,6 +55,14 @@ install -Dm0644 %{_sourcedir}/licenses/OFL.txt %{buildroot}/usr/share/licenses/f
 /usr/share/wallpapers/ForjaOS/
 /usr/share/fonts/plus-jakarta-sans/
 /usr/share/kglobalaccel/org.forjaos.terminal.desktop
+/usr/share/kglobalaccel/org.forjaos.files.desktop
+/usr/share/plymouth/themes/forjaos-dark
+/usr/share/plymouth/themes/forjaos-light
+/usr/share/grub/themes/forja-dark
+/usr/share/grub/themes/forja-light
+/usr/share/konsole/ForjaOS.profile
+"/usr/share/konsole/Forja Dark.colorscheme"
+"/usr/share/konsole/Forja Light.colorscheme"
 
 %changelog
 * Tue Nov 10 2026 ForjaOS Project <forjaos@users.noreply.github.com> - 0.1-1

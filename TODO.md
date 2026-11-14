@@ -14,9 +14,6 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 ### Fase 1 — Imagem instalável
 
 - [ ] `F1-003` Dual boot com Windows, Secure Boot + MOK, pós-instalação automática (FR-011, FR-012, FR-013) — Codex pegou
-- [ ] `F1-006` Tema Plasma Forja (escuro/claro), layout padrão, wallpapers, atalhos — telas desktop_principal_dock / modo_claro (FR-050, FR-052, FR-055, FR-058)
-- [ ] `F1-007` Plymouth, SDDM e GRUB temáticos — telas splash_plymouth / sddm_login / bootloader_grub (FR-056, FR-057, FR-002)
-- [ ] `F1-008` Konsole tema + forja doctor — tela terminal_konsole_dev_forja_doctor (FR-035, FR-036)
 - [ ] `F1-009` CLI forja: esqueleto Rust, doctor, install unity/claude-code (FR-042, FR-060)
 - [ ] `F1-010` Reproduzir componentes DX na base Bazzite desktop a partir dos scripts ublue-os/bazzite-dx, com verificação de licença (FR-001, FR-005, ADR-0032)
 
@@ -67,8 +64,11 @@ Testes, medições de NFR, boot/instalação das ISOs e validação em hardware 
 - [ ] `F5-001` Validação física completa (§11) nos 2 hardwares com registro em docs/releases/ (ADR-024, G5)
 - [ ] Gerar a ISO final e subir no GitHub Release
 
-## Feito (26)
+## Feito (29)
 
+- [x] `F1-006` Layout (dock com Code/Godot), atalho Meta+E, temas e wallpapers instalados no rpm forjaos-plasma. Faltam: Super+Espaço, Super+G e Super+M (dependem do HERO e do Modo Jogo)
+- [x] `F1-007` Plymouth forjaos-dark como padrão (embutido no initramfs) e temas GRUB instalados em /usr/share/grub/themes. Faltam: ativar o tema GRUB na instalação (junto do F1-003) e fontes PF2. O SDDM não se aplica: a base usa o Plasma Login Manager, que não aceita tema QML de terceiros; o login já usa o wallpaper ForjaOS
+- [x] `F1-008` Perfil Konsole ForjaOS (JetBrains Mono 13, esquema Forja Dark) como padrão e `forja doctor` com --json e código de saída. Faltam: zsh+starship (F2-002) e o `forja` embutido na imagem (F1-009)
 - [x] `GOV-001` ADRs 026–028 (monorepo, tokens canônicos, precedência protótipo × PRD) e nota no PRD
 - [x] `GOV-002` brand/palette.json (fonte única de tokens) + scripts/check-tokens.sh
 - [x] `GOV-003` docs/dev/METHODOLOGY.md — 5 gates (plan, code, test, review, ship)
