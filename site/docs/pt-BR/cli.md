@@ -66,6 +66,12 @@ Opções:
 
 `forja box create ubuntu|arch|fedora [--name <NOME>]` cria uma Distrobox rootless usando Podman e entra no ambiente. Com `--json`, cria sem entrar e retorna o comando de entrada em JSON.
 
+## `forja game-mode`
+
+`forja game-mode on|off|status [--json]` controla o Modo Jogo do usuário. O início de Steam ou gamescope também ativa automaticamente `hero-game.target`; ao sair, o modo desliga. `on` mantém o modo ativo manualmente. `off` impede a reativação automática até o jogo atual sair.
+
+O alvo solicita o perfil de energia `performance` e Não perturbe no Plasma enquanto está ativo. Se o hardware não oferecer esse perfil ou o serviço de notificações não estiver disponível, o alvo continua ativo e registra a limitação no journal. A integração com HERO/Memória e a medição de FPS pertencem a F4-004.
+
 ## `forja docker`
 
 `forja docker install` solicita confirmação, configura a fonte oficial e instala Docker CE via `rpm-ostree`; exige reinicialização. Depois, `forja docker setup-rootless` configura o serviço do usuário sem ativar o daemon privilegiado.

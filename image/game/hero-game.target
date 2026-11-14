@@ -1,0 +1,4 @@
+[Unit]
+Description=ForjaOS Game Mode
+Wants=forjaos-game-session.service
+After=forjaos-game-session.service

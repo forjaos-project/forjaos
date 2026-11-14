@@ -1,0 +1,15 @@
+[Unit]
+Description=Detect Steam and gamescope for ForjaOS Game Mode
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/libexec/forjaos/game_mode.py watch
+Restart=on-failure
+MemoryMax=64M
+CPUQuota=5%
+Nice=10
+
+[Install]
+WantedBy=graphical-session.target

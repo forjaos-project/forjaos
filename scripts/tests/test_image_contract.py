@@ -14,7 +14,8 @@ SPEC.loader.exec_module(MODULE)
 
 
 REQUIRED = {
-    "podman", "distrobox", "steam", "steam-devices", "firewalld", "audit",
+    "podman", "distrobox", "steam", "steam-devices", "gamescope", "mangohud",
+    "bluez", "firewalld", "audit",
     "btop", "nvtop", "forjaos-branding", "python3", "git-core",
     "cockpit-bridge", "cockpit-system",
 }
@@ -31,9 +32,12 @@ class ImageContractTests(unittest.TestCase):
         self.assertEqual(MODULE.check_contract(REQUIRED, STATES), [])
 
     def test_missing_developer_and_gaming_packages_fail(self):
-        errors = MODULE.check_contract(REQUIRED - {"podman", "steam"}, STATES)
+        errors = MODULE.check_contract(REQUIRED - {"podman", "steam", "gamescope", "mangohud", "bluez"}, STATES)
         self.assertTrue(any("podman" in error for error in errors))
         self.assertTrue(any("steam" in error for error in errors))
+        self.assertTrue(any("gamescope" in error for error in errors))
+        self.assertTrue(any("mangohud" in error for error in errors))
+        self.assertTrue(any("bluez" in error for error in errors))
 
     def test_retained_waydroid_fails(self):
         errors = MODULE.check_contract(REQUIRED | {"waydroid-selinux"}, STATES)
