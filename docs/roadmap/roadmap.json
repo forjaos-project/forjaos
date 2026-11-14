@@ -414,8 +414,14 @@
         "FR-014"
       ],
       "phase": "1",
-      "title": "ISO Anaconda via bootc-image-builder, checksum, assinatura, guia de gravação",
-      "status": "todo"
+      "title": "ISO Anaconda por rede via image-builder, checksum, assinatura, guia de gravação",
+      "status": "done",
+      "agent": "codex",
+      "scope": "image/",
+      "claimed_at": "2026-11-12",
+      "pr": 50,
+      "merged_at": "2026-11-13",
+      "summary": "Entrega ISO Anaconda rc4 com verificação de payload, Wi-Fi e teste físico dos três métodos; resultado Ventoy documentado"
     },
     {
       "id": "F1-003",

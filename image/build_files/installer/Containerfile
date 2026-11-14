@@ -1,0 +1,64 @@
+# ADR-0035: a dedicated Anaconda environment; the ForjaOS payload stays remote.
+# Fedora bootc 45, linux/amd64, pinned to an immutable image manifest.
+FROM quay.io/fedora/fedora-bootc@sha256:1de1292a5ed2e244e9d5a404a31d225c3423ac5a9b477642fa82e2d88355abc8 AS branding-builder
+RUN dnf install -y rpm-build fedora-logos && dnf clean all
+COPY image/build_files/installer/generate_branding.py /tmp/generate_branding.py
+COPY image/build_files/installer/build_branding_rpm.sh /tmp/build_branding_rpm.sh
+COPY image/build_files/installer/forjaos-branding.spec /tmp/forjaos-branding.spec
+COPY brand/ /tmp/brand/
+RUN python3 /tmp/generate_branding.py --sources /tmp/branding-sources --brand /tmp/brand \
+    && bash /tmp/build_branding_rpm.sh /tmp/forjaos-branding.spec \
+         /tmp/branding-sources /tmp/forjaos-branding.rpm
+
+FROM quay.io/fedora/fedora-bootc@sha256:1de1292a5ed2e244e9d5a404a31d225c3423ac5a9b477642fa82e2d88355abc8
+
+# Fedora repository packages only. The installer does not add dependencies to
+# the published ForjaOS system image.
+RUN dnf install -y --setopt=install_weak_deps=False \
+      anaconda anaconda-install-img-deps anaconda-dracut \
+      dracut-config-generic dracut-network dracut-live \
+      iwlwifi-dvm-firmware \
+      net-tools grub2-efi-x64-cdboot plymouth \
+      default-fonts-core-sans default-fonts-other-sans google-noto-sans-cjk-fonts \
+      xorriso squashfs-tools isomd5sum \
+    && dnf clean all
+
+COPY --from=branding-builder /tmp/forjaos-branding.rpm /tmp/forjaos-branding.rpm
+RUN dnf install -y --setopt=install_weak_deps=False /tmp/forjaos-branding.rpm \
+    && dnf clean all && rm /tmp/forjaos-branding.rpm
+
+COPY cosign.pub /tmp/forjaos.pub
+COPY image/build_files/installer/configure_installer.py /usr/libexec/forjaos-configure-installer.py
+ARG PAYLOAD_REF
+ARG TARGET_REF
+RUN python3 /usr/libexec/forjaos-configure-installer.py \
+      --root / --source "$PAYLOAD_REF" --target "$TARGET_REF" \
+      --public-key /tmp/forjaos.pub \
+    && mkdir -p /boot/efi /var/mnt \
+    && cp -ra /usr/lib/efi/*/*/EFI /boot/efi
+
+# Anaconda live environment setup from the upstream Image Builder ISO guide.
+RUN printf '%s\n' 'install:x:0:0:root:/root:/usr/libexec/anaconda/run-anaconda' >> /etc/passwd \
+    && printf '%s\n' 'install::14438:0:99999:7:::' >> /etc/shadow \
+    && passwd -d root \
+    && mv /usr/share/anaconda/list-harddrives-stub /usr/bin/list-harddrives \
+    && mv /etc/yum.repos.d /etc/anaconda.repos.d \
+    && ln -s /lib/systemd/system/anaconda.target /etc/systemd/system/default.target \
+    && rm /usr/lib/systemd/system-generators/systemd-gpt-auto-generator \
+    && ln -s /usr/lib/systemd/system/anaconda-shell@.service \
+         /usr/lib/systemd/system/autovt@.service \
+    && mkdir -p /usr/lib/systemd/logind.conf.d \
+    && printf '[Login]\nReserveVT=2\n' > /usr/lib/systemd/logind.conf.d/anaconda-shell.conf \
+    && mkdir -p /etc/systemd/user/pipewire.service.d /etc/systemd/user/pipewire.socket.d \
+    && printf '[Unit]\nConditionUser=\n' > /etc/systemd/user/pipewire.service.d/allowroot.conf \
+    && printf '[Unit]\nConditionUser=\n' > /etc/systemd/user/pipewire.socket.d/allowroot.conf \
+    && mkdir -p "$(realpath /root)" \
+    && kernel="$(ls /usr/lib/modules)" \
+    && DRACUT_NO_XATTR=1 dracut --force --zstd --reproducible --no-hostonly \
+         --force-drivers "iwlwifi iwldvm" \
+         --add anaconda "/usr/lib/modules/$kernel/initramfs.img" "$kernel" \
+    && test -f /usr/share/licenses/iwlwifi-dvm-firmware/LICENCE.iwlwifi_firmware \
+    && lsinitrd "/usr/lib/modules/$kernel/initramfs.img" \
+         | grep -Fq 'iwlwifi-5000-5.ucode' \
+    && lsinitrd "/usr/lib/modules/$kernel/initramfs.img" \
+         | grep -Fq 'iwldvm.ko'

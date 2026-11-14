@@ -1,0 +1,50 @@
+#!/usr/bin/python3
+"""Add live-root SELinux labels to image-builder's generic-iso manifest."""
+
+import copy
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+
+FILE_CONTEXTS = "etc/selinux/targeted/contexts/files/file_contexts"
+
+
+def patch_manifest(manifest):
+    """Label the final live tree, after the upstream container-deploy stage."""
+    patched = copy.deepcopy(manifest)
+    trees = [p for p in patched.get("pipelines", []) if p.get("name") == "os-tree"]
+    if len(trees) != 1:
+        raise ValueError("expected exactly one os-tree pipeline")
+    stages = trees[0].get("stages", [])
+    if not stages or stages[-1].get("type") != "org.osbuild.container-deploy":
+        raise ValueError("expected container-deploy as the final os-tree stage")
+    stages.append({
+        "type": "org.osbuild.selinux",
+        "options": {
+            "file_contexts": FILE_CONTEXTS,
+            "exclude_paths": ["sysroot/ostree/repo"],
+        },
+    })
+    return patched
+
+
+def main():
+    if sys.argv.count("-") != 1:
+        raise ValueError("expected one manifest argument on standard input")
+    patched = patch_manifest(json.load(sys.stdin))
+    serialized = json.dumps(patched, indent=2) + "\n"
+    proof = os.environ.get("FORJA_PATCHED_MANIFEST")
+    if proof:
+        Path(proof).write_text(serialized, encoding="utf-8")
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", prefix="forja-osbuild-", suffix=".json", delete=False) as manifest_file:
+        manifest_file.write(serialized)
+        manifest_path = manifest_file.name
+    args = [manifest_path if arg == "-" else arg for arg in sys.argv[1:]]
+    os.execv("/usr/bin/osbuild", ["/usr/bin/osbuild", *args])
+
+
+if __name__ == "__main__":
+    main()
