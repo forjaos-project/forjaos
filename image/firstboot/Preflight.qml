@@ -14,6 +14,8 @@ Item {
     property string windowsState: "unknown"
     property string secureBootState: "unknown"
     property string mokState: "unknown"
+    readonly property bool hasUnavailableStatus:
+        windowsState === "unknown" || secureBootState === "unknown" || mokState === "unknown"
     readonly property color borderGhost: Qt.rgba(1, 1, 1, 0.08) // brand/palette.json: alpha.border-ghost
     readonly property color borderActive: Qt.rgba(0, 229 / 255, 1, 0.35) // brand/palette.json: alpha.border-active
 
@@ -31,8 +33,8 @@ Item {
         readonly property string readOnly: window.portuguese ? "NTFS somente leitura" : "NTFS read-only"
         readonly property string fastStartup: window.portuguese ? "Inicialização Rápida e NTFS" : "Fast Startup and NTFS"
         readonly property string fastStartupBody: window.portuguese
-            ? "A Inicialização Rápida mantém o kernel em hibernação após o desligamento. O ForjaOS monta NTFS em somente leitura para não gravar nesse estado."
-            : "Fast Startup keeps the kernel hibernated after shutdown. ForjaOS mounts NTFS read-only to avoid writing in that state."
+            ? "A Inicialização Rápida mantém o kernel em hibernação após o desligamento. Por padrão, o ForjaOS monta NTFS em somente leitura para não gravar nesse estado."
+            : "Fast Startup keeps the kernel hibernated after shutdown. By default, ForjaOS mounts NTFS read-only to avoid writing in that state."
         readonly property string bitlocker: window.portuguese ? "BitLocker e recuperação" : "BitLocker and recovery"
         readonly property string bitlockerBody: window.portuguese
             ? "Guarde sua chave de recuperação fora deste computador. Mudanças no boot podem fazer o Windows solicitá-la."
@@ -55,8 +57,12 @@ Item {
         readonly property string step3: window.portuguese ? "Reinicie para iniciar o ForjaOS com Secure Boot." : "Restart to boot ForjaOS with Secure Boot."
         readonly property string enrollmentCommand: "ujust enroll-secure-boot-key"
         readonly property string stateNote: window.portuguese
-            ? "Os estados acima são lidos deste sistema. Nenhuma alteração de disco ou de firmware será feita nesta tela."
-            : "The statuses above are read from this system. This screen will not change disks or firmware."
+            ? (window.hasUnavailableStatus
+                ? "A detecção de sistema ainda não está conectada para todos os estados. Estados sem leitura aparecem como indisponíveis. Nenhuma alteração de disco ou de firmware será feita nesta tela."
+                : "Os estados acima foram lidos deste sistema. Nenhuma alteração de disco ou de firmware será feita nesta tela.")
+            : (window.hasUnavailableStatus
+                ? "System detection is not connected for every status yet. Unreadable states remain marked as unavailable. This screen will not change disks or firmware."
+                : "The statuses above were read from this system. This screen will not change disks or firmware.")
         readonly property string footer: window.portuguese
             ? "Revise as opções de instalação antes de qualquer alteração no disco."
             : "Review installation options before making any disk changes."
