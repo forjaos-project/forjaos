@@ -92,6 +92,8 @@ class ThemeGeneratorTests(unittest.TestCase):
         self.assertIn(f"height = {dimensions['grub_menu_height_percent']}%", grub)
         self.assertIn(f"item_padding = {dimensions['grub_menu_item_padding']}", grub)
         self.assertIn(f"item_spacing = {dimensions['grub_menu_item_spacing']}", grub)
+        self.assertIn('title-font: "Plus Jakarta Sans Regular 24"', grub)
+        self.assertIn('item_font = "JetBrains Mono Regular 12"', grub)
 
         script = (ROOT / "brand/plymouth/forjaos-dark/forjaos.script").read_text(encoding="utf-8")
         self.assertIn(
