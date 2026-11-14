@@ -17,7 +17,10 @@ ApplicationWindow {
     property string status: ""
     property bool finished: false
     property bool showPreflight: true
-    readonly property var stepNames: ["Idioma", "Mascote", "Perfil", "Contas", "Instaladores", "Resumo"]
+    function tr(pt, en) { return language === "pt-BR" ? pt : en }
+    readonly property var stepNames: language === "pt-BR"
+        ? ["Idioma", "Mascote", "Perfil", "Contas", "Instaladores", "Resumo"]
+        : ["Language", "Mascot", "Profile", "Accounts", "Installers", "Summary"]
     Timer { interval: 1200; repeat: true; running: wizard.finished; onTriggered: wizard.status = bridge.setupStatus() }
 
     header: Rectangle {
@@ -30,7 +33,7 @@ ApplicationWindow {
             anchors.rightMargin: 32
             Label { text: "ForjaOS Setup"; color: "#f1f5f9"; font.pixelSize: 22; font.bold: true }
             Item { Layout.fillWidth: true }
-            Label { text: "PRIMEIRO BOOT"; color: "#00e5ff" }
+            Label { text: wizard.tr("PRIMEIRO BOOT", "FIRST BOOT"); color: "#00e5ff" }
         }
     }
 
@@ -69,10 +72,10 @@ ApplicationWindow {
                 anchors.margins: 32
                 spacing: 16
                 Label { text: wizard.stepNames[wizard.step]; color: "#f1f5f9"; font.pixelSize: 28; font.bold: true }
-                Label { visible: wizard.step === 0; text: "Escolha o idioma. O teclado pode ser ajustado nas configurações do Plasma."; color: "#94a3b8"; wrapMode: Text.WordWrap }
+                Label { visible: wizard.step === 0; text: wizard.tr("Escolha idioma e teclado. A aplicação do layout ocorre nas configurações do Plasma.", "Choose language and keyboard. Apply the layout in Plasma settings."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 ComboBox { visible: wizard.step === 0; model: ["Português (Brasil)", "English (US)"]; onCurrentIndexChanged: wizard.language = currentIndex === 0 ? "pt-BR" : "en-US" }
                 ComboBox { visible: wizard.step === 0; model: ["Teclado brasileiro (ABNT2)", "US International"]; onCurrentIndexChanged: wizard.keyboard = currentIndex === 0 ? "br" : "us" }
-                Label { visible: wizard.step === 1; text: "Escolha o nome do mascote. A prévia de voz será exibida quando houver vozes instaladas."; color: "#94a3b8"; wrapMode: Text.WordWrap }
+                Label { visible: wizard.step === 1; text: wizard.tr("Escolha o nome do mascote. A prévia de voz será exibida quando houver vozes instaladas.", "Choose the mascot name. Voice preview will appear when voices are installed."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 Flow {
                     visible: wizard.step === 1
                     Layout.fillWidth: true
@@ -89,7 +92,7 @@ ApplicationWindow {
                     }
                 }
                 TextField { id: customName; visible: wizard.step === 1; placeholderText: "Nome personalizado (opcional)"; maximumLength: 24; onTextChanged: { if (text.trim().length) wizard.mascot = text.trim() } }
-                Label { visible: wizard.step === 2; text: "Selecione o perfil. A instalação disponível será iniciada em segundo plano e o status mostrará pendências."; color: "#94a3b8"; wrapMode: Text.WordWrap }
+                Label { visible: wizard.step === 2; text: wizard.tr("Selecione o perfil. A instalação disponível será iniciada em segundo plano e o status mostrará pendências.", "Choose a profile. Available installers run in the background and the status shows pending items."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 Flow {
                     visible: wizard.step === 2
                     Layout.fillWidth: true
@@ -105,12 +108,12 @@ ApplicationWindow {
                         }
                     }
                 }
-                Label { visible: wizard.step === 3; text: "Autentique sua conta GitHub no terminal. Chaves de API só podem ser cadastradas no KWallet."; color: "#94a3b8"; wrapMode: Text.WordWrap }
+                Label { visible: wizard.step === 3; text: wizard.tr("Autentique sua conta GitHub no terminal. Chaves de API só podem ser cadastradas no KWallet.", "Sign in to GitHub in the terminal. API keys are stored only in KWallet."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 Button { visible: wizard.step === 3; text: "Abrir gh auth login"; onClicked: wizard.status = bridge.githubLogin() }
                 ComboBox { id: provider; visible: wizard.step === 3; model: ["anthropic", "openai", "openrouter", "nous"] }
                 TextField { id: apiKey; visible: wizard.step === 3; placeholderText: "Chave de API (opcional)"; echoMode: TextInput.Password; Layout.fillWidth: true }
                 Button { visible: wizard.step === 3; text: "Salvar no KWallet"; onClicked: { wizard.status = bridge.storeKey(provider.currentText, apiKey.text); apiKey.clear() } }
-                Label { visible: wizard.step === 4; text: "O Unity Hub pode ser instalado em segundo plano com o instalador oficial."; color: "#94a3b8"; wrapMode: Text.WordWrap }
+                Label { visible: wizard.step === 4; text: wizard.tr("O Unity Hub pode ser instalado em segundo plano com o instalador oficial.", "Unity Hub can be installed in the background using its official installer."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 CheckBox { visible: wizard.step === 4; text: "Instalar Unity Hub"; onCheckedChanged: wizard.unity = checked }
                 Label { visible: wizard.step === 5; text: "Mascote: " + wizard.mascot + "\nPerfil: " + wizard.profile + "\nIdioma: " + wizard.language + "\nTeclado: " + wizard.keyboard + "\nUnity Hub: " + (wizard.unity ? "sim" : "não"); color: "#f1f5f9"; font.pixelSize: 18 }
                 Label { visible: wizard.step === 5; text: "forja setup --profile " + wizard.profile + " --mascot " + JSON.stringify(wizard.mascot) + " --language " + wizard.language + " --keyboard " + wizard.keyboard + (wizard.unity ? " --unity" : ""); color: "#00e5ff"; font.family: "monospace"; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
@@ -139,17 +142,17 @@ ApplicationWindow {
         RowLayout {
             anchors.fill: parent
             anchors.margins: 16
-            Button { text: "Voltar"; enabled: wizard.step > 0 && !wizard.finished; onClicked: wizard.step-- }
+            Button { text: wizard.tr("Voltar", "Back"); enabled: wizard.step > 0 && !wizard.finished; onClicked: wizard.step-- }
             Item { Layout.fillWidth: true }
-            Button { text: "Pular wizard"; onClicked: { wizard.profile = "minimal"; wizard.unity = false; wizard.status = bridge.finish(wizard.mascot, wizard.profile, wizard.language, wizard.keyboard, false); wizard.finished = wizard.status.indexOf("iniciada") >= 0 } }
+            Button { text: wizard.tr("Pular wizard", "Skip wizard"); onClicked: { wizard.profile = "minimal"; wizard.unity = false; wizard.status = bridge.finish(wizard.mascot, wizard.profile, wizard.language, wizard.keyboard, false); wizard.finished = wizard.status.indexOf("iniciada") >= 0 } }
             Button {
-                text: wizard.step === 5 ? "Finalizar e entrar no desktop" : "Avançar"
+                text: wizard.step === 5 ? wizard.tr("Finalizar e entrar no desktop", "Finish and enter desktop") : wizard.tr("Avançar", "Next")
                 onClicked: {
                     if (wizard.step < 5) wizard.step++
                     else { wizard.status = bridge.finish(wizard.mascot, wizard.profile, wizard.language, wizard.keyboard, wizard.unity); wizard.finished = wizard.status.indexOf("iniciada") >= 0 }
                 }
             }
-            Button { visible: wizard.finished; text: "Entrar no desktop"; onClicked: wizard.close() }
+            Button { visible: wizard.finished; text: wizard.tr("Entrar no desktop", "Enter desktop"); onClicked: wizard.close() }
         }
     }
 }
