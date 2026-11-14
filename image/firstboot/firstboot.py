@@ -17,6 +17,18 @@ CONFIG = Path.home() / ".config" / "forjaos"
 
 
 class Bridge(QObject):
+    @Slot(result=float)
+    def setupProgress(self):
+        try:
+            state = json.loads((CONFIG / "firstboot-state.json").read_text(encoding="utf-8"))
+            return float(state.get("done", 0)) / max(1, int(state.get("total", 0)))
+        except (OSError, ValueError, TypeError, ZeroDivisionError):
+            return 0.0
+
+    @Slot(str)
+    def copyText(self, value):
+        QGuiApplication.clipboard().setText(value)
+
     @Slot(result=str)
     def setupStatus(self):
         try:

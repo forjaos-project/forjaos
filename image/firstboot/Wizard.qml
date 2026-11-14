@@ -15,13 +15,17 @@ ApplicationWindow {
     property string profile: "minimal"
     property bool unity: false
     property string status: ""
+    property real setupProgress: 0
     property bool finished: false
     property bool showPreflight: true
     function tr(pt, en) { return language === "pt-BR" ? pt : en }
+    readonly property string setupCommand: "forja setup --profile " + profile + " --mascot "
+        + JSON.stringify(mascot) + " --language " + language + " --keyboard " + keyboard
+        + (unity ? " --unity" : "")
     readonly property var stepNames: language === "pt-BR"
         ? ["Idioma", "Mascote", "Perfil", "Contas", "Instaladores", "Resumo"]
         : ["Language", "Mascot", "Profile", "Accounts", "Installers", "Summary"]
-    Timer { interval: 1200; repeat: true; running: wizard.finished; onTriggered: wizard.status = bridge.setupStatus() }
+    Timer { interval: 1200; repeat: true; running: wizard.finished; onTriggered: { wizard.status = bridge.setupStatus(); wizard.setupProgress = bridge.setupProgress() } }
 
     header: Rectangle {
         height: 64
@@ -116,7 +120,11 @@ ApplicationWindow {
                 Label { visible: wizard.step === 4; text: wizard.tr("O Unity Hub pode ser instalado em segundo plano com o instalador oficial.", "Unity Hub can be installed in the background using its official installer."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 CheckBox { visible: wizard.step === 4; text: "Instalar Unity Hub"; onCheckedChanged: wizard.unity = checked }
                 Label { visible: wizard.step === 5; text: "Mascote: " + wizard.mascot + "\nPerfil: " + wizard.profile + "\nIdioma: " + wizard.language + "\nTeclado: " + wizard.keyboard + "\nUnity Hub: " + (wizard.unity ? "sim" : "não"); color: "#f1f5f9"; font.pixelSize: 18 }
-                Label { visible: wizard.step === 5; text: "forja setup --profile " + wizard.profile + " --mascot " + JSON.stringify(wizard.mascot) + " --language " + wizard.language + " --keyboard " + wizard.keyboard + (wizard.unity ? " --unity" : ""); color: "#00e5ff"; font.family: "monospace"; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
+                Label { visible: wizard.step === 5; text: wizard.tr("Reproduzir no terminal", "Reproduce in terminal"); color: "#94a3b8" }
+                Label { visible: wizard.step === 5; text: wizard.setupCommand; color: "#00e5ff"; font.family: "monospace"; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
+                Button { visible: wizard.step === 5; text: wizard.tr("Copiar comando", "Copy command"); onClicked: bridge.copyText(wizard.setupCommand) }
+                Label { visible: wizard.step === 5; text: wizard.tr("Progresso da instalação", "Installation progress"); color: "#94a3b8" }
+                ProgressBar { visible: wizard.step === 5; value: wizard.setupProgress; Layout.fillWidth: true }
                 Item { Layout.fillHeight: true }
                 Label { text: wizard.status; color: "#94a3b8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
             }

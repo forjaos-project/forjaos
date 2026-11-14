@@ -64,14 +64,16 @@ def main():
         commands.append(["flatpak", "install", "--user", "--noninteractive", "flathub", *flatpaks])
     if args.unity:
         commands.append(["forja", "install", "unity", "--yes"])
-    for command in commands:
-        private_json(state, {"status": "running", "profile": args.profile, "step": command[0]})
+    for index, command in enumerate(commands):
+        private_json(state, {"status": "running", "profile": args.profile,
+                             "step": command[0], "done": index, "total": len(commands)})
         try:
             result = subprocess.run(command, check=False)
         except OSError:
             result = None
         if result is None or result.returncode:
-            private_json(state, {"status": "failed", "profile": args.profile, "step": command[0]})
+            private_json(state, {"status": "failed", "profile": args.profile,
+                                 "step": command[0], "done": index, "total": len(commands)})
             return 1
     wakeword = "model_pending" if args.mascot in NAMES else "training_pending"
     private_json(CONFIG / "firstboot.json", {"profile": args.profile, "mascot": args.mascot,
@@ -79,7 +81,8 @@ def main():
                                               "wakeword": wakeword})
     pending = PENDING.get(args.profile, [])
     private_json(state, {"status": "partial" if pending else "complete",
-                         "profile": args.profile, "wakeword": wakeword, "pending": pending})
+                         "profile": args.profile, "wakeword": wakeword, "pending": pending,
+                         "done": len(commands), "total": len(commands)})
     (CONFIG / "firstboot-complete").touch(mode=0o600)
     return 2 if pending else 0
 

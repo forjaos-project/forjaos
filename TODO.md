@@ -6,7 +6,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 ## Em andamento
 
-- `F2-001` Wizard de primeiro boot (6 passos): host QML, integração com `forja setup` e perfis em implementação.
+- `F2-001` Wizard de primeiro boot (6 passos): host QML, `forja setup` e perfis em implementação. Prévia de voz e modelos wake word ficam para F4, conforme decisão do mantenedor em 2026-11-14.
 
 ## Falta implementar
 
