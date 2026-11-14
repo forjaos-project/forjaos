@@ -6,7 +6,8 @@ Sistema operacional open source baseado em Linux (Fedora Atomic via Universal Bl
 
 - O que falta: `TODO.md`. Pegue um item, faça, marque `[x]`, commite na `main` e siga para o próximo.
 - Antes de dar push: `git pull --rebase origin main` (o outro agente pode ter mexido).
-- Sem plano em arquivo, review, PR, claim ou ADR. Registre uma decisão só se ela for difícil de lembrar depois, em uma linha no commit.
+- Sem plano em arquivo, review, claim ou ADR. Registre uma decisão só se ela for difícil de lembrar depois, em uma linha no commit.
+- PR só quando o remoto exigir: abra apenas depois de finalizar a tarefa, pronta para entrega e merge. PR em rascunho é proibida. Não apresente trabalho parcial como tarefa concluída.
 - Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a ISO final. Testes e validação em hardware ficam para o build final.
 
 ## Proteções (as únicas regras)
