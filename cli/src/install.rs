@@ -339,3 +339,140 @@ pub fn claude_code(yes: bool, json: bool) -> i32 {
         Err(error) => failed("claude-code", json, error),
     }
 }
+
+fn user_install_command(
+    package: &'static str,
+    program: &str,
+    args: &[&str],
+) -> Result<String, String> {
+    let mut command = Command::new(program);
+    if let Some(home) = std::env::var_os("HOME") {
+        let brew_bin = PathBuf::from(home).join(".brew/bin");
+        let mut paths = vec![brew_bin];
+        if let Some(existing) = std::env::var_os("PATH") {
+            paths.extend(std::env::split_paths(&existing));
+        }
+        if let Ok(path) = std::env::join_paths(paths) {
+            command.env("PATH", path);
+        }
+    }
+    let output = command
+        .args(args)
+        .output()
+        .map_err(|error| format!("Não foi possível executar {program}: {error}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if output.status.success() {
+        Ok(if stdout.is_empty() { stderr } else { stdout })
+    } else {
+        Err(if stderr.is_empty() {
+            format!("Instalação de {package} falhou (código {}).", output.status)
+        } else {
+            format!("Instalação de {package} falhou: {stderr}")
+        })
+    }
+}
+
+fn install_result(package: &'static str, json: bool, message: String, status: &'static str) -> i32 {
+    emit(
+        json,
+        InstallResult {
+            package,
+            status,
+            message,
+            path: None,
+        },
+        if status == "installed" { 0 } else { 1 },
+    )
+}
+
+pub fn homebrew(yes: bool, json: bool) -> i32 {
+    if !approved(
+        "homebrew",
+        "forja install homebrew",
+        "baixa o instalador oficial e instala Homebrew em ~/.brew, pertencente ao usuário; não usa sudo nem altera a imagem do sistema.",
+        yes,
+        json,
+    ) {
+        return if json { 2 } else { 1 };
+    }
+    match user_install_command(
+        "homebrew",
+        "/usr/bin/python3",
+        &["/usr/libexec/forjaos/install_homebrew.py"],
+    ) {
+        Ok(_) => install_result(
+            "homebrew",
+            json,
+            "Homebrew foi instalado no espaço do usuário.".into(),
+            "installed",
+        ),
+        Err(error) => failed("homebrew", json, error),
+    }
+}
+
+pub fn devcontainers(yes: bool, json: bool) -> i32 {
+    if !approved(
+        "devcontainers",
+        "forja install devcontainers",
+        "instala Node.js pelo Homebrew e o CLI oficial @devcontainers/cli no prefixo do usuário.",
+        yes,
+        json,
+    ) {
+        return if json { 2 } else { 1 };
+    }
+    let commands = [
+        (
+            "/usr/bin/python3",
+            vec!["/usr/libexec/forjaos/install_homebrew.py"],
+        ),
+        ("brew", vec!["install", "node"]),
+        ("npm", vec!["install", "--global", "@devcontainers/cli"]),
+    ];
+    for (program, args) in commands {
+        if let Err(error) = user_install_command("devcontainers", program, &args) {
+            return failed("devcontainers", json, error);
+        }
+    }
+    install_result(
+        "devcontainers",
+        json,
+        "Node.js e Dev Containers CLI foram instalados para o usuário atual.".into(),
+        "installed",
+    )
+}
+
+pub fn vscode_devcontainers(yes: bool, json: bool) -> i32 {
+    if !approved(
+        "vscode-devcontainers",
+        "forja install vscode-devcontainers",
+        "instala Node.js, o CLI Dev Containers e o VS Code oficial da Microsoft com a extensão no usuário atual; o VS Code é software proprietário.",
+        yes,
+        json,
+    ) {
+        return if json { 2 } else { 1 };
+    }
+    let commands = [
+        (
+            "/usr/bin/python3",
+            vec!["/usr/libexec/forjaos/install_homebrew.py"],
+        ),
+        ("brew", vec!["install", "node"]),
+        ("npm", vec!["install", "--global", "@devcontainers/cli"]),
+        (
+            "/usr/bin/python3",
+            vec!["/usr/libexec/forjaos/install_vscode_devcontainers.py"],
+        ),
+    ];
+    for (program, args) in commands {
+        if let Err(error) = user_install_command("vscode-devcontainers", program, &args) {
+            return failed("vscode-devcontainers", json, error);
+        }
+    }
+    install_result(
+        "vscode-devcontainers",
+        json,
+        "VS Code, Dev Containers CLI e extensão foram instalados para o usuário atual.".into(),
+        "installed",
+    )
+}

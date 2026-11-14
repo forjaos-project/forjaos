@@ -15,6 +15,8 @@ ApplicationWindow {
     property string profile: "minimal"
     property bool unity: false
     property bool claudeCode: false
+    property bool devcontainers: false
+    property bool vscodeDevcontainers: false
     property var keyProviders: []
     property bool githubRequested: false
     property string status: ""
@@ -27,6 +29,8 @@ ApplicationWindow {
         + JSON.stringify(mascot) + " --language " + language + " --keyboard " + keyboard
         + (unity ? " --unity" : "") + (claudeCode ? " --claude-code" : "")
         + (githubRequested ? " --github" : "")
+        + (devcontainers ? " --devcontainers" : "")
+        + (vscodeDevcontainers ? " --vscode-devcontainers" : "")
         + keyProviders.map(function(provider) { return " --api-key " + provider }).join("")
     readonly property var stepNames: language === "pt-BR"
         ? ["Idioma", "Mascote", "Perfil", "Contas", "Instaladores", "Resumo"]
@@ -102,7 +106,7 @@ ApplicationWindow {
                     }
                 }
                 TextField { id: customName; visible: wizard.step === 1; placeholderText: "Nome personalizado (opcional)"; maximumLength: 24; onTextChanged: { if (text.trim().length) wizard.mascot = text.trim() } }
-                Label { visible: wizard.step === 2; text: wizard.tr("Selecione o perfil. A instalação disponível será iniciada em segundo plano e o status mostrará pendências.", "Choose a profile. Available installers run in the background and the status shows pending items."); color: "#94a3b8"; wrapMode: Text.WordWrap }
+                Label { visible: wizard.step === 2; text: wizard.tr("Selecione o perfil. O primeiro boot prepara zsh, Starship, Homebrew, Git via KWallet e Podman rootless. As instalações escolhidas rodam em segundo plano.", "Choose a profile. First boot prepares zsh, Starship, Homebrew, Git via KWallet, and rootless Podman. Selected installs run in the background."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 Flow {
                     visible: wizard.step === 2
                     Layout.fillWidth: true
@@ -130,15 +134,19 @@ ApplicationWindow {
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
                 }
-                Label { visible: wizard.step === 3; text: wizard.tr("Autentique sua conta GitHub no terminal. Chaves de API só podem ser cadastradas no KWallet.", "Sign in to GitHub in the terminal. API keys are stored only in KWallet."); color: "#94a3b8"; wrapMode: Text.WordWrap }
+                Label { visible: wizard.step === 3; text: wizard.tr("Autentique sua conta GitHub no terminal. O Git usa libsecret e o agente SSH integra as chaves ao KWallet.", "Sign in to GitHub in the terminal. Git uses libsecret and the SSH agent integrates keys with KWallet."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 Button { visible: wizard.step === 3; text: "Abrir gh auth login"; onClicked: { wizard.status = bridge.githubLogin(); wizard.githubRequested = wizard.status.indexOf("aberta") >= 0 } }
+                Button { visible: wizard.step === 3; text: "Adicionar chaves SSH ao agente/KWallet"; onClicked: wizard.status = bridge.sshAdd() }
                 ComboBox { id: provider; visible: wizard.step === 3; model: ["anthropic", "openai", "openrouter", "nous"] }
                 TextField { id: apiKey; visible: wizard.step === 3; placeholderText: "Chave de API (opcional)"; echoMode: TextInput.Password; Layout.fillWidth: true }
                 Button { visible: wizard.step === 3; text: "Salvar no KWallet"; onClicked: { wizard.status = bridge.storeKey(provider.currentText, apiKey.text); if (wizard.status === "Chave salva no KWallet." && wizard.keyProviders.indexOf(provider.currentText) < 0) wizard.keyProviders = wizard.keyProviders.concat([provider.currentText]); apiKey.clear() } }
-                Label { visible: wizard.step === 4; text: wizard.tr("O Unity Hub pode ser instalado em segundo plano com o instalador oficial.", "Unity Hub can be installed in the background using its official installer."); color: "#94a3b8"; wrapMode: Text.WordWrap }
+                Label { visible: wizard.step === 4; text: wizard.tr("Instaladores opcionais executam em segundo plano. Docker CE usa a fonte oficial, exige senha de administrador e reinicialização; Podman segue como padrão.", "Optional installers run in the background. Docker CE uses its official source, requires administrator authentication and a reboot; Podman remains the default."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 CheckBox { visible: wizard.step === 4; text: "Instalar Unity Hub"; onCheckedChanged: wizard.unity = checked }
                 CheckBox { visible: wizard.step === 4; text: "Instalar Claude Code"; onCheckedChanged: wizard.claudeCode = checked }
-                Label { visible: wizard.step === 5; text: "Mascote: " + wizard.mascot + "\nPerfil: " + wizard.profile + "\nIdioma: " + wizard.language + "\nTeclado: " + wizard.keyboard + "\nUnity Hub: " + (wizard.unity ? "sim" : "não") + "\nClaude Code: " + (wizard.claudeCode ? "sim" : "não") + "\nChaves no KWallet: " + (wizard.keyProviders.length ? wizard.keyProviders.join(", ") : "nenhuma"); color: "#f1f5f9"; font.pixelSize: 18 }
+                CheckBox { visible: wizard.step === 4; text: "Instalar Dev Containers CLI"; onCheckedChanged: wizard.devcontainers = checked }
+                CheckBox { visible: wizard.step === 4; text: "Instalar VS Code + extensão Dev Containers (software Microsoft)"; onCheckedChanged: wizard.vscodeDevcontainers = checked }
+                Button { visible: wizard.step === 4; text: "Instalar Docker CE rootless (opcional)"; onClicked: wizard.status = bridge.dockerSetup() }
+                Label { visible: wizard.step === 5; text: "Mascote: " + wizard.mascot + "\nPerfil: " + wizard.profile + "\nIdioma: " + wizard.language + "\nTeclado: " + wizard.keyboard + "\nUnity Hub: " + (wizard.unity ? "sim" : "não") + "\nClaude Code: " + (wizard.claudeCode ? "sim" : "não") + "\nDev Containers CLI: " + (wizard.devcontainers || wizard.vscodeDevcontainers ? "sim" : "não") + "\nVS Code proprietário: " + (wizard.vscodeDevcontainers ? "sim" : "não") + "\nChaves no KWallet: " + (wizard.keyProviders.length ? wizard.keyProviders.join(", ") : "nenhuma"); color: "#f1f5f9"; font.pixelSize: 18 }
                 Label { visible: wizard.step === 5; text: wizard.tr("Reproduzir no terminal", "Reproduce in terminal"); color: "#94a3b8" }
                 Label { visible: wizard.step === 5; text: wizard.setupCommand; color: "#00e5ff"; font.family: "monospace"; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
                 Label { visible: wizard.step === 5 && wizard.keyProviders.length > 0; text: wizard.keyProviders.map(function(provider) { return "forja keys set " + provider }).join("\n"); color: "#00e5ff"; font.family: "monospace" }
@@ -181,13 +189,13 @@ ApplicationWindow {
             anchors.margins: 16
             Button { text: wizard.tr("Voltar", "Back"); enabled: wizard.step > 0 && !wizard.finished; onClicked: wizard.step-- }
             Item { Layout.fillWidth: true }
-            Button { text: wizard.tr("Pular wizard", "Skip wizard"); enabled: !wizard.finished; onClicked: { wizard.profile = "minimal"; wizard.unity = false; wizard.claudeCode = false; wizard.status = bridge.finish(wizard.mascot, wizard.profile, wizard.language, wizard.keyboard, false, false); wizard.finished = wizard.status.indexOf("iniciada") >= 0 } }
+            Button { text: wizard.tr("Pular wizard", "Skip wizard"); enabled: !wizard.finished; onClicked: { wizard.profile = "minimal"; wizard.unity = false; wizard.claudeCode = false; wizard.devcontainers = false; wizard.vscodeDevcontainers = false; wizard.githubRequested = false; wizard.status = bridge.finish(wizard.mascot, wizard.profile, wizard.language, wizard.keyboard, false, false, false, false, false); wizard.finished = wizard.status.indexOf("iniciada") >= 0 } }
             Button {
                 text: wizard.step === 5 ? wizard.tr("Finalizar e entrar no desktop", "Finish and enter desktop") : wizard.tr("Avançar", "Next")
                 enabled: !wizard.finished
                 onClicked: {
                     if (wizard.step < 5) wizard.step++
-                    else { wizard.status = bridge.finish(wizard.mascot, wizard.profile, wizard.language, wizard.keyboard, wizard.unity, wizard.claudeCode); wizard.finished = wizard.status.indexOf("iniciada") >= 0 }
+                    else { wizard.status = bridge.finish(wizard.mascot, wizard.profile, wizard.language, wizard.keyboard, wizard.githubRequested, wizard.unity, wizard.claudeCode, wizard.devcontainers, wizard.vscodeDevcontainers); wizard.finished = wizard.status.indexOf("iniciada") >= 0 }
                 }
             }
             Button { visible: wizard.finished; text: wizard.tr("Entrar no desktop", "Enter desktop"); onClicked: wizard.close() }

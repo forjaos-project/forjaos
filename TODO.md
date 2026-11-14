@@ -18,7 +18,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 ### Fase 2 — Experiência dev/gamedev
 
-- [ ] `F2-002` Experiência dev: Docker/Podman rootless, Git via keyring, distrobox, devcontainers, brew (FR-030, FR-031, FR-032, FR-033, FR-034)
+- [x] `F2-002` Experiência dev: Podman rootless, Docker CE rootless opcional, Git via keyring, Distrobox, Dev Containers CLI e VS Code opcional, Homebrew e zsh + Starship (FR-030–FR-035). VS Code e Docker ficam fora da imagem e exigem escolha explícita no primeiro boot.
 - [ ] `F2-003` Jogos e gamedev: Steam/Proton herdados, Godot, Modo Jogo (hero-game.target), controles (FR-040, FR-041, FR-043, FR-044)
 - [ ] `F2-004` CLI forja completo: subcomandos, --json, completions, confirmação [s/N] (FR-060, FR-061, FR-062, FR-063)
 - [ ] `F2-005` forja mcp register + Trivy no CI (FR-111, NFR-026)
@@ -68,7 +68,7 @@ Testes, medições de NFR, boot/instalação das ISOs e validação em hardware 
 
 - [x] `F1-006` Layout (dock com Code/Godot), atalho Meta+E, temas e wallpapers instalados no rpm forjaos-plasma. Faltam: Super+Espaço, Super+G e Super+M (dependem do HERO e do Modo Jogo)
 - [x] `F1-007` Plymouth forjaos-dark como padrão (embutido no initramfs), temas GRUB instalados em /usr/share/grub/themes e fontes PF2 geradas. O serviço de primeiro boot do F1-003 ativa o tema GRUB. O SDDM não se aplica: a base usa o Plasma Login Manager, que não aceita tema QML de terceiros; o login já usa o wallpaper ForjaOS
-- [x] `F1-008` Perfil Konsole ForjaOS (JetBrains Mono 13, esquema Forja Dark) como padrão e `forja doctor` com --json e código de saída. Falta zsh+starship (F2-002)
+- [x] `F1-008` Perfil Konsole ForjaOS (JetBrains Mono 13, esquema Forja Dark) como padrão e `forja doctor` com --json e código de saída. zsh + Starship instalados no primeiro boot (F2-002).
 - [x] `F1-003` Dual boot: preflight de segurança Dual Boot/MOK, NTFS somente leitura, ajuste do relógio local ao detectar Windows e ativação do tema/fontes GRUB no primeiro boot. O host do wizard integra a tela QML em F2-001; aceitação física de instalação e boot fica em F5-001.
 - [x] `F1-009` CLI Rust `forja` embutida na imagem, com `doctor`, `install unity` (AppImage oficial em `~/.local`, lançador e fallback sem FUSE) e `install claude-code` (instalador oficial); confirmação `[s/N]`, `--yes`, `--json` e ajuda PT-BR/EN. Documentação da ajuda gerada em `site/docs/`.
 - [x] `GOV-001` ADRs 026–028 (monorepo, tokens canônicos, precedência protótipo × PRD) e nota no PRD

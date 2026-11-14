@@ -4,7 +4,7 @@
 | --- | --- |
 | Slug | `forjaos_wizard_de_primeiro_boot` |
 | Protótipo | `docs/telas/forjaos_wizard_de_primeiro_boot/code.html` (sha256 `e85c11734b68`) · `screen.png` |
-| Requisitos | FR-020, FR-021, FR-022, FR-023, FR-024 |
+| Requisitos | FR-020, FR-021, FR-022, FR-023, FR-024, FR-030, FR-031, FR-033, FR-034, FR-035 |
 | Tema | dark (Cybernetic Forge) |
 | Tecnologia-alvo | Wizard QML tela cheia (Kirigami), pulável, 6 passos; roda sem rede |
 | Pasta do monorepo | image/firstboot |
@@ -21,7 +21,9 @@
 | Painel do passo (Mascote) | título `headline-lg` + FR; grid de 8 cartões de nome 2×4 (Guará, Tupã, Jaci, Iara, Ipê, Boto, Curió, Arara) 140×96 px raio 12, selecionado com borda ciano + glow; cartão '+ Nome personalizado' tracejado | FR-021 |
 | Voz | combobox de vozes Piper pt-BR (2–3) + botão 'Ouvir amostra' 36 px fantasma; slider 'Sensibilidade da wake word' com valor % | FR-021, FR-080 |
 | Painel do passo (Perfil) | cards de perfil 2 colunas: web, backend, gamedev, devops, IA + link 'Modo mínimo'; cada card: ícone 24, título `headline-sm`, stack `code-sm`, descrição `body-sm`, chips de pacotes 22 px; toggle 'Ativo' | FR-022 |
-| Painel do passo (Contas) | 2 linhas: 'GitHub CLI login (gh auth login)' com botão; 'Chaves de IA (Anthropic/OpenAI/OpenRouter/Nous)' com status 'KWallet'; nota de segurança `body-sm` em card `warning` 10 % | FR-023 |
+| Painel do passo (Contas) | ações 'GitHub CLI login (gh auth login)' e 'Adicionar chaves SSH ao agente/KWallet'; 'Chaves de IA (Anthropic/OpenAI/OpenRouter/Nous)' com status 'KWallet'; Git usa credential helper libsecret | FR-023, FR-031 |
+| Painel do passo (Instaladores) | opções Unity Hub, Claude Code, Dev Containers CLI e VS Code + extensão Dev Containers (software proprietário, instalação opcional no usuário); botão explícito 'Instalar Docker CE rootless (opcional)' informa fonte oficial, senha de administrador e reinicialização; Podman continua padrão | FR-030, FR-033 |
+| Perfil e terminal | primeiro boot instala Homebrew no prefixo do usuário e configura zsh + Starship, zoxide, fzf e atuin; perfis que usam Brew instalam suas ferramentas | FR-034, FR-035 |
 | Rodapé | 72 px: 'Voltar' fantasma; centro: comando equivalente `code-sm` 'forja setup --profile gamedev --mascot guara' com copiar; 'Pular wizard' link; 'Avançar' primário 40 px | FR-024 |
 
 ## Conteúdo (PRD → substituir)
@@ -71,7 +73,7 @@ Protótipo usa Material Symbols; produto usa Breeze recolorido pelos tokens ou S
 - [ ] Seleção grava `~/.config/hero/persona.toml` (FR-021)
 - [ ] Nome personalizado dispara treino em segundo plano, Guará ativo até ficar pronto (FR-082)
 - [ ] Chaves só no KWallet via `secret-tool`; grep de dotfiles no CI (FR-023)
-- [ ] Tudo reproduzível por `forja setup --profile X --mascot Y` (FR-024)
+- [ ] Tudo reproduzível por `forja setup --profile X --mascot Y` com `--devcontainers` quando selecionado (FR-024, FR-033)
 - [ ] Navegável por teclado, contraste AA (NFR-050)
 - [ ] Perfis = exatamente os 6 do FR-022
 - [ ] Captura lado a lado em `docs/design-system/telas/forjaos_wizard_de_primeiro_boot/compare-AAAA-MM-DD.png` (mesma resolução)
