@@ -13,7 +13,6 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 ### Fase 1 — Imagem instalável
 
-- [ ] `F1-010` Reproduzir componentes DX na base Bazzite desktop a partir dos scripts ublue-os/bazzite-dx, com verificação de licença (FR-001, FR-005, ADR-0032)
 - [x] `F1-010` Ferramentas DX livres dos scripts ublue-os/bazzite-dx na base desktop, com conferência das licenças RPM no build. VS Code, Docker CE e repositórios externos aguardam a decisão prevista no ADR-0034; tamanho da ISO fica para o build final (FR-001, FR-005, ADR-0032)
 
 
