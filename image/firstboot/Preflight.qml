@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "PreflightState.js" as PreflightState
 
 Item {
     id: window
@@ -56,13 +57,7 @@ Item {
         readonly property string step2: window.portuguese ? "No MokManager, escolha Enroll MOK e confirme a chave." : "In MokManager, choose Enroll MOK and confirm the key."
         readonly property string step3: window.portuguese ? "Reinicie para iniciar o ForjaOS com Secure Boot." : "Restart to boot ForjaOS with Secure Boot."
         readonly property string enrollmentCommand: "ujust enroll-secure-boot-key"
-        readonly property string stateNote: window.portuguese
-            ? (window.hasUnavailableStatus
-                ? "A detecção de sistema ainda não está conectada para todos os estados. Estados sem leitura aparecem como indisponíveis. Nenhuma alteração de disco ou de firmware será feita nesta tela."
-                : "Os estados acima foram lidos deste sistema. Nenhuma alteração de disco ou de firmware será feita nesta tela.")
-            : (window.hasUnavailableStatus
-                ? "System detection is not connected for every status yet. Unreadable states remain marked as unavailable. This screen will not change disks or firmware."
-                : "The statuses above were read from this system. This screen will not change disks or firmware.")
+        readonly property string stateNote: PreflightState.stateNote(window.hasUnavailableStatus, window.portuguese)
         readonly property string footer: window.portuguese
             ? "Revise as opções de instalação antes de qualquer alteração no disco."
             : "Review installation options before making any disk changes."
@@ -190,7 +185,7 @@ Item {
                                 ColumnLayout {
                                     spacing: 3
                                     Text { text: window.portuguese ? "DETECÇÃO DE SISTEMA" : "SYSTEM DETECTION"; color: "#94a3b8"; font.family: "JetBrains Mono"; font.pixelSize: 10 }
-                                    Text { text: window.windowsState === "yes" ? copy.windowsFound : window.windowsState === "no" ? copy.windowsMissing : copy.unavailable; color: "#dfe2f0"; font.family: "Plus Jakarta Sans"; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                    Text { text: PreflightState.statusLabel(window.windowsState, copy.windowsFound, copy.windowsMissing, copy.unavailable); color: "#dfe2f0"; font.family: "Plus Jakarta Sans"; font.pixelSize: 14; font.weight: Font.DemiBold }
                                 }
                                 Item { Layout.fillWidth: true }
                                 Label { text: copy.readOnly; color: "#10b981"; font.family: "JetBrains Mono"; font.pixelSize: 10; padding: 7; background: Rectangle { color: "#161b26"; radius: 6 } }
@@ -248,7 +243,7 @@ Item {
                                     Layout.fillWidth: true
                                     Text { text: copy.universalBlueKey; color: "#dfe2f0"; font.family: "Plus Jakarta Sans"; font.pixelSize: 15; font.weight: Font.DemiBold; Layout.fillWidth: true }
                                     Label {
-                                        text: window.mokState === "yes" ? copy.mokRegistered : window.mokState === "no" ? copy.mokPending : copy.unavailable
+                                        text: PreflightState.statusLabel(window.mokState, copy.mokRegistered, copy.mokPending, copy.unavailable)
                                         color: window.mokState === "yes" ? "#10b981" : "#f59e0b"
                                         font.family: "JetBrains Mono"; font.pixelSize: 10; padding: 6
                                         background: Rectangle { color: "#161b26"; radius: 6 }
@@ -256,7 +251,7 @@ Item {
                                 }
                                 Text { text: copy.secureBody; color: "#94a3b8"; font.family: "Plus Jakarta Sans"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                 Label {
-                                    text: window.secureBootState === "yes" ? copy.enabled : window.secureBootState === "no" ? copy.disabled : copy.unavailable
+                                    text: PreflightState.statusLabel(window.secureBootState, copy.enabled, copy.disabled, copy.unavailable)
                                     color: window.secureBootState === "yes" ? "#10b981" : "#f59e0b"
                                     font.family: "JetBrains Mono"; font.pixelSize: 11
                                 }

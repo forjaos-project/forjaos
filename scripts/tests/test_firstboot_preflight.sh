@@ -3,6 +3,7 @@ set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 qml="$root/image/firstboot/Preflight.qml"
+state_module="$root/image/firstboot/PreflightState.js"
 containerfile="$root/image/Containerfile"
 
 test -f "$qml"
@@ -19,7 +20,7 @@ grep -Fq 'Enroll MOK' "$qml"
 grep -Fq 'Windows encontrado' "$qml"
 grep -Fq 'Secure Boot' "$qml"
 grep -Fq 'MOK' "$qml"
-grep -Fq 'A detecção de sistema ainda não está conectada' "$qml"
+grep -Fq 'A detecção de sistema ainda não está conectada' "$state_module"
 grep -Fq 'image/firstboot/Preflight.qml /usr/share/forjaos/firstboot/Preflight.qml' "$containerfile"
 grep -Fq 'image/firstboot/PreflightState.js /usr/share/forjaos/firstboot/PreflightState.js' "$containerfile"
 
@@ -41,6 +42,6 @@ if grep -nE 'clearpart|autopart|ignoredisk|zerombr|mokutil --import|rm -rf|dd ' 
   exit 1
 fi
 
-node "$ROOT/scripts/tests/test_firstboot_preflight_state.js"
+node "$root/scripts/tests/test_firstboot_preflight_state.js"
 
 echo 'firstboot preflight tests passed'
