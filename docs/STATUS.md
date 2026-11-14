@@ -2,7 +2,7 @@
 
 # Status — ForjaOS
 
-**Atualizado em:** 2026-11-13 · **Itens:** 25/57 feitos (44 %) · 0 em andamento · 32 a fazer · 0 bloqueados
+**Atualizado em:** 2026-11-14 · **Itens:** 26/57 feitos (46 %) · 0 em andamento · 31 a fazer · 0 bloqueados
 
 Gerado na `main` pelo workflow `roadmap-sync` — não edite nem commite em PR. Visual: `docs/roadmap/index.html`. Fonte: `docs/roadmap/roadmap.json`. Antes de pegar tarefa: `git fetch origin && python3 scripts/roadmap.py available`.
 
@@ -24,7 +24,6 @@ Comece pelo gate *plan* (`docs/dev/METHODOLOGY.md §1`).
 
 - `F1-003` Dual boot com Windows, Secure Boot + MOK, pós-instalação automática · escopo: (definir no claim) · depende de: —
 - `F1-004` Notebook híbrido (PRIME offload) e checklist de hardware · escopo: (definir no claim) · depende de: —
-- `F1-005` Gerador de temas a partir do palette.json (Plasma, SDDM, Plymouth, Konsole, VS Code, GTK) · escopo: (definir no claim) · depende de: —
 - `F1-006` Tema Plasma Forja (escuro/claro), layout padrão, wallpapers, atalhos — telas desktop_principal_dock / modo_claro · escopo: (definir no claim) · depende de: —
 - `F1-007` Plymouth, SDDM e GRUB temáticos — telas splash_plymouth / sddm_login / bootloader_grub · escopo: (definir no claim) · depende de: —
 - `F1-008` Konsole tema + forja doctor — tela terminal_konsole_dev_forja_doctor · escopo: (definir no claim) · depende de: —
@@ -67,6 +66,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - `F0-010` Eliminar branding visível no Plasma, launchers e metadados de aplicativos e publicar imagens testing assinadas (FR-002, FR-055) · fase 0 — PR #39 · 2026-11-10 · Correção objetiva da issue #25. Entrega ativos visuais mínimos e amplia o checker; F1-006 mantém layout, alternância de tema e atalhos completos. A divergência Discover/Bazaar está na issue #40.
 - `F1-001` Pacotes removidos/adicionados e serviços padrão da imagem (FR-004, FR-005, FR-006, FR-007) · fase 1 — PR #48 · 2026-11-12 · ADR-0034: F1-001 entrega a parcela verificável dos FR-004 a FR-007. O limite da ISO depende de F1-002; o inventário do forja doctor depende de F1-009; os componentes DX dependem de F1-010; herod e memd dependem dos cards próprios. Os requisitos completos permanecem abertos para a release.
 - `F1-002` ISO Anaconda por rede via image-builder, checksum, assinatura, guia de gravação (FR-010, FR-014) · fase 1 — PR #50 · 2026-11-13
+- `F1-005` Gerador de temas a partir do palette.json (Plasma, SDDM, Plymouth, Konsole, VS Code, GTK) (FR-051) · fase 1 — PR #57 · 2026-11-14
 - `F1-011` Rebranding mínimo da imagem: ícone ForjaOS (brand/logo/png) no hicolor, LOGO= no os-release e /usr/share/ublue-os/image-info.json apontando para ghcr.io/forjaos-project (FR-002, FR-003, FR-053) · fase 1 — PR #31 · 2026-11-09 · Achados da revisão do PR #9: image-info.json ainda aponta para a imagem Bazzite (lido por ujust e pelas atualizações) e o LOGO foi removido sem substituto. Conferir scripts do Bazzite que testam ID=bazzite.
 
 ## A fazer (por fase)
@@ -75,7 +75,6 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 
 - `F1-003` Dual boot com Windows, Secure Boot + MOK, pós-instalação automática (FR-011, FR-012, FR-013) · fase 1
 - `F1-004` Notebook híbrido (PRIME offload) e checklist de hardware (FR-015, FR-016) · fase 1 — depende do notebook de referência estar disponível (§10.2)
-- `F1-005` Gerador de temas a partir do palette.json (Plasma, SDDM, Plymouth, Konsole, VS Code, GTK) (FR-051) · fase 1
 - `F1-006` Tema Plasma Forja (escuro/claro), layout padrão, wallpapers, atalhos — telas desktop_principal_dock / modo_claro (FR-050, FR-052, FR-055, FR-058) · fase 1
 - `F1-007` Plymouth, SDDM e GRUB temáticos — telas splash_plymouth / sddm_login / bootloader_grub (FR-056, FR-057, FR-002) · fase 1
 - `F1-008` Konsole tema + forja doctor — tela terminal_konsole_dev_forja_doctor (FR-035, FR-036) · fase 1
@@ -120,6 +119,7 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 
 ## Entregas (mais recentes primeiro)
 
+- **2026-11-14** · PR #57 · Gera temas de desktop a partir da paleta canônica com validação de drift · itens: F1-005
 - **2026-11-13** · PR #50 · Entrega ISO Anaconda rc4 com verificação de payload, Wi-Fi e teste físico dos três métodos; resultado Ventoy documentado · itens: F1-002
 - **2026-11-12** · PR #48 · Remoção condicional do Waydroid e contrato verificável de pacotes e serviços nas duas imagens, conforme ADR-0034 · itens: F1-001
 - **2026-11-12** · PR #45 · Validated signed Bazzite-to-ForjaOS switch, upgrade, and rollback in CI VM with seven deployment states · itens: F0-008
@@ -129,4 +129,3 @@ Pegar: `python3 scripts/roadmap.py claim <ID> --agent claude|codex` (METHODOLOGY
 - **2026-11-09** · PR #31 · Identidade ForjaOS nas duas imagens com ícones hicolor, LOGO no os-release e image-info.json próprio por variante · itens: F1-011
 - **2026-11-09** · PR #34 · RPM forjaos-branding substitui identidade herdada e entradas de startup nas duas variantes, preservando dependências e serviços. · itens: F0-009
 - **2026-11-09** · PR #8 · Logo ForjaOS v1: marca, logotipo horizontal e ícone de app em SVG (cor sobre escuro, cor sobre claro e mono) e PNG 16–512, gerados de palette.json com wordmark Plus Jakarta Sans em contornos · itens: F0-006
-- **2026-11-09** · PR #27 · CI gera e anexa inventário de licenças RPM por variante da imagem construída, inclusive quando branding bloqueia a publicação · itens: F0-005
