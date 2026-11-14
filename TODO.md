@@ -18,7 +18,6 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 ### Fase 2 — Experiência dev/gamedev
 
-- [ ] `F2-001` Wizard de primeiro boot (6 passos) — telas wizard_de_primeiro_boot e passo_6 (FR-020, FR-021, FR-022, FR-023, FR-024)
 - [ ] `F2-002` Experiência dev: Docker/Podman rootless, Git via keyring, distrobox, devcontainers, brew (FR-030, FR-031, FR-032, FR-033, FR-034)
 - [ ] `F2-003` Jogos e gamedev: Steam/Proton herdados, Godot, Modo Jogo (hero-game.target), controles (FR-040, FR-041, FR-043, FR-044)
 - [ ] `F2-004` CLI forja completo: subcomandos, --json, completions, confirmação [s/N] (FR-060, FR-061, FR-062, FR-063)
@@ -63,7 +62,9 @@ Testes, medições de NFR, boot/instalação das ISOs e validação em hardware 
 - [ ] `F5-001` Validação física completa (§11) nos 2 hardwares com registro em docs/releases/ (ADR-024, G5). No Dell Inspiron de teste, o Anaconda iniciou e conectou à rede; o particionador parou com `no free partition slots` apesar de 97,66 GiB livres. Repetir após a correção da partição e validar Windows, GRUB e Secure Boot/MOK.
 - [ ] Gerar a ISO final e subir no GitHub Release
 
-## Feito (31)
+## Feito (32)
+
+- [x] `F2-001` Wizard de primeiro boot QML com seis passos, preflight, perfis instalados em segundo plano, chaves no KWallet e reprodução por `forja setup`. Prévia de voz e modelos wake word ficam para F4, conforme decisão do mantenedor em 2026-11-14. Build, testes e validação em hardware ficam para o build final.
 
 - [x] `F1-006` Layout (dock com Code/Godot), atalho Meta+E, temas e wallpapers instalados no rpm forjaos-plasma. Faltam: Super+Espaço, Super+G e Super+M (dependem do HERO e do Modo Jogo)
 - [x] `F1-007` Plymouth forjaos-dark como padrão (embutido no initramfs), temas GRUB instalados em /usr/share/grub/themes e fontes PF2 geradas. O serviço de primeiro boot do F1-003 ativa o tema GRUB. O SDDM não se aplica: a base usa o Plasma Login Manager, que não aceita tema QML de terceiros; o login já usa o wallpaper ForjaOS

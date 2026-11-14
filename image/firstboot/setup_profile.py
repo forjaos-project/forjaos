@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""Apply first-boot profile choices without persisting credentials."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import subprocess
+
+
+PROFILES = {
+    "minimal": ([], []),
+    "web": (["node", "pnpm"], []),
+    "backend": (["openjdk", "go", "python"], ["io.dbeaver.DBeaverCommunity"]),
+    "gamedev": ([], ["org.godotengine.Godot", "org.blender.Blender", "org.kde.krita"]),
+    "devops": (["kubectl", "k9s", "helm", "ansible"], []),
+    "ai": (["ollama"], []),
+}
+NAMES = {"Guará", "Tupã", "Jaci", "Iara", "Ipê", "Boto", "Curió", "Arara"}
+ALIASES = {"guara": "Guará", "tupa": "Tupã", "jaci": "Jaci", "iara": "Iara",
+           "ipe": "Ipê", "boto": "Boto", "curio": "Curió", "arara": "Arara"}
+CONFIG = Path.home() / ".config" / "forjaos"
+
+
+def private_json(path, data):
+    temp = path.with_suffix(".tmp")
+    with temp.open("w", encoding="utf-8") as stream:
+        json.dump(data, stream, ensure_ascii=False)
+    os.chmod(temp, 0o600)
+    temp.replace(path)
+
+
+def notify(message):
+    try:
+        subprocess.run(["notify-send", "ForjaOS", message], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        pass
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--profile", choices=PROFILES, required=True)
+    parser.add_argument("--mascot", required=True)
+    parser.add_argument("--language", choices=["pt-BR", "en-US"], default="pt-BR")
+    parser.add_argument("--keyboard", choices=["br", "us"], default="br")
+    parser.add_argument("--unity", action="store_true")
+    parser.add_argument("--claude-code", action="store_true")
+    parser.add_argument("--github", action="store_true")
+    parser.add_argument("--api-key", action="append", choices=["anthropic", "openai", "openrouter", "nous"], default=[])
+    args = parser.parse_args()
+    os.environ["PATH"] = "/home/linuxbrew/.linuxbrew/bin:" + os.environ.get("PATH", "")
+    args.mascot = ALIASES.get(args.mascot.lower(), args.mascot)
+    if not 2 <= len(args.mascot) <= 24 or not all(ch.isalpha() or ch in " -'" for ch in args.mascot):
+        parser.error("invalid mascot name")
+    wakeword = "model_pending" if args.mascot in NAMES else "training_pending"
+    CONFIG.mkdir(mode=0o700, parents=True, exist_ok=True)
+    state = CONFIG / "firstboot-state.json"
+    private_json(CONFIG / "firstboot.json", {"profile": args.profile, "mascot": args.mascot,
+                                              "language": args.language, "keyboard": args.keyboard,
+                                              "unity": args.unity, "claude_code": args.claude_code,
+                                              "wakeword": wakeword})
+    (CONFIG / "firstboot-complete").touch(mode=0o600)
+    private_json(state, {"status": "running", "profile": args.profile, "done": 0, "total": 0})
+    persona_dir = Path.home() / ".config" / "hero"
+    persona_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    persona = persona_dir / "persona.toml"
+    persona.write_text("name = " + json.dumps(args.mascot, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.chmod(persona, 0o600)
+    if args.github:
+        try:
+            auth = subprocess.run(["gh", "auth", "login"], check=False)
+        except OSError:
+            auth = None
+        if auth is None or auth.returncode:
+            private_json(state, {"status": "failed", "profile": args.profile, "step": "github"})
+            notify("Autenticação GitHub pendente. Execute forja setup novamente.")
+            return 1
+    for provider in args.api_key:
+        try:
+            stored = subprocess.run(["/usr/bin/python3", "/usr/libexec/forjaos/keys.py", provider], check=False)
+        except OSError:
+            stored = None
+        if stored is None or stored.returncode:
+            private_json(state, {"status": "failed", "profile": args.profile, "step": "kwallet"})
+            notify("Chave não salva no KWallet. Execute forja setup novamente.")
+            return 1
+    brew, flatpaks = PROFILES[args.profile]
+    commands = []
+    if brew:
+        commands.append(["brew", "install", *brew])
+    if flatpaks:
+        commands.append(["flatpak", "remote-add", "--user", "--if-not-exists",
+                         "flathub", "https://flathub.org/repo/flathub.flatpakrepo"])
+        commands.append(["flatpak", "install", "--user", "--noninteractive", "flathub", *flatpaks])
+    if args.profile == "web":
+        commands.append(["/usr/bin/python3", "/usr/libexec/forjaos/install_chrome.py"])
+        commands.append(["/usr/bin/python3", "/usr/libexec/forjaos/install_postman.py"])
+    if args.profile == "backend":
+        commands.append(["podman", "pull", "docker.io/library/postgres:17"])
+    if args.profile == "gamedev":
+        commands.append(["/usr/bin/python3", "/usr/libexec/forjaos/install_godot_templates.py"])
+    if args.profile == "devops":
+        commands.append(["brew", "install", "hashicorp/tap/terraform", "awscli"])
+        commands.append(["brew", "install", "--cask", "gcloud-cli", "azure-cli"])
+    if args.profile == "ai":
+        commands.extend([
+            ["brew", "install", "node", "jupyterlab"],
+            ["npm", "install", "--global", "@openai/codex"],
+            ["/usr/bin/python3", "/usr/libexec/forjaos/install_hermes.py"],
+        ])
+    if args.unity:
+        commands.append(["forja", "install", "unity", "--yes"])
+    if args.claude_code:
+        commands.append(["forja", "install", "claude-code", "--yes"])
+    events = []
+    for index, command in enumerate(commands):
+        events.append({"step": command[0], "status": "running"})
+        private_json(state, {"status": "running", "profile": args.profile,
+                             "step": command[0], "done": index, "total": len(commands),
+                             "events": events})
+        try:
+            result = subprocess.run(command, check=False)
+        except OSError:
+            result = None
+        if result is None or result.returncode:
+            events[-1]["status"] = "failed"
+            private_json(state, {"status": "failed", "profile": args.profile,
+                                 "step": command[0], "done": index, "total": len(commands),
+                                 "events": events})
+            notify(f"Instalação pendente em {command[0]}. Execute forja setup novamente.")
+            return 1
+        events[-1]["status"] = "done"
+    private_json(state, {"status": "complete",
+                         "profile": args.profile, "wakeword": wakeword,
+                         "done": len(commands), "total": len(commands), "events": events})
+    notify("Configuração concluída.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -28,6 +28,30 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Gerencia chaves de API no KWallet
+    Keys {
+        #[command(subcommand)]
+        action: KeysAction,
+    },
+    /// Aplica um perfil de primeiro boot e o nome do mascote
+    Setup {
+        #[arg(long)]
+        profile: String,
+        #[arg(long)]
+        mascot: String,
+        #[arg(long, default_value = "pt-BR")]
+        language: String,
+        #[arg(long, default_value = "br")]
+        keyboard: String,
+        #[arg(long)]
+        unity: bool,
+        #[arg(long = "claude-code")]
+        claude_code: bool,
+        #[arg(long)]
+        github: bool,
+        #[arg(long = "api-key")]
+        api_keys: Vec<String>,
+    },
     /// Verifica o sistema (kernel, GPU, Docker, Git, IA, serviços, portas) e sai com código ≠ 0 se algo crítico falhar
     Doctor {
         /// Saída em JSON para scripts
@@ -39,6 +63,12 @@ enum Command {
         #[command(subcommand)]
         package: InstallPackage,
     },
+}
+
+#[derive(Subcommand)]
+enum KeysAction {
+    /// Lê uma chave sem eco e a grava no KWallet
+    Set { provider: String },
 }
 
 #[derive(Subcommand)]
@@ -73,6 +103,61 @@ fn main() {
     let cli = Cli::from_arg_matches(&matches).expect("parse CLI arguments");
     let _language = cli.lang;
     let code = match cli.command {
+        Command::Keys {
+            action: KeysAction::Set { provider },
+        } => {
+            match std::process::Command::new("/usr/bin/python3")
+                .args(["/usr/libexec/forjaos/keys.py", &provider])
+                .status()
+            {
+                Ok(status) => status.code().unwrap_or(1),
+                Err(error) => {
+                    eprintln!("forja keys: {error}");
+                    1
+                }
+            }
+        }
+        Command::Setup {
+            profile,
+            mascot,
+            language,
+            keyboard,
+            unity,
+            claude_code,
+            github,
+            api_keys,
+        } => {
+            let mut command = std::process::Command::new("/usr/bin/python3");
+            command.arg("/usr/libexec/forjaos/setup_profile.py").args([
+                "--profile",
+                &profile,
+                "--mascot",
+                &mascot,
+                "--language",
+                &language,
+                "--keyboard",
+                &keyboard,
+            ]);
+            if unity {
+                command.arg("--unity");
+            }
+            if claude_code {
+                command.arg("--claude-code");
+            }
+            if github {
+                command.arg("--github");
+            }
+            for provider in api_keys {
+                command.args(["--api-key", &provider]);
+            }
+            match command.status() {
+                Ok(status) => status.code().unwrap_or(1),
+                Err(error) => {
+                    eprintln!("forja setup: {error}");
+                    1
+                }
+            }
+        }
         Command::Doctor { json } => doctor::run(json),
         Command::Install { package } => match package {
             InstallPackage::Unity { yes, json } => install::unity(yes, json),
