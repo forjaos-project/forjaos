@@ -351,7 +351,10 @@ fn main() {
                 }
                 Err(error) => {
                     if json {
-                        println!("{}", serde_json::json!({"command":"setup", "status":"error"}));
+                        println!(
+                            "{}",
+                            serde_json::json!({"command":"setup", "status":"error"})
+                        );
                     } else {
                         eprintln!("forja setup: {error}");
                     }
@@ -624,7 +627,11 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
         .mut_subcommand("keys", |keys| {
             let keys = keys
                 .mut_subcommand("set", |set| {
-                    let help = if lang == Language::En { "Output JSON" } else { "Emite JSON" };
+                    let help = if lang == Language::En {
+                        "Output JSON"
+                    } else {
+                        "Emite JSON"
+                    };
                     localized_help(set, lang, "forja keys set")
                         .mut_arg("json", |arg| arg.help(help))
                 })
@@ -637,7 +644,11 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
             localized_help(doctor, lang, "forja doctor")
         })
         .mut_subcommand("setup", |setup| {
-            let help = if lang == Language::En { "Output JSON" } else { "Emite JSON" };
+            let help = if lang == Language::En {
+                "Output JSON"
+            } else {
+                "Emite JSON"
+            };
             localized_help(setup, lang, "forja setup").mut_arg("json", |arg| arg.help(help))
         })
         .mut_subcommand("install", |install| {

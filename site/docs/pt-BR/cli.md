@@ -90,7 +90,7 @@ O alvo solicita o perfil de energia `performance` e Não perturbe no Plasma enqu
 
 `forja report [--json]` coleta as mesmas verificações do `doctor` e mostra um relatório sem variáveis de ambiente ou caminhos pessoais. Revise os detalhes antes de anexar a uma issue.
 
-`forja completions bash|zsh|fish` imprime o script de completion para o shell indicado.
+`forja completions bash|zsh|fish` imprime o script de completion para o shell indicado. A imagem instala os três scripts nos diretórios padrão de Bash, Zsh e Fish.
 
 `forja update` baixa e prepara uma atualização bootc; `forja rollback` agenda a implantação anterior para o próximo boot e descarta uma atualização staged, se houver. Ambos mostram rota e contexto e pedem confirmação `[s/N]`; `--yes` confirma explicitamente e `--json` retorna somente o resultado.
 

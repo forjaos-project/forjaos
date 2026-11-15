@@ -109,7 +109,13 @@ fn gpu() -> (Check, Check) {
 fn git_auth() -> Check {
     let helper = run_cmd("git", &["config", "--global", "credential.helper"]).unwrap_or_default();
     if helper.contains("libsecret") || helper.contains("manager") {
-        check("Git auth", Status::Ok, "helper do sistema configurado", false, None)
+        check(
+            "Git auth",
+            Status::Ok,
+            "helper do sistema configurado",
+            false,
+            None,
+        )
     } else {
         check(
             "Git auth",

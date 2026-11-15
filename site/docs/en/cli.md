@@ -92,7 +92,7 @@ While active, the target requests the `performance` power profile and Plasma Do 
 
 `forja report [--json]` collects the same checks as `doctor` and prints a report without environment variables or personal paths. Review the details before attaching it to an issue.
 
-`forja completions bash|zsh|fish` prints a completion script for the selected shell.
+`forja completions bash|zsh|fish` prints a completion script for the selected shell. The image installs all three scripts in the standard Bash, Zsh and Fish directories.
 
 `forja update` downloads and queues a bootc update; `forja rollback` queues the previous deployment for the next boot and discards a staged update, if present. Both show the route and context and ask for `[s/N]` confirmation; `--yes` confirms explicitly and `--json` returns only the result.
 
