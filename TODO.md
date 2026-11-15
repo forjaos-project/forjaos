@@ -25,7 +25,6 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 ### Fase 3 — HERO v0 nativo (texto + sistema)
 
-- [ ] `F3-001` herod: daemon Rust, D-Bus org.forjaos.Hero, máquina de estados, limites de consumo (FR-070, FR-071, FR-078). Em andamento: API D-Bus de texto/estado, confirmação de ação de uso único, resumo de ações aprovadas em memd, unit com limites e timeout de 58 s com subprocessos canceláveis. O binário embarcado e a chamada D-Bus foram verificados em contêiner; faltam áudio e validação de consumo em hardware Linux de referência.
 - [ ] `F3-002` Roteador de intenções, provedores por rota, Ollama gerenciado, persona (FR-090, FR-091, FR-092, FR-096). Em andamento: chat local via Ollama, seleção 8B/4B por VRAM/Modo Jogo e keep-alive de cinco minutos; faltam rotas, provedores e persona configuráveis.
 - [ ] `F3-003` Policy Engine (tiers) e AuditEvent em journald (FR-100, FR-101, FR-102, FR-103). Em andamento: tiers livres/alterar/bloqueado, confirmação curta e log sem texto da pergunta; faltam avaliação de rotinas e cobertura por tool.
 - [ ] `F3-004` MCP servers hero-system, hero-desktop, hero-dev (rmcp, stdio) (FR-110, FR-112)
@@ -62,9 +61,10 @@ Testes, medições de NFR, boot/instalação das ISOs e validação em hardware 
 - [ ] `F5-001` Validação física completa (§11) nos 2 hardwares com registro em docs/releases/ (ADR-024, G5). No Dell Inspiron de teste, o Anaconda iniciou e conectou à rede; o particionador parou com `no free partition slots` apesar de 97,66 GiB livres. Repetir após a correção da partição e validar Windows, GRUB e Secure Boot/MOK.
 - [ ] Gerar a ISO final e subir no GitHub Release
 
-## Feito (32)
+## Feito (33)
 
 - [x] `F2-001` Wizard de primeiro boot QML com seis passos, preflight, perfis instalados em segundo plano, chaves no KWallet e reprodução por `forja setup`. Prévia de voz e modelos wake word ficam para F4, conforme decisão do mantenedor em 2026-11-14. Build, testes e validação em hardware ficam para o build final.
+- [x] `F3-001` Daemon `herod` em Rust com `org.forjaos.Hero`, propriedade `State`, `PropertiesChanged`, sinal `StateChanged(s)` e socket Unix local com diretório `0700` e socket `0600`. Unit limita 400 MiB/50% CPU/Nice 5; turno local tem timeout de 58 s, Ollama indisponível retorna resposta local sem fallback cloud e subprocessos são cancelados no timeout. Build release Linux passou; medição de consumo e validação em hardware Linux ficam para o build final (FR-070, FR-071, FR-078).
 
 - [x] `F1-006` Layout (dock com Code/Godot), atalho Meta+E, temas e wallpapers instalados no rpm forjaos-plasma. Faltam: Super+Espaço, Super+G e Super+M (dependem do HERO e do Modo Jogo)
 - [x] `F1-007` Plymouth forjaos-dark como padrão (embutido no initramfs), temas GRUB instalados em /usr/share/grub/themes e fontes PF2 geradas. O serviço de primeiro boot do F1-003 ativa o tema GRUB. O SDDM não se aplica: a base usa o Plasma Login Manager, que não aceita tema QML de terceiros; o login já usa o wallpaper ForjaOS

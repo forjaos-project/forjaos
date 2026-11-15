@@ -2,12 +2,15 @@ mod actions;
 mod ai;
 mod audit;
 mod policy;
+#[cfg(unix)]
+mod socket;
 
 use policy::{Classification, Proposal, Tier};
 use serde_json::json;
 use std::collections::HashMap;
 use std::io::Read;
 use std::time::{Duration, Instant};
+use tokio::sync::watch;
 use zbus::{connection, fdo, interface, object_server::SignalEmitter};
 
 const BUS_NAME: &str = "org.forjaos.Hero";
@@ -88,6 +91,7 @@ impl State {
 
 struct Hero {
     state: State,
+    state_tx: watch::Sender<&'static str>,
     pending: HashMap<String, PendingAction>,
 }
 
@@ -114,7 +118,9 @@ impl Hero {
             ));
         }
         self.state = next;
+        let _ = self.state_tx.send(next.as_str());
         Self::state_changed(self, emitter).await?;
+        Self::state_transitioned(emitter, next.as_str()).await?;
         Ok(true)
     }
 }
@@ -125,6 +131,9 @@ impl Hero {
     fn state(&self) -> String {
         self.state.as_str().to_string()
     }
+
+    #[zbus(signal, name = "StateChanged")]
+    async fn state_transitioned(emitter: &SignalEmitter<'_>, state: &str) -> zbus::Result<()>;
 
     async fn ask_text(
         &mut self,
@@ -295,9 +304,15 @@ fn confirmation_id() -> Option<String> {
 }
 
 #[tokio::main]
-async fn main() -> zbus::Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let (state_tx, state_rx) = watch::channel(State::Idle.as_str());
+    #[cfg(unix)]
+    let state_socket = socket::bind()?;
+    #[cfg(not(unix))]
+    let _ = state_rx;
     let hero = Hero {
         state: State::Idle,
+        state_tx,
         pending: HashMap::new(),
     };
     let _connection = connection::Builder::session()?
@@ -306,6 +321,9 @@ async fn main() -> zbus::Result<()> {
         .build()
         .await?;
 
+    #[cfg(unix)]
+    socket::serve(state_socket, state_rx).await?;
+    #[cfg(not(unix))]
     std::future::pending::<()>().await;
     Ok(())
 }
