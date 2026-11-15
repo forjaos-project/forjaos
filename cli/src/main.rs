@@ -3,6 +3,7 @@ mod ai;
 mod dev;
 mod doctor;
 mod install;
+mod keys;
 mod mascot;
 mod memory;
 
@@ -165,6 +166,30 @@ enum KeysAction {
         #[arg(long)]
         json: bool,
     },
+    /// Emite comandos para carregar chaves do KWallet apenas no shell atual
+    Env {
+        #[arg(long, value_enum, default_value = "bash")]
+        shell: KeyShell,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum KeyShell {
+    Bash,
+    Zsh,
+    Fish,
+}
+
+impl KeyShell {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Bash => "bash",
+            Self::Zsh => "zsh",
+            Self::Fish => "fish",
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -569,6 +594,9 @@ fn main() {
         Command::Keys {
             action: KeysAction::SshAdd { json },
         } => dev::ssh_add(json),
+        Command::Keys {
+            action: KeysAction::Env { shell, json },
+        } => keys::env(shell.as_str(), json),
         Command::Setup {
             profile,
             mascot,
@@ -1406,6 +1434,29 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                 })
                 .mut_subcommand("ssh-add", |ssh| {
                     localized_help(ssh, lang, "forja keys ssh-add")
+                })
+                .mut_subcommand("env", |env| {
+                    let env = env
+                        .about(if english {
+                            "Print shell commands to load KWallet keys into the current shell"
+                        } else {
+                            "Emite comandos para carregar chaves do KWallet no shell atual"
+                        })
+                        .mut_arg("shell", |arg| {
+                            arg.help(if english {
+                                "Target shell syntax"
+                            } else {
+                                "Sintaxe do shell de destino"
+                            })
+                        })
+                        .mut_arg("json", |arg| {
+                            arg.help(if english {
+                                "Print provider names only; never emit secret values"
+                            } else {
+                                "Emite somente nomes dos provedores, sem valores secretos"
+                            })
+                        });
+                    localized_help(env, lang, "forja keys env")
                 });
             localized_help(keys, lang, "forja keys")
         })

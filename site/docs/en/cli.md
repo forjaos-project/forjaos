@@ -132,6 +132,13 @@ While active, the target requests the `performance` power profile and Plasma Do 
 
 `ai` and `memory` use the local HERO and Memory services. The `mascot` interface writes local preferences; wake word training and speech synthesis depend on models and services not yet included.
 
+## `forja keys`
+
+- `forja keys set <provider>` prompts without echo and stores the key in KWallet through Secret Service.
+- `eval "$(forja keys env --shell bash)"` loads configured keys only into the current Bash shell. Use `--shell zsh` for Zsh or `eval (forja keys env --shell fish)` for Fish.
+- `forja keys env --json` reports configured provider names only; it never emits secret values.
+- `forja keys ssh-add` prompts through KWallet and loads SSH keys into the user agent.
+
 ## Optional VS Code installation
 
 `forja install vscode-devcontainers` installs Homebrew, Node.js, Dev Containers CLI, official VS Code and the extension for the current user. Confirmation is required (`--yes` for automation); proprietary VS Code is not included in the image.
