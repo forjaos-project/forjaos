@@ -1,13 +1,16 @@
 mod actions;
 mod ai;
 mod audit;
+mod persona;
 mod policy;
+mod router;
+mod routes;
 #[cfg(unix)]
 mod socket;
 
 use policy::{Classification, Proposal, Tier};
 use serde_json::json;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::Read;
 use std::time::{Duration, Instant};
 use tokio::sync::watch;
@@ -93,6 +96,7 @@ struct Hero {
     state: State,
     state_tx: watch::Sender<&'static str>,
     pending: HashMap<String, PendingAction>,
+    history: VecDeque<ai::Turn>,
 }
 
 struct PendingAction {
@@ -139,8 +143,18 @@ impl Hero {
         &mut self,
         query: &str,
         cwd: &str,
+        snapshot_json: &str,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) -> String {
+        if snapshot_json.len() > 1024 {
+            return json!({"status":"invalid_snapshot","answer":"Contexto do aplicativo inválido."}).to_string();
+        }
+        let snapshot = match serde_json::from_str::<ai::SnapshotDoApp>(snapshot_json) {
+            Ok(snapshot) => snapshot,
+            Err(_) => {
+                return json!({"status":"invalid_snapshot","answer":"Contexto do aplicativo inválido."}).to_string()
+            }
+        };
         self.pending
             .retain(|_, pending| pending.expires_at > Instant::now());
         if self.state != State::Idle {
@@ -148,7 +162,26 @@ impl Hero {
         }
         let _ = self.transition_to("pensando", &emitter).await;
         let result = match policy::classify(query, cwd) {
-            Classification::Conversation => ai::ask(query).await,
+            Classification::Conversation => {
+                let route = router::classify(query).await;
+                let context = snapshot_context(route, cwd, &snapshot);
+                let history = self.history.iter().cloned().collect::<Vec<_>>();
+                let response = ai::ask(query, route, &context, &snapshot, &history).await;
+                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&response) {
+                    if value["status"] == "ok" {
+                        if let Some(answer) = value["answer"].as_str() {
+                            self.history.push_back(ai::Turn {
+                                user: query.to_string(),
+                                assistant: answer.to_string(),
+                            });
+                            while self.history.len() > 10 {
+                                self.history.pop_front();
+                            }
+                        }
+                    }
+                }
+                response
+            }
             Classification::Blocked { route, message } => {
                 audit::record(route, "policy.blocked", "bloqueado", "recusado", 0);
                 json!({
@@ -293,6 +326,66 @@ impl Hero {
         let _ = self.transition_to("ocioso", &emitter).await;
         response
     }
+
+    fn route_providers(&self) -> String {
+        routes::list_json().unwrap_or_else(|error| json!({"error":error}).to_string())
+    }
+
+    fn set_route_provider(
+        &mut self,
+        route: &str,
+        provider: &str,
+        model: &str,
+    ) -> fdo::Result<String> {
+        routes::set_provider(route, provider, model)
+            .map_err(|error| fdo::Error::InvalidArgs(error.into()))
+    }
+
+    fn persona(&self) -> String {
+        serde_json::to_string(&persona::load()).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    fn set_persona_instructions(&mut self, instructions: &str) -> fdo::Result<String> {
+        persona::set_instructions(instructions)
+            .map_err(|error| fdo::Error::InvalidArgs(error.into()))
+    }
+}
+
+fn snapshot_context(route: &str, cwd: &str, snapshot: &ai::SnapshotDoApp) -> String {
+    let mut parts = Vec::new();
+    if let Some(application) = snapshot.application.as_deref() {
+        let application = application
+            .chars()
+            .filter(|character| !character.is_control())
+            .take(100)
+            .collect::<String>();
+        if !application.is_empty() {
+            parts.push(format!("aplicativo: {application}"));
+        }
+    }
+    if let Some(title) = snapshot.window_title.as_deref() {
+        let title = title
+            .chars()
+            .filter(|character| !character.is_control())
+            .take(160)
+            .collect::<String>();
+        if !title.is_empty() {
+            parts.push(format!("janela: {title}"));
+        }
+    }
+    if matches!(route, "código" | "criação") {
+        if let Some(project) = std::path::Path::new(cwd)
+            .file_name()
+            .and_then(|name| name.to_str())
+        {
+            parts.push(format!("projeto atual: {project}"));
+        }
+    }
+    if parts.is_empty() {
+        "nenhum contexto adicional".to_string()
+    } else {
+        parts.join("; ")
+    }
 }
 
 fn confirmation_id() -> Option<String> {
@@ -314,6 +407,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state: State::Idle,
         state_tx,
         pending: HashMap::new(),
+        history: VecDeque::new(),
     };
     let _connection = connection::Builder::session()?
         .name(BUS_NAME)?

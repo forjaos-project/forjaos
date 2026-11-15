@@ -54,7 +54,11 @@ Opções:
 
 ## `forja ai`
 
-`forja ai "<pergunta>" [--json]` envia a pergunta e o diretório atual ao HERO pela sessão D-Bus. Conversa usa Ollama local, Qwen3 8B ou 4B conforme VRAM livre e Modo Jogo. Ações `alterar` mostram rota/contexto e pedem `[s/N]`; ações `bloqueado` são recusadas. Em modo JSON, uma confirmação pendente devolve um identificador que pode ser aprovado com `forja ai --confirm <id>`.
+`forja ai "<pergunta>" [--json]` envia a pergunta ao HERO pela sessão D-Bus. Regras e Qwen3 4B local selecionam uma rota; a falha do classificador usa a rota local `conversa-de-voz`. Ollama usa Qwen3 8B ou 4B conforme VRAM livre e Modo Jogo. Ações `alterar` mostram rota/contexto e pedem `[s/N]`; ações `bloqueado` são recusadas. Em modo JSON, uma confirmação pendente devolve um identificador que pode ser aprovado com `forja ai --confirm <id>`.
+
+Provedores e modelos podem ser definidos em `~/.config/hero/routes.toml`. As rotas `conversa-de-voz` e `sistema` aceitam somente Ollama. As outras rotas aceitam `ollama`, `anthropic`, `openai`, `openrouter` e `nous`; provedor cloud requer `model` e a chave correspondente no KWallet (`forja keys set <provedor>`). O daemon não troca de provedor automaticamente.
+
+O nome e as instruções editáveis ficam em `~/.config/hero/persona.toml`. O bloco fixo de segurança tem precedência sobre as instruções editáveis; as dez trocas mais recentes ficam apenas em memória. A API D-Bus recebe `SnapshotDoApp`; o comando CLI envia `{}` quando não tem dados de janela.
 
 ## `forja memory`
 

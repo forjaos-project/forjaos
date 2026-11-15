@@ -12,10 +12,10 @@ fn terminal_safe(text: &str) -> String {
         .collect()
 }
 
-async fn request(query: &str, cwd: &str) -> Result<String, zbus::Error> {
+async fn request(query: &str, cwd: &str, snapshot: &str) -> Result<String, zbus::Error> {
     let connection = Connection::session().await?;
     let proxy = Proxy::new(&connection, BUS_NAME, OBJECT_PATH, INTERFACE).await?;
-    proxy.call("AskText", &(query, cwd)).await
+    proxy.call("AskText", &(query, cwd, snapshot)).await
 }
 
 async fn confirm(id: &str, approved: bool) -> Result<String, zbus::Error> {
@@ -92,7 +92,7 @@ pub fn run(query: Option<&str>, confirmation: Option<&str>, json: bool) -> i32 {
     let cwd = std::env::current_dir()
         .map(|path| path.to_string_lossy().to_string())
         .unwrap_or_default();
-    let raw = match zbus::block_on(request(query, &cwd)) {
+    let raw = match zbus::block_on(request(query, &cwd, "{}")) {
         Ok(raw) => raw,
         Err(_) => return unavailable(json),
     };
