@@ -57,6 +57,9 @@ O purge remove arquivos de eventos antigos pelas retenções configuradas.
 Defina `FORJA_MEMORY_COLLECTOR=0` em uma sessão shell para ignorar comandos
 daquela sessão.
 
-O grafo usa um arranjo radial estático com zoom e pan; faltam layout
-força-dirigida, filtros por tipo/data, medição de desempenho e atualização
-incremental do grafo após cada evento.
+O grafo de notas e eventos distingue comandos, commits, conversas, janelas,
+repositórios e notas, e liga eventos da mesma janela de 15 minutos. O
+visualizador usa arranjo radial com zoom, pan e filtros por tipo e período;
+faltam layout força-dirigida, medir desempenho e atualizar o grafo
+incrementalmente após cada evento. Grafos Graphify de código ainda ficam em
+arquivos separados.

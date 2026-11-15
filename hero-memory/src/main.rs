@@ -5,7 +5,7 @@ use rusqlite::{ffi::sqlite3_auto_extension, params, Connection, OptionalExtensio
 use serde::Serialize;
 use serde_json::json;
 use sqlite_vec::sqlite3_vec_init;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -78,6 +78,7 @@ struct GraphNode {
     label: String,
     source_file: String,
     node_type: &'static str,
+    modified_at: i64,
 }
 
 #[derive(Clone, Serialize)]
@@ -847,6 +848,7 @@ impl StorePaths {
             .get("collectors.notes")
             .is_some_and(|value| value == "true");
         collect_markdown(&self.vault, &self.vault, notes_enabled, &mut documents)?;
+        documents.sort_by(|left, right| left.0.cmp(&right.0));
         let safe_documents = documents
             .iter()
             .map(|(_, text, _)| redact_secrets(text))
@@ -865,6 +867,7 @@ impl StorePaths {
         let mut graph_nodes = Vec::new();
         let mut graph_links = Vec::new();
         let mut aliases: HashMap<String, Vec<String>> = HashMap::new();
+        let mut event_windows: BTreeMap<i64, Vec<String>> = BTreeMap::new();
         for (index, (path, _text, modified_at)) in documents.iter().enumerate() {
             let relative = path
                 .strip_prefix(&self.vault)
@@ -901,8 +904,15 @@ impl StorePaths {
                 id: id.clone(),
                 label: title.clone(),
                 source_file: relative.clone(),
-                node_type: "note",
+                node_type: memory_node_type(&relative),
+                modified_at: *modified_at,
             });
+            if relative.starts_with("daily/collectors/") {
+                event_windows
+                    .entry(modified_at.div_euclid(900))
+                    .or_default()
+                    .push(id.clone());
+            }
             for alias in [
                 title.clone(),
                 path.file_stem()
@@ -934,6 +944,17 @@ impl StorePaths {
                         confidence_score: 1.0,
                     });
                 }
+            }
+        }
+        for ids in event_windows.values() {
+            if let Some((anchor, related)) = ids.split_first() {
+                graph_links.extend(related.iter().map(|target| GraphLink {
+                    source: anchor.clone(),
+                    target: target.clone(),
+                    relation: "co_occurs",
+                    confidence: "EXTRACTED",
+                    confidence_score: 1.0,
+                }));
             }
         }
         transaction.commit().map_err(|error| error.to_string())?;
@@ -1371,6 +1392,22 @@ fn collect_markdown(
         }
     }
     Ok(())
+}
+
+fn memory_node_type(path: &str) -> &'static str {
+    if path.starts_with("daily/collectors/shell/") {
+        "command"
+    } else if path.starts_with("daily/collectors/git/") {
+        "commit"
+    } else if path.starts_with("daily/collectors/hero/") {
+        "conversation"
+    } else if path.starts_with("daily/collectors/windows/") {
+        "window"
+    } else if path.starts_with("projects/") {
+        "repository"
+    } else {
+        "note"
+    }
 }
 
 fn redact_secrets(text: &str) -> String {

@@ -91,6 +91,16 @@ ApplicationWindow {
                 anchors.margins: 12
                 z: 1
                 Label { text: "Grafo"; color: "#f3f6fa"; font.bold: true }
+                ComboBox {
+                    id: graphTypeFilter
+                    model: ["Todos os tipos", "Notas", "Repositórios", "Commits", "Comandos", "Conversas", "Janelas"]
+                    onActivated: graphCanvas.nodeTypeFilter = ["", "note", "repository", "commit", "command", "conversation", "window"][currentIndex]
+                }
+                ComboBox {
+                    id: graphDateFilter
+                    model: ["Todo o período", "30 dias", "365 dias"]
+                    onActivated: graphCanvas.dateRangeDays = [0, 30, 365][currentIndex]
+                }
                 ToolButton {
                     text: "−"
                     Accessible.name: "Reduzir zoom do grafo"
@@ -127,6 +137,9 @@ ApplicationWindow {
                 property real zoom: 1
                 property real panX: 0
                 property real panY: 0
+                property string nodeTypeFilter: ""
+                property int dateRangeDays: 0
+                property int visibleNodeCount: 0
                 onGraphNodesChanged: requestPaint()
                 onGraphLinksChanged: requestPaint()
                 onWidthChanged: requestPaint()
@@ -134,6 +147,8 @@ ApplicationWindow {
                 onZoomChanged: requestPaint()
                 onPanXChanged: requestPaint()
                 onPanYChanged: requestPaint()
+                onNodeTypeFilterChanged: requestPaint()
+                onDateRangeDaysChanged: requestPaint()
                 WheelHandler {
                     onWheel: event => {
                         const factor = event.angleDelta.y > 0 ? 1.12 : 1 / 1.12
@@ -160,14 +175,21 @@ ApplicationWindow {
                 onPaint: {
                     const ctx = getContext("2d")
                     ctx.reset()
-                    const count = graphNodes.length
+                    const visibleNodes = graphNodes.filter(node => {
+                        if (nodeTypeFilter && node.node_type !== nodeTypeFilter) return false
+                        if (dateRangeDays <= 0) return true
+                        const modified = Number(node.modified_at || 0)
+                        return modified >= Date.now() / 1000 - dateRangeDays * 86400
+                    })
+                    visibleNodeCount = visibleNodes.length
+                    const count = visibleNodes.length
                     if (count === 0) return
                     const positions = new Map()
                     for (let i = 0; i < count; i++) {
                         const angle = i * 2.399963 + Math.PI
                         const radius = Math.sqrt((i + 0.5) / count) * Math.min(width, height) * 0.44
-                        positions.set(graphNodes[i].id, [Math.cos(angle) * radius,
-                                                         Math.sin(angle) * radius])
+                        positions.set(visibleNodes[i].id, [Math.cos(angle) * radius,
+                                                           Math.sin(angle) * radius])
                     }
                     ctx.translate(width / 2 + panX, height / 2 + panY)
                     ctx.scale(zoom, zoom)
@@ -180,24 +202,24 @@ ApplicationWindow {
                         ctx.beginPath(); ctx.moveTo(from[0], from[1]); ctx.lineTo(to[0], to[1]); ctx.stroke()
                     }
                     for (let i = 0; i < count; i++) {
-                        const point = positions.get(graphNodes[i].id)
+                        const point = positions.get(visibleNodes[i].id)
                         ctx.beginPath(); ctx.arc(point[0], point[1], 4, 0, Math.PI * 2)
-                        ctx.fillStyle = graphNodes[i].node_type === "note" ? "#ef9d42" : "#61b5c8"
+                        ctx.fillStyle = visibleNodes[i].node_type === "note" ? "#ef9d42" : "#61b5c8"
                         ctx.fill()
                     }
                 }
             }
             Label {
                 anchors.centerIn: parent
-                visible: vault.nodes.length === 0
-                text: "Reconstrua o índice para gerar o grafo."
+                visible: graphCanvas.visibleNodeCount === 0
+                text: vault.nodes.length === 0 ? "Reconstrua o índice para gerar o grafo." : "Nenhum nó corresponde aos filtros."
                 color: "#91a1b5"
             }
             Label {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: 28
-                text: vault.nodes.length + " nós · " + vault.links.length + " relações"
+                text: graphCanvas.visibleNodeCount + " / " + vault.nodes.length + " nós · " + vault.links.length + " relações"
                 color: "#91a1b5"
             }
         }
