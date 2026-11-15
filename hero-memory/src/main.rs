@@ -346,6 +346,7 @@ impl StorePaths {
         let output = Command::new("timeout")
             .args(["--signal=TERM", "--kill-after=15s", "1800s"])
             .arg(graphify)
+            .env("GRAPHIFY_BACKEND", "none")
             .arg("extract")
             .arg(&root)
             .args(["--code-only", "--no-viz", "--out"])

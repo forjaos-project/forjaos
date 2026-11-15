@@ -32,10 +32,12 @@ Comandos disponíveis pela CLI incluem `search`, `timeline`, `remember`,
 `rebuild`, `viewer`, `collectors`, `retention`, `purge`, `graph <repo>` e
 `git register|unregister|scan`. `forja memory graph <repo>` exige o coletor
 `code` ativo e chama o executável Graphify com `--code-only --no-viz`, sem
-envio do código a um modelo remoto. O coletor só aparece como disponível se o
-pacote oficial [`graphifyy`](https://github.com/Graphify-Labs/graphify) estiver
-instalado no usuário com uv. O resultado original fica em `vault/graph/code/`;
-a reconstrução mescla os nós e relações no `vault/graph/graph.json`.
+envio do código a um modelo remoto. A imagem inclui o pacote oficial `graphifyy`
+0.9.109 em ambiente Python isolado, com dependências travadas em
+`graphify-runtime/uv.lock`; o inventário de licenças dos wheels fica em
+`/usr/share/licenses/forjaos/THIRD_PARTY_PYTHON_LICENSES.md`. O resultado
+original fica em `vault/graph/code/`; a reconstrução mescla seus nós e relações
+no `vault/graph/graph.json`.
 
 Os coletores shell e HERO são automáticos. O Git oferece hook post-commit e
 varredura diária somente nos repositórios cadastrados com `forja memory git
@@ -52,7 +54,7 @@ configuração do KWin é recarregada na sessão ativa quando possível. O colet
 `vault/notes/`; ativar ou desativar reconstrói o índice, sem remover arquivos.
 O coletor `code`, também desligado por padrão, executa a análise por comando e
 requer a raiz Git do repositório. Todos os toggles aparecem no menu Coletores
-do visualizador; `code` fica desabilitado quando Graphify não está instalado.
+do visualizador.
 O purge remove arquivos de eventos antigos pelas retenções configuradas.
 Defina `FORJA_MEMORY_COLLECTOR=0` em uma sessão shell para ignorar comandos
 daquela sessão.
@@ -61,5 +63,4 @@ O grafo de notas e eventos distingue comandos, commits, conversas, janelas,
 repositórios e notas, e liga eventos da mesma janela de 15 minutos. O
 visualizador usa arranjo radial com zoom, pan e filtros por tipo e período,
 incluindo nós de código; eventos novos atualizam o grafo sem reconstruir o
-índice inteiro. Faltam layout força-dirigida, medir desempenho e embarcar o
-runtime Graphify.
+índice inteiro. Faltam layout força-dirigida e medir desempenho.

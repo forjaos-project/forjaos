@@ -24,6 +24,11 @@ REQUIRED_RPMS = frozenset({
     "steam-devices",
 })
 REMOVED_RPMS = frozenset({"waydroid", "waydroid-selinux"})
+PACKAGE_ALIASES = {
+    "bluez": frozenset({"bluez", "terra-bluez"}),
+    "gamescope": frozenset({"gamescope", "terra-gamescope"}),
+    "mangohud": frozenset({"mangohud", "terra-mangohud"}),
+}
 REQUIRED_UNIT_STATES = {
     "firewalld.service": "enabled",
     "auditd.service": "enabled",
@@ -64,7 +69,12 @@ def read_unit_state(unit: str) -> str:
 
 def check_contract(packages: set[str], unit_states: dict[str, str]) -> list[str]:
     errors = []
-    for package in sorted(REQUIRED_RPMS - packages):
+    missing = {
+        package
+        for package in REQUIRED_RPMS
+        if not PACKAGE_ALIASES.get(package, frozenset({package})) & packages
+    }
+    for package in sorted(missing):
         errors.append(f"required RPM missing: {package}")
     for package in sorted(REMOVED_RPMS & packages):
         errors.append(f"unwanted RPM retained: {package}")
