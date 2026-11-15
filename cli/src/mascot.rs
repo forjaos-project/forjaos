@@ -153,10 +153,24 @@ pub fn train(name: &str, json_output: bool) -> i32 {
             json_output,
         );
     }
-    let result = Command::new(trainer).args(["--name", name]).status();
+    let result = Command::new("systemd-run")
+        .args([
+            "--user",
+            "--quiet",
+            "--collect",
+            "--unit=forja-wakeword-train.service",
+        ])
+        .arg(trainer)
+        .args(["--name", name])
+        .status();
     match result {
         Ok(status) if status.success() => report(
-            Ok(json!({"command":"mascot train", "status":"queued", "name":name})),
+            Ok(json!({
+                "command":"mascot train",
+                "status":"queued",
+                "name":name,
+                "unit":"forja-wakeword-train.service"
+            })),
             json_output,
         ),
         Ok(status) => report(
