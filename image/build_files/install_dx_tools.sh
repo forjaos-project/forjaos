@@ -18,7 +18,10 @@ dnf install -y --setopt=install_weak_deps=False "${packages[@]}"
 # proprietary/EULA license. The complete RPM inventory is exported by the
 # existing THIRD_PARTY_LICENSES generator in the image pipeline.
 for package in "${packages[@]}"; do
-  license=$(rpm -q --qf '%{LICENSE}' "$package")
+  if ! license=$(rpm -q --whatprovides --qf '%{LICENSE}\n' "$package" 2>&1); then
+    echo "DX RPM license query failed: $package ($license)" >&2
+    exit 1
+  fi
   if [[ -z "$license" || "$license" =~ [Pp]roprietary|EULA|Commercial|Redistributable ]]; then
     echo "DX RPM license requires review: $package ($license)" >&2
     exit 1
