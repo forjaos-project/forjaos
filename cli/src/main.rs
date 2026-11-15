@@ -3,6 +3,7 @@ mod ai;
 mod dev;
 mod doctor;
 mod install;
+mod memory;
 
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
 use clap_complete::{generate, Shell};
@@ -37,6 +38,11 @@ enum Command {
         query: String,
         #[arg(long)]
         json: bool,
+    },
+    /// Busca e mantém notas locais do vault ForjaOS
+    Memory {
+        #[command(subcommand)]
+        action: MemoryAction,
     },
     /// Gerencia chaves de API no KWallet
     Keys {
@@ -146,6 +152,38 @@ enum KeysAction {
     },
     /// Adiciona chaves SSH ao agente do usuário com prompt KWallet
     SshAdd {
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum MemoryAction {
+    /// Busca notas do vault local
+    Search {
+        query: String,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Lista notas recentes do vault
+    Timeline {
+        #[arg(long, default_value_t = 1)]
+        days: u32,
+        #[arg(long, default_value_t = 100)]
+        limit: u32,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Reconstrói o índice e o grafo a partir do vault Markdown
+    Rebuild {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Salva uma nota no vault local
+    Remember {
+        note: String,
         #[arg(long)]
         json: bool,
     },
@@ -270,6 +308,12 @@ fn main() {
     let _language = cli.lang;
     let code = match cli.command {
         Command::Ai { query, json } => ai::run(&query, json),
+        Command::Memory { action } => match action {
+            MemoryAction::Search { query, limit, json } => memory::search(&query, limit, json),
+            MemoryAction::Timeline { days, limit, json } => memory::timeline(days, limit, json),
+            MemoryAction::Rebuild { json } => memory::rebuild(json),
+            MemoryAction::Remember { note, json } => memory::remember(&note, json),
+        },
         Command::Keys {
             action: KeysAction::Set { provider, json },
         } => {
@@ -483,6 +527,35 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                     .mut_arg("query", |arg| arg.help("Question to send"))
                     .mut_arg("json", |arg| arg.help("Output JSON"))
             })
+            .mut_subcommand("memory", |memory| {
+                memory
+                    .about("Search and maintain the local ForjaOS vault")
+                    .mut_subcommand("search", |action| {
+                        action
+                            .about("Search Markdown notes")
+                            .mut_arg("query", |arg| arg.help("Search expression"))
+                            .mut_arg("limit", |arg| arg.help("Maximum results"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("timeline", |action| {
+                        action
+                            .about("List recent notes")
+                            .mut_arg("days", |arg| arg.help("Look-back period in days"))
+                            .mut_arg("limit", |arg| arg.help("Maximum entries"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("rebuild", |action| {
+                        action
+                            .about("Rebuild the index and graph from Markdown")
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("remember", |action| {
+                        action
+                            .about("Save a note in the local vault")
+                            .mut_arg("note", |arg| arg.help("Note text"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+            })
             .mut_subcommand("keys", |keys| {
                 keys.about("Store API keys in KWallet")
                     .mut_subcommand("set", |set| set.about("Read and store a key without echo"))
@@ -644,6 +717,43 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                     .mut_arg("json", |arg| arg.help("Emite JSON")),
                 lang,
                 "forja ai",
+            )
+        })
+        .mut_subcommand("memory", |memory| {
+            let memory = memory
+                .mut_subcommand("search", |action| {
+                    let action = action
+                        .about("Pesquisa notas Markdown")
+                        .mut_arg("query", |arg| arg.help("Texto para pesquisar"))
+                        .mut_arg("limit", |arg| arg.help("Máximo de resultados"))
+                        .mut_arg("json", |arg| arg.help("Emite JSON"));
+                    localized_help(action, lang, "forja memory search")
+                })
+                .mut_subcommand("timeline", |action| {
+                    let action = action
+                        .about("Lista notas recentes")
+                        .mut_arg("days", |arg| arg.help("Período em dias"))
+                        .mut_arg("limit", |arg| arg.help("Máximo de registros"))
+                        .mut_arg("json", |arg| arg.help("Emite JSON"));
+                    localized_help(action, lang, "forja memory timeline")
+                })
+                .mut_subcommand("rebuild", |action| {
+                    let action = action
+                        .about("Reconstrói o índice e o grafo a partir do vault")
+                        .mut_arg("json", |arg| arg.help("Emite JSON"));
+                    localized_help(action, lang, "forja memory rebuild")
+                })
+                .mut_subcommand("remember", |action| {
+                    let action = action
+                        .about("Salva uma nota no vault local")
+                        .mut_arg("note", |arg| arg.help("Texto da nota"))
+                        .mut_arg("json", |arg| arg.help("Emite JSON"));
+                    localized_help(action, lang, "forja memory remember")
+                });
+            localized_help(
+                memory.about("Busca e mantém o vault local ForjaOS"),
+                lang,
+                "forja memory",
             )
         })
         .mut_subcommand("keys", |keys| {

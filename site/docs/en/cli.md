@@ -12,6 +12,7 @@ Usage: forja [OPTIONS] <COMMAND>
 
 Commands:
   ai       Send a question to the local HERO assistant
+  memory   Search and maintain the local ForjaOS vault
   keys     Store API keys in KWallet
   setup    Apply a first-boot profile and mascot
   doctor   Check the system and report critical failures
@@ -49,6 +50,16 @@ Options:
 ## `forja ai`
 
 `forja ai "<question>" [--json]` sends the question to HERO over the session D-Bus. Conversation replies use local Ollama with Qwen3 8B or 4B based on free VRAM and Game Mode, and keep the model loaded for up to five minutes. System actions are refused until the action catalog and Policy Engine are available.
+
+## `forja memory`
+
+- `forja memory search "<terms>" [--limit N] [--json]`
+- `forja memory timeline [--days N] [--limit N] [--json]`
+- `forja memory remember "<note>" [--json]`
+- `forja memory rebuild [--json]`
+
+These commands use `memd` over the session D-Bus. The vault lives in
+`~/ForjaOS/vault/`; its FTS5 index is derived and can be rebuilt from Markdown.
 
 ## Official installer documentation
 

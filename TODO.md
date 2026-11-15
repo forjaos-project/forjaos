@@ -20,7 +20,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 - [x] `F2-002` Experiência dev: Podman rootless, Docker CE rootless opcional, Git via keyring, Distrobox, Dev Containers CLI e VS Code opcional, Homebrew e zsh + Starship (FR-030–FR-035). VS Code e Docker ficam fora da imagem e exigem escolha explícita no primeiro boot.
 - [x] `F2-003` Jogos e gamedev: Steam e steam-devices preservados; gamescope, MangoHud e Bluetooth na imagem; perfil gamedev instala Godot com templates, ProtonPlus, Lutris e Heroic; Godot Tools entra no VS Code quando escolhido; Modo Jogo ativa `hero-game.target` para Steam/gamescope, Não perturbe e perfil performance. Integração com HERO/Memória e medição de FPS ficam em F4-004; jogos e controles em hardware ficam para o build final (FR-040, FR-041, FR-043, FR-044).
-- [ ] `F2-004` CLI forja completo: subcomandos, --json, completions, confirmação [s/N] (FR-060, FR-061, FR-062, FR-063). Avanço parcial: Compose, relatório, completions instaladas, update/rollback com confirmação, JSON e chat local `forja ai`. Ações da rota `sistema` dependem de F3-003/F3-007; `mascot`/`memory` dependem de F4.
+- [ ] `F2-004` CLI forja completo: subcomandos, --json, completions, confirmação [s/N] (FR-060, FR-061, FR-062, FR-063). Avanço parcial: Compose, relatório, completions instaladas, update/rollback com confirmação, JSON, chat local `forja ai` e comandos básicos de memória. Faltam Policy Engine/catálogo, coletores/índice vetorial/visualizador e comandos de mascote/voz.
 - [ ] `F2-005` forja mcp register + Trivy no CI (FR-111, NFR-026)
 
 ### Fase 3 — HERO v0 nativo (texto + sistema)
@@ -40,7 +40,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 - [ ] `F4-002` Wake word openWakeWord: 8 modelos embarcados + treino de nome personalizado (FR-080, FR-081, FR-082)
 - [ ] `F4-003` STT faster-whisper, TTS Piper com visemes, mascote animado 60 fps (FR-083, FR-084, FR-123)
 - [ ] `F4-004` Modo Jogo completo e medição de impacto em FPS (FR-043, NFR-008)
-- [ ] `F4-005` memd: vault, coletores, índice SQLite FTS5 + sqlite-vec, graph.json, retenção (FR-130, FR-131, FR-132, FR-133, FR-134, FR-137)
+- [ ] `F4-005` memd: vault, coletores, índice SQLite FTS5 + sqlite-vec, graph.json, retenção (FR-130, FR-131, FR-132, FR-133, FR-134, FR-137). Em andamento: serviço D-Bus, vault Markdown, índice FTS5 e exportação básica do grafo; faltam coletores, embeddings/sqlite-vec e retenção.
 - [ ] `F4-006` Visualizador de memória (timeline + grafo) e MCP hero-memory — telas visualizador_* (FR-135, FR-136)
 
 ### Fase 5 — Release 1.0

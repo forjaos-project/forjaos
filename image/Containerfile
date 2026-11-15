@@ -7,6 +7,8 @@ COPY cli/Cargo.toml cli/Cargo.lock /tmp/forja-cli/
 COPY cli/src/ /tmp/forja-cli/src/
 COPY hero/Cargo.toml hero/Cargo.lock /tmp/herod/
 COPY hero/src/ /tmp/herod/src/
+COPY hero-memory/Cargo.toml hero-memory/Cargo.lock /tmp/memd/
+COPY hero-memory/src/ /tmp/memd/src/
 RUN cargo build --manifest-path /tmp/forja-cli/Cargo.toml --locked --release \
     && install -D -m 0755 /tmp/forja-cli/target/release/forja /tmp/forja \
     && install -d -m 0755 /tmp/forja-completions \
@@ -14,7 +16,9 @@ RUN cargo build --manifest-path /tmp/forja-cli/Cargo.toml --locked --release \
     && /tmp/forja completions zsh > /tmp/forja-completions/_forja \
     && /tmp/forja completions fish > /tmp/forja-completions/forja.fish \
     && cargo build --manifest-path /tmp/herod/Cargo.toml --locked --release \
-    && install -D -m 0755 /tmp/herod/target/release/herod /tmp/herod
+    && install -D -m 0755 /tmp/herod/target/release/herod /tmp/herod \
+    && cargo build --manifest-path /tmp/memd/Cargo.toml --locked --release \
+    && install -D -m 0755 /tmp/memd/target/release/memd /tmp/memd
 COPY image/build_files/ /tmp/forjaos-build/
 COPY brand/ /tmp/brand/
 RUN bash /tmp/forjaos-build/build_branding_rpm.sh \
@@ -46,6 +50,7 @@ COPY --from=branding-builder /tmp/forja-completions/forja.bash /usr/share/bash-c
 COPY --from=branding-builder /tmp/forja-completions/_forja /usr/share/zsh/site-functions/_forja
 COPY --from=branding-builder /tmp/forja-completions/forja.fish /usr/share/fish/vendor_completions.d/forja.fish
 COPY --from=branding-builder /tmp/herod /usr/libexec/forjaos/herod
+COPY --from=branding-builder /tmp/memd /usr/libexec/forjaos/memd
 RUN dnf install -y /tmp/forjaos-branding.rpm && dnf clean all && rm /tmp/forjaos-branding.rpm
 RUN dnf install -y /tmp/forjaos-plasma.rpm \
     && dnf remove -y --no-autoremove plasma-lookandfeel-fedora f45-backgrounds-kde \
@@ -76,6 +81,7 @@ COPY image/firstboot/install_hermes.py /usr/libexec/forjaos/install_hermes.py
 COPY image/firstboot/forjaos-firstboot.service /usr/lib/systemd/user/forjaos-firstboot.service
 COPY hero/systemd/herod.service /usr/lib/systemd/user/herod.service
 COPY hero/systemd/ollama.service /usr/lib/systemd/user/ollama.service
+COPY hero-memory/systemd/memd.service /usr/lib/systemd/user/memd.service
 COPY image/game/game_mode.py /usr/libexec/forjaos/game_mode.py
 COPY image/game/hero-game.target /usr/lib/systemd/user/hero-game.target
 COPY image/game/forjaos-game-session.service /usr/lib/systemd/user/forjaos-game-session.service
@@ -83,6 +89,7 @@ COPY image/game/forjaos-game-watch.service /usr/lib/systemd/user/forjaos-game-wa
 RUN mkdir -p /usr/lib/systemd/user/graphical-session.target.wants \
     && mkdir -p /usr/lib/systemd/user/default.target.wants \
     && ln -s ../herod.service /usr/lib/systemd/user/default.target.wants/herod.service \
+    && ln -s ../memd.service /usr/lib/systemd/user/default.target.wants/memd.service \
     && ln -s ../forjaos-firstboot.service \
       /usr/lib/systemd/user/graphical-session.target.wants/forjaos-firstboot.service \
     && ln -s ../forjaos-game-watch.service \
