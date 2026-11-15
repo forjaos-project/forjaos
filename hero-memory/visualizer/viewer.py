@@ -173,7 +173,8 @@ class Vault(QObject):
 def main():
     app = QGuiApplication(sys.argv)
     engine = QQmlApplicationEngine()
-    engine.rootContext().setContextProperty("vault", Vault())
+    vault = Vault()
+    engine.rootContext().setContextProperty("vault", vault)
     qml_path = Path(__file__).with_name("viewer.qml")
     engine.load(str(qml_path))
     if not engine.rootObjects():

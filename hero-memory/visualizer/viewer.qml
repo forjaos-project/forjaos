@@ -84,6 +84,25 @@ ApplicationWindow {
         }
 
         Item {
+            WorkerScript {
+                id: graphLayoutWorker
+                source: "GraphLayout.js"
+                onMessage: function(messageObject) {
+                    if (messageObject.generation === graphCanvas.layoutGeneration
+                            && messageObject.positions.length === graphCanvas.graphNodes.length)
+                        graphCanvas.layoutPositions = messageObject.positions
+                }
+            }
+            Timer {
+                id: graphLayoutTimer
+                interval: 80
+                repeat: false
+                onTriggered: graphLayoutWorker.sendMessage({
+                    nodes: graphCanvas.graphNodes,
+                    links: graphCanvas.graphLinks,
+                    generation: graphCanvas.layoutGeneration
+                })
+            }
             RowLayout {
                 id: graphControls
                 anchors.left: parent.left
@@ -140,8 +159,22 @@ ApplicationWindow {
                 property string nodeTypeFilter: ""
                 property int dateRangeDays: 0
                 property int visibleNodeCount: 0
-                onGraphNodesChanged: requestPaint()
-                onGraphLinksChanged: requestPaint()
+                property var layoutPositions: []
+                property int layoutGeneration: 0
+                Component.onCompleted: graphLayoutTimer.restart()
+                onGraphNodesChanged: {
+                    layoutGeneration++
+                    layoutPositions = []
+                    graphLayoutTimer.restart()
+                    requestPaint()
+                }
+                onGraphLinksChanged: {
+                    layoutGeneration++
+                    layoutPositions = []
+                    graphLayoutTimer.restart()
+                    requestPaint()
+                }
+                onLayoutPositionsChanged: requestPaint()
                 onWidthChanged: requestPaint()
                 onHeightChanged: requestPaint()
                 onZoomChanged: requestPaint()
@@ -175,21 +208,26 @@ ApplicationWindow {
                 onPaint: {
                     const ctx = getContext("2d")
                     ctx.reset()
-                    const visibleNodes = graphNodes.filter(node => {
-                        if (nodeTypeFilter && node.node_type !== nodeTypeFilter) return false
-                        if (dateRangeDays <= 0) return true
-                        const modified = Number(node.modified_at || 0)
-                        return modified >= Date.now() / 1000 - dateRangeDays * 86400
-                    })
+                    const visibleNodes = []
+                    for (let i = 0; i < graphNodes.length; i++) {
+                        const node = graphNodes[i]
+                        if (nodeTypeFilter && node.node_type !== nodeTypeFilter) continue
+                        if (dateRangeDays > 0) {
+                            const modified = Number(node.modified_at || 0)
+                            if (modified < Date.now() / 1000 - dateRangeDays * 86400) continue
+                        }
+                        visibleNodes.push({node: node, index: i})
+                    }
                     visibleNodeCount = visibleNodes.length
                     const count = visibleNodes.length
                     if (count === 0) return
+                    if (layoutPositions.length !== graphNodes.length) return
                     const positions = new Map()
+                    const radiusScale = Math.min(width, height) * 0.44
                     for (let i = 0; i < count; i++) {
-                        const angle = i * 2.399963 + Math.PI
-                        const radius = Math.sqrt((i + 0.5) / count) * Math.min(width, height) * 0.44
-                        positions.set(visibleNodes[i].id, [Math.cos(angle) * radius,
-                                                           Math.sin(angle) * radius])
+                        let point = layoutPositions[visibleNodes[i].index]
+                        point = [point[0] * radiusScale, point[1] * radiusScale]
+                        positions.set(visibleNodes[i].node.id, point)
                     }
                     ctx.translate(width / 2 + panX, height / 2 + panY)
                     ctx.scale(zoom, zoom)
@@ -202,9 +240,9 @@ ApplicationWindow {
                         ctx.beginPath(); ctx.moveTo(from[0], from[1]); ctx.lineTo(to[0], to[1]); ctx.stroke()
                     }
                     for (let i = 0; i < count; i++) {
-                        const point = positions.get(visibleNodes[i].id)
+                        const point = positions.get(visibleNodes[i].node.id)
                         ctx.beginPath(); ctx.arc(point[0], point[1], 4, 0, Math.PI * 2)
-                        ctx.fillStyle = visibleNodes[i].node_type === "note" ? "#ef9d42" : "#61b5c8"
+                        ctx.fillStyle = visibleNodes[i].node.node_type === "note" ? "#ef9d42" : "#61b5c8"
                         ctx.fill()
                     }
                 }
@@ -213,6 +251,13 @@ ApplicationWindow {
                 anchors.centerIn: parent
                 visible: graphCanvas.visibleNodeCount === 0
                 text: vault.nodes.length === 0 ? "Reconstrua o índice para gerar o grafo." : "Nenhum nó corresponde aos filtros."
+                color: "#91a1b5"
+            }
+            Label {
+                anchors.centerIn: parent
+                visible: graphCanvas.visibleNodeCount > 0
+                         && graphCanvas.layoutPositions.length !== graphCanvas.graphNodes.length
+                text: "Organizando grafo..."
                 color: "#91a1b5"
             }
             Label {
