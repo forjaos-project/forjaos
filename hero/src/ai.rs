@@ -126,7 +126,7 @@ fn start_ollama_service() -> bool {
     Command::new("systemctl")
         .args(["--user", "start", "--no-block", "ollama.service"])
         .output()
-        .is_ok_and(|status| status.success())
+        .is_ok_and(|output| output.status.success())
 }
 
 fn ollama_installed() -> bool {
@@ -213,12 +213,12 @@ pub async fn ask(query: &str) -> String {
 
     if system_request(query) {
         return json_reply(AskReply {
-            status: "route_unavailable",
+            status: "blocked",
             route: "sistema",
             context: "nenhum; o catálogo de ações ainda não está disponível",
-            tier: "alterar",
+            tier: "bloqueado",
             requires_confirmation: false,
-            answer: "Nenhuma ação foi executada. O HERO ainda não tem ferramentas de sistema disponíveis.".into(),
+            answer: "Nenhuma ação foi executada. A solicitação não corresponde a uma ferramenta permitida do catálogo.".into(),
             model: None,
         });
     }
