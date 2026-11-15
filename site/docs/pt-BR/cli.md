@@ -13,6 +13,7 @@ Uso: forja [OPÇÕES] <COMANDO>
 Comandos:
   ai       Envia uma pergunta ao assistente local HERO
   memory   Busca e mantém o vault local ForjaOS
+  mascot   Configura nome, voz e treino do mascote HERO
   keys     Gerencia chaves de API no KWallet
   setup    Aplica um perfil de primeiro boot e o nome do mascote
   doctor   Verifica o sistema (kernel, GPU, Docker, Git, IA, serviços, portas) e sai com código ≠ 0 se algo crítico falhar
@@ -48,7 +49,7 @@ Opções:
 
 ## `forja ai`
 
-`forja ai "<pergunta>" [--json]` envia a pergunta ao HERO pela sessão D-Bus. Respostas de conversa usam Ollama local, Qwen3 8B ou 4B conforme VRAM livre e Modo Jogo, e mantêm o modelo por até cinco minutos. Ações de sistema ainda são recusadas enquanto o catálogo e o Policy Engine não estiverem disponíveis.
+`forja ai "<pergunta>" [--json]` envia a pergunta e o diretório atual ao HERO pela sessão D-Bus. Conversa usa Ollama local, Qwen3 8B ou 4B conforme VRAM livre e Modo Jogo. Ações `alterar` mostram rota/contexto e pedem `[s/N]`; ações `bloqueado` são recusadas. Em modo JSON, uma confirmação pendente devolve um identificador que pode ser aprovado com `forja ai --confirm <id>`.
 
 ## `forja memory`
 
@@ -56,6 +57,15 @@ Opções:
 - `forja memory timeline [--days N] [--limit N] [--json]`
 - `forja memory remember "<nota>" [--json]`
 - `forja memory rebuild [--json]`
+- `forja memory viewer [--json]` abre o visualizador local QML em modo somente leitura.
+- `forja memory mcp` inicia o transporte MCP por stdio para registro em clientes compatíveis.
+
+## `forja mascot`
+
+- `forja mascot status [--json]` mostra o nome configurado e se os arquivos locais de wake word e voz estão instalados.
+- `forja mascot name "Guará" [--json]` altera o nome salvo em `~/.config/hero/persona.toml`.
+- `forja mascot voice <id> [--json]` seleciona uma voz Piper cujos arquivos `<id>.onnx` e `<id>.onnx.json` já estejam em `~/.local/share/hero/voices/`.
+- `forja mascot train "Nome" [--json]` chama o treinador local quando instalado; se ausente, informa que nenhum treino foi iniciado.
 
 Os comandos usam `memd` pela sessão D-Bus. O vault fica em `~/ForjaOS/vault/`;
 o índice FTS5 é derivável e pode ser reconstruído a partir dos arquivos Markdown.
@@ -110,7 +120,7 @@ O alvo solicita o perfil de energia `performance` e Não perturbe no Plasma enqu
 
 `forja update` baixa e prepara uma atualização bootc; `forja rollback` agenda a implantação anterior para o próximo boot e descarta uma atualização staged, se houver. Ambos mostram rota e contexto e pedem confirmação `[s/N]`; `--yes` confirma explicitamente e `--json` retorna somente o resultado.
 
-Os comandos `ai`, `mascot` e `memory` dependem dos backends HERO e Memória que ainda não estão disponíveis nesta etapa.
+`ai` e `memory` usam os serviços locais HERO e Memória. A interface `mascot` grava preferências locais; treino de wake word e síntese de voz dependem dos respectivos modelos e serviços ainda não incluídos.
 
 ## Instalação opcional de VS Code
 

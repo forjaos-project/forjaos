@@ -11,6 +11,11 @@ O serviço publica `org.forjaos.Memory` no D-Bus da sessão:
 - `Rebuild() -> JSON`
 - `Remember(note) -> JSON`
 
+O transporte MCP por stdio está disponível em `forja memory mcp`. Ele expõe
+`memory_search`, `memory_timeline`, `memory_related`, `memory_remember` e
+`memory_forget`. O último remove permanentemente uma nota Markdown pelo ID
+relativo do vault e rejeita caminho absoluto, traversal e symlink.
+
 O índice usa FTS5 e `sqlite-vec` com embeddings locais via Ollama quando
 `nomic-embed-text:latest` estiver instalado. A reconstrução percorre apenas arquivos Markdown,
 ignora diretórios ocultos e links simbólicos, redige padrões comuns de segredos
@@ -20,6 +25,8 @@ Graphify. O vault e o banco recebem permissões restritas ao usuário.
 O serviço não baixa modelos automaticamente. Sem `nomic-embed-text`, as buscas
 continuam funcionando por FTS5 e `forja memory rebuild` informa esse estado.
 
-Comandos disponíveis pela CLI: `forja memory search`, `timeline`, `remember` e
-`rebuild`. Os coletores automáticos, retenção e visualizador ainda não estão
-ligados a este serviço.
+Comandos disponíveis pela CLI: `forja memory search`, `timeline`, `remember`,
+`rebuild` e `viewer`. O visualizador QML abre timeline, grafo e busca local em
+modo somente leitura. O grafo usa um arranjo radial estático; layout
+força-dirigida, zoom/filtros, medição de desempenho e coletores automáticos com
+retenção configurável ainda estão pendentes.

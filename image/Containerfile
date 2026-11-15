@@ -82,6 +82,7 @@ COPY image/firstboot/forjaos-firstboot.service /usr/lib/systemd/user/forjaos-fir
 COPY hero/systemd/herod.service /usr/lib/systemd/user/herod.service
 COPY hero/systemd/ollama.service /usr/lib/systemd/user/ollama.service
 COPY hero-memory/systemd/memd.service /usr/lib/systemd/user/memd.service
+COPY hero-memory/visualizer/ /usr/share/forjaos/memory-viewer/
 COPY image/game/game_mode.py /usr/libexec/forjaos/game_mode.py
 COPY image/game/hero-game.target /usr/lib/systemd/user/hero-game.target
 COPY image/game/forjaos-game-session.service /usr/lib/systemd/user/forjaos-game-session.service

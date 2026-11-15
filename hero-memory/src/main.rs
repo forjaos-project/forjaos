@@ -1,4 +1,5 @@
 use chrono::{Local, Utc};
+mod mcp;
 use regex::Regex;
 use rusqlite::{ffi::sqlite3_auto_extension, params, Connection};
 use serde::Serialize;
@@ -138,7 +139,7 @@ impl StorePaths {
 
     fn open(&self) -> Result<Connection, String> {
         SQLITE_VEC.call_once(|| unsafe {
-            sqlite3_auto_extension(Some(std::mem::transmute(sqlite3_vec_init as *const ())))
+            sqlite3_auto_extension(Some(std::mem::transmute(sqlite3_vec_init as *const ())));
         });
         let connection = Connection::open(&self.index).map_err(|error| error.to_string())?;
         connection
@@ -202,8 +203,8 @@ impl StorePaths {
             }
             graph_nodes.push(GraphNode {
                 id: id.clone(),
-                label: title,
-                source_file: relative,
+                label: title.clone(),
+                source_file: relative.clone(),
                 node_type: "note",
             });
             for alias in [
@@ -398,6 +399,41 @@ impl StorePaths {
             .map_err(|error| error.to_string())?
             .to_string_lossy()
             .replace('\\', "/"))
+    }
+
+    fn forget(&self, id: &str) -> Result<(), String> {
+        use std::path::Component;
+
+        self.initialize()?;
+        let relative = Path::new(id);
+        if relative.as_os_str().is_empty()
+            || relative.is_absolute()
+            || relative
+                .extension()
+                .is_none_or(|extension| extension != "md")
+            || relative
+                .components()
+                .any(|component| !matches!(component, Component::Normal(_)))
+        {
+            return Err("ID inválido; informe o caminho relativo de uma nota .md".into());
+        }
+        let candidate = self.vault.join(relative);
+        let metadata = fs::symlink_metadata(&candidate).map_err(|error| error.to_string())?;
+        if !metadata.is_file() || metadata.file_type().is_symlink() {
+            return Err("o ID não aponta para uma nota regular do vault".into());
+        }
+        let vault = self
+            .vault
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        let resolved = candidate
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        if !resolved.starts_with(vault) {
+            return Err("o ID escapa do vault".into());
+        }
+        fs::remove_file(resolved).map_err(|error| error.to_string())?;
+        self.rebuild().map(|_| ())
     }
 }
 
@@ -658,6 +694,12 @@ impl MemoryService {
 async fn main() -> zbus::Result<()> {
     let paths = StorePaths::from_environment().map_err(std::io::Error::other)?;
     paths.initialize().map_err(std::io::Error::other)?;
+    if std::env::args().nth(1).as_deref() == Some("--mcp") {
+        if let Err(error) = mcp::run(paths) {
+            eprintln!("hero-memory MCP: {error}");
+        }
+        return Ok(());
+    }
     let service = MemoryService { paths };
     let _connection = connection::Builder::session()?
         .name(BUS_NAME)?

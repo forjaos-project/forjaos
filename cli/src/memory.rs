@@ -1,4 +1,5 @@
 use serde_json::Value;
+use std::process::{Command, Stdio};
 use zbus::{Connection, Proxy};
 
 const BUS_NAME: &str = "org.forjaos.Memory";
@@ -155,5 +156,54 @@ pub fn remember(note: &str, json: bool) -> i32 {
             Err(code) => code,
         },
         Err(error) => unavailable(json, &error),
+    }
+}
+
+pub fn viewer(json: bool) -> i32 {
+    let result = Command::new("/usr/bin/python3")
+        .args(["/usr/share/forjaos/memory-viewer/viewer.py"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
+    match result {
+        Ok(_) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"command":"memory viewer", "status":"started"})
+                );
+            } else {
+                println!("Visualizador da Memória aberto.");
+            }
+            0
+        }
+        Err(error) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"command":"memory viewer", "status":"error"})
+                );
+            } else {
+                eprintln!("forja memory viewer: {error}");
+            }
+            1
+        }
+    }
+}
+
+pub fn mcp() -> i32 {
+    match Command::new("/usr/libexec/forjaos/memd")
+        .arg("--mcp")
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+    {
+        Ok(status) => status.code().unwrap_or(1),
+        Err(error) => {
+            eprintln!("forja memory mcp: {error}");
+            1
+        }
     }
 }

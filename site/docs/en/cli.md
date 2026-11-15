@@ -13,6 +13,7 @@ Usage: forja [OPTIONS] <COMMAND>
 Commands:
   ai       Send a question to the local HERO assistant
   memory   Search and maintain the local ForjaOS vault
+  mascot   Configure the HERO mascot name, voice, and training
   keys     Store API keys in KWallet
   setup    Apply a first-boot profile and mascot
   doctor   Check the system and report critical failures
@@ -49,7 +50,7 @@ Options:
 
 ## `forja ai`
 
-`forja ai "<question>" [--json]` sends the question to HERO over the session D-Bus. Conversation replies use local Ollama with Qwen3 8B or 4B based on free VRAM and Game Mode, and keep the model loaded for up to five minutes. System actions are refused until the action catalog and Policy Engine are available.
+`forja ai "<question>" [--json]` sends the question and current directory to HERO over the session D-Bus. Conversation uses local Ollama with Qwen3 8B or 4B based on free VRAM and Game Mode. `alter` actions show the route/context and prompt `[y/N]`; `blocked` actions are refused. In JSON mode, a pending confirmation returns an ID that can be approved with `forja ai --confirm <id>`.
 
 ## `forja memory`
 
@@ -57,6 +58,15 @@ Options:
 - `forja memory timeline [--days N] [--limit N] [--json]`
 - `forja memory remember "<note>" [--json]`
 - `forja memory rebuild [--json]`
+- `forja memory viewer [--json]` opens the local read-only QML viewer.
+- `forja memory mcp` starts the stdio MCP transport for registration in a compatible client.
+
+## `forja mascot`
+
+- `forja mascot status [--json]` shows the configured name and whether local wake word and voice files are installed.
+- `forja mascot name "Guará" [--json]` changes the name in `~/.config/hero/persona.toml`.
+- `forja mascot voice <id> [--json]` selects an installed Piper voice with `<id>.onnx` and `<id>.onnx.json` in `~/.local/share/hero/voices/`.
+- `forja mascot train "Name" [--json]` invokes the local trainer when installed; otherwise it reports that no training was started.
 
 These commands use `memd` over the session D-Bus. The vault lives in
 `~/ForjaOS/vault/`; its FTS5 index is derived and can be rebuilt from Markdown.
@@ -112,7 +122,7 @@ While active, the target requests the `performance` power profile and Plasma Do 
 
 `forja update` downloads and queues a bootc update; `forja rollback` queues the previous deployment for the next boot and discards a staged update, if present. Both show the route and context and ask for `[s/N]` confirmation; `--yes` confirms explicitly and `--json` returns only the result.
 
-The `ai`, `mascot` and `memory` commands depend on HERO and Memory backends that are not available in this stage.
+`ai` and `memory` use the local HERO and Memory services. The `mascot` interface writes local preferences; wake word training and speech synthesis depend on models and services not yet included.
 
 ## Optional VS Code installation
 

@@ -3,6 +3,7 @@ mod ai;
 mod dev;
 mod doctor;
 mod install;
+mod mascot;
 mod memory;
 
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -35,7 +36,11 @@ struct Cli {
 enum Command {
     /// Envia uma pergunta ao HERO local pela sessão D-Bus
     Ai {
-        query: String,
+        #[arg(required_unless_present = "confirm")]
+        query: Option<String>,
+        /// Confirma uma ação pendente pelo identificador emitido pelo HERO
+        #[arg(long, conflicts_with = "query")]
+        confirm: Option<String>,
         #[arg(long)]
         json: bool,
     },
@@ -43,6 +48,11 @@ enum Command {
     Memory {
         #[command(subcommand)]
         action: MemoryAction,
+    },
+    /// Configura nome, voz e treino do mascote HERO
+    Mascot {
+        #[command(subcommand)]
+        action: MascotAction,
     },
     /// Gerencia chaves de API no KWallet
     Keys {
@@ -187,6 +197,40 @@ enum MemoryAction {
         #[arg(long)]
         json: bool,
     },
+    /// Abre o visualizador local do vault
+    Viewer {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Executa o servidor MCP da Memória usando stdio
+    Mcp,
+}
+
+#[derive(Subcommand)]
+enum MascotAction {
+    /// Mostra nome e disponibilidade da voz selecionada
+    Status {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Altera o nome exibido pelo mascote
+    Name {
+        name: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Seleciona uma voz Piper já instalada localmente
+    Voice {
+        voice: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Inicia treino local de uma wake word personalizada
+    Train {
+        name: String,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -307,12 +351,24 @@ fn main() {
     let cli = Cli::from_arg_matches(&matches).expect("parse CLI arguments");
     let _language = cli.lang;
     let code = match cli.command {
-        Command::Ai { query, json } => ai::run(&query, json),
+        Command::Ai {
+            query,
+            confirm,
+            json,
+        } => ai::run(query.as_deref(), confirm.as_deref(), json),
         Command::Memory { action } => match action {
             MemoryAction::Search { query, limit, json } => memory::search(&query, limit, json),
             MemoryAction::Timeline { days, limit, json } => memory::timeline(days, limit, json),
             MemoryAction::Rebuild { json } => memory::rebuild(json),
             MemoryAction::Remember { note, json } => memory::remember(&note, json),
+            MemoryAction::Viewer { json } => memory::viewer(json),
+            MemoryAction::Mcp => memory::mcp(),
+        },
+        Command::Mascot { action } => match action {
+            MascotAction::Status { json } => mascot::status(json),
+            MascotAction::Name { name, json } => mascot::set_name(&name, json),
+            MascotAction::Voice { voice, json } => mascot::set_voice(&voice, json),
+            MascotAction::Train { name, json } => mascot::train(&name, json),
         },
         Command::Keys {
             action: KeysAction::Set { provider, json },
@@ -525,6 +581,7 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
             .mut_subcommand("ai", |ai| {
                 ai.about("Send a question to the local HERO assistant")
                     .mut_arg("query", |arg| arg.help("Question to send"))
+                    .mut_arg("confirm", |arg| arg.help("Confirm a pending action ID"))
                     .mut_arg("json", |arg| arg.help("Output JSON"))
             })
             .mut_subcommand("memory", |memory| {
@@ -553,6 +610,41 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                         action
                             .about("Save a note in the local vault")
                             .mut_arg("note", |arg| arg.help("Note text"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("viewer", |action| {
+                        action
+                            .about("Open the local vault viewer")
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("mcp", |action| {
+                        action.about("Run the Memory MCP server over stdio")
+                    })
+            })
+            .mut_subcommand("mascot", |mascot| {
+                mascot
+                    .about("Configure the HERO mascot name and voice")
+                    .mut_subcommand("status", |action| {
+                        action
+                            .about("Show mascot and local model availability")
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("name", |action| {
+                        action
+                            .about("Set the display name")
+                            .mut_arg("name", |arg| arg.help("Mascot name"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("voice", |action| {
+                        action
+                            .about("Select an installed local Piper voice")
+                            .mut_arg("voice", |arg| arg.help("Local voice model ID"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("train", |action| {
+                        action
+                            .about("Train a custom local wake word")
+                            .mut_arg("name", |arg| arg.help("Wake word name"))
                             .mut_arg("json", |arg| arg.help("Output JSON"))
                     })
             })
@@ -714,9 +806,41 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
             localized_help(
                 ai.about("Envia uma pergunta ao assistente local HERO")
                     .mut_arg("query", |arg| arg.help("Pergunta para o HERO"))
+                    .mut_arg("confirm", |arg| arg.help("Confirma uma ação pendente"))
                     .mut_arg("json", |arg| arg.help("Emite JSON")),
                 lang,
                 "forja ai",
+            )
+        })
+        .mut_subcommand("mascot", |mascot| {
+            localized_help(
+                mascot
+                    .about("Configura nome e voz do mascote HERO")
+                    .mut_subcommand("status", |action| {
+                        action
+                            .about("Mostra o mascote e os modelos locais")
+                            .mut_arg("json", |arg| arg.help("Emite JSON"))
+                    })
+                    .mut_subcommand("name", |action| {
+                        action
+                            .about("Altera o nome exibido")
+                            .mut_arg("name", |arg| arg.help("Nome do mascote"))
+                            .mut_arg("json", |arg| arg.help("Emite JSON"))
+                    })
+                    .mut_subcommand("voice", |action| {
+                        action
+                            .about("Seleciona uma voz Piper local instalada")
+                            .mut_arg("voice", |arg| arg.help("ID do modelo de voz local"))
+                            .mut_arg("json", |arg| arg.help("Emite JSON"))
+                    })
+                    .mut_subcommand("train", |action| {
+                        action
+                            .about("Treina uma wake word personalizada local")
+                            .mut_arg("name", |arg| arg.help("Nome da wake word"))
+                            .mut_arg("json", |arg| arg.help("Emite JSON"))
+                    }),
+                lang,
+                "forja mascot",
             )
         })
         .mut_subcommand("memory", |memory| {
@@ -749,6 +873,19 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                         .mut_arg("note", |arg| arg.help("Texto da nota"))
                         .mut_arg("json", |arg| arg.help("Emite JSON"));
                     localized_help(action, lang, "forja memory remember")
+                })
+                .mut_subcommand("viewer", |action| {
+                    let action = action
+                        .about("Abre o visualizador local do vault")
+                        .mut_arg("json", |arg| arg.help("Emite JSON"));
+                    localized_help(action, lang, "forja memory viewer")
+                })
+                .mut_subcommand("mcp", |action| {
+                    localized_help(
+                        action.about("Executa o servidor MCP da Memória por stdio"),
+                        lang,
+                        "forja memory mcp",
+                    )
                 });
             localized_help(
                 memory.about("Busca e mantém o vault local ForjaOS"),
