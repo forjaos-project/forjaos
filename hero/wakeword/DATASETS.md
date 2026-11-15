@@ -17,6 +17,17 @@ pendentes; o trabalho de software e de preparação dos dados pode prosseguir.
 Não substitua essa evidência por áudio sintético ou por frases genéricas do
 Common Voice.
 
+O índice local dos candidatos negativos pt-BR pode ser reproduzido com
+`python3 hero/wakeword/index_common_voice.py <arquivo-pt.tar.gz> <pasta-privada>`.
+Ele lê apenas `train.tsv`, `dev.tsv` e `test.tsv`, usa o valor real
+`Portuguese (Brasil)` da coluna `variant` e exclui frases que contêm os oito
+nomes de ativação. Na cópia de 27.0 de 15/11/2026, foram 6.111 candidatos de
+treino, 1.484 de desenvolvimento e 976 de teste, sem locutores repetidos
+entre as divisões. O manifesto privado está em
+`D:\ForjaOS\datasets\wakeword\derived\`; ele não extrai áudio nem substitui
+as gravações autorizadas de FR-081. A presença de cada MP3 no arquivo ainda
+precisa ser conferida antes de treinar.
+
 | Uso | Fonte | Licença e limite |
 | --- | --- | --- |
 | Exemplos positivos sintéticos | [Piper sample generator](https://github.com/dscripka/piper-sample-generator), com vozes pt-BR verificadas uma a uma | Verificar a licença de cada voz usada; gerar as frases do ForjaOS localmente. |
