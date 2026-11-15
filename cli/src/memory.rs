@@ -1,4 +1,5 @@
 use serde_json::Value;
+use std::io::{self, Read};
 use std::process::{Command, Stdio};
 use zbus::{Connection, Proxy};
 
@@ -32,6 +33,47 @@ async fn call_remember(note: &str) -> Result<String, zbus::Error> {
     let connection = Connection::session().await?;
     let proxy = proxy(&connection).await?;
     proxy.call("Remember", &note).await
+}
+
+async fn call_collectors() -> Result<String, zbus::Error> {
+    let connection = Connection::session().await?;
+    let proxy = proxy(&connection).await?;
+    proxy.call("Collectors", &()).await
+}
+
+async fn call_set_collector(source: &str, enabled: bool) -> Result<String, zbus::Error> {
+    let connection = Connection::session().await?;
+    let proxy = proxy(&connection).await?;
+    proxy.call("SetCollector", &(source, enabled)).await
+}
+
+async fn call_set_retention(source: &str, days: u32) -> Result<String, zbus::Error> {
+    let connection = Connection::session().await?;
+    let proxy = proxy(&connection).await?;
+    proxy.call("SetRetention", &(source, days)).await
+}
+
+async fn call_purge() -> Result<String, zbus::Error> {
+    let connection = Connection::session().await?;
+    let proxy = proxy(&connection).await?;
+    proxy.call("Purge", &()).await
+}
+
+async fn call_collect_event(
+    source: &str,
+    detail: &str,
+    cwd: &str,
+    exit_code: i32,
+    duration_ms: u64,
+) -> Result<String, zbus::Error> {
+    let connection = Connection::session().await?;
+    let proxy = proxy(&connection).await?;
+    proxy
+        .call(
+            "CollectEvent",
+            &(source, detail, cwd, exit_code, duration_ms),
+        )
+        .await
 }
 
 fn unavailable(json: bool, error: &zbus::Error) -> i32 {
@@ -157,6 +199,273 @@ pub fn remember(note: &str, json: bool) -> i32 {
         },
         Err(error) => unavailable(json, &error),
     }
+}
+
+pub fn collectors_status(json: bool) -> i32 {
+    match zbus::block_on(call_collectors()) {
+        Ok(raw) => match parse_reply(raw, json) {
+            Ok(value) => {
+                if json {
+                    println!("{value}");
+                } else if let Some(collectors) = value.as_array() {
+                    for collector in collectors {
+                        println!(
+                            "{} · {} · {} dias · {}",
+                            collector["source"].as_str().unwrap_or("?"),
+                            if collector["enabled"].as_bool().unwrap_or(false) {
+                                "ativo"
+                            } else {
+                                "inativo"
+                            },
+                            collector["retention_days"].as_u64().unwrap_or(0),
+                            if collector["available"].as_bool().unwrap_or(false) {
+                                "disponível"
+                            } else {
+                                "indisponível"
+                            }
+                        );
+                    }
+                }
+                0
+            }
+            Err(code) => code,
+        },
+        Err(error) => unavailable(json, &error),
+    }
+}
+
+pub fn set_collector(source: &str, enabled: bool, json: bool) -> i32 {
+    match zbus::block_on(call_set_collector(source, enabled)) {
+        Ok(raw) => match parse_reply(raw, json) {
+            Ok(value) => {
+                if json {
+                    println!("{value}");
+                } else {
+                    println!(
+                        "Coletor {source}: {}.",
+                        if enabled { "ativado" } else { "desativado" }
+                    );
+                }
+                0
+            }
+            Err(code) => code,
+        },
+        Err(error) => unavailable(json, &error),
+    }
+}
+
+pub fn set_retention(source: &str, days: u32, json: bool) -> i32 {
+    match zbus::block_on(call_set_retention(source, days)) {
+        Ok(raw) => match parse_reply(raw, json) {
+            Ok(value) => {
+                if json {
+                    println!("{value}");
+                } else {
+                    println!(
+                        "Retenção de {source}: {}.",
+                        if days == 0 {
+                            "indefinida".into()
+                        } else {
+                            format!("{days} dias")
+                        }
+                    );
+                }
+                0
+            }
+            Err(code) => code,
+        },
+        Err(error) => unavailable(json, &error),
+    }
+}
+
+pub fn purge(json: bool) -> i32 {
+    match zbus::block_on(call_purge()) {
+        Ok(raw) => match parse_reply(raw, json) {
+            Ok(value) => {
+                if json {
+                    println!("{value}");
+                } else {
+                    println!(
+                        "Eventos removidos pela retenção: {}.",
+                        value["removed"].as_u64().unwrap_or(0)
+                    );
+                }
+                0
+            }
+            Err(code) => code,
+        },
+        Err(error) => unavailable(json, &error),
+    }
+}
+
+pub fn collect(source: &str, exit_code: i32, duration_ms: u64) -> i32 {
+    let detail = if source == "shell" {
+        let mut detail = String::new();
+        if io::stdin()
+            .take((64 * 1024 + 1) as u64)
+            .read_to_string(&mut detail)
+            .is_err()
+            || detail.len() > 64 * 1024
+        {
+            eprintln!("forja memory collect: entrada acima de 64 KiB ou leitura inválida.");
+            return 2;
+        }
+        detail
+    } else {
+        let output = match Command::new("git")
+            .args(["log", "-1", "--format=%H%x09%s"])
+            .output()
+        {
+            Ok(output) if output.status.success() => output,
+            Ok(_) => {
+                eprintln!("forja memory collect: não foi possível ler o último commit Git.");
+                return 2;
+            }
+            Err(error) => {
+                eprintln!("forja memory collect: {error}");
+                return 2;
+            }
+        };
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    };
+    let cwd = std::env::current_dir()
+        .map(|path| path.to_string_lossy().to_string())
+        .unwrap_or_default();
+    match zbus::block_on(call_collect_event(
+        source,
+        &detail,
+        &cwd,
+        exit_code,
+        duration_ms,
+    )) {
+        Ok(_) => 0,
+        Err(error) => {
+            eprintln!("forja memory collect: {error}");
+            1
+        }
+    }
+}
+
+pub fn install_git_hook(json: bool) -> i32 {
+    let root = match Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            std::path::PathBuf::from(String::from_utf8_lossy(&output.stdout).trim())
+        }
+        _ => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"command":"memory hook install", "status":"not_a_repository"})
+                );
+            } else {
+                eprintln!("forja memory hook: execute dentro de um repositório Git.");
+            }
+            return 2;
+        }
+    };
+    if Command::new("git")
+        .current_dir(&root)
+        .args(["config", "--get", "core.hooksPath"])
+        .output()
+        .is_ok_and(|output| output.status.success())
+    {
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({"command":"memory hook install", "status":"custom_hooks_path_preserved"})
+            );
+        } else {
+            eprintln!("forja memory hook: core.hooksPath já está configurado; nenhuma alteração foi feita.");
+        }
+        return 2;
+    }
+    let hook_path = match Command::new("git")
+        .current_dir(&root)
+        .args(["rev-parse", "--git-path", "hooks/post-commit"])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            let path = std::path::PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        }
+        Ok(_) => {
+            eprintln!("forja memory hook: Git não informou o caminho do hook.");
+            return 1;
+        }
+        Err(error) => {
+            eprintln!("forja memory hook: {error}");
+            return 1;
+        }
+    };
+    let Some(parent) = hook_path.parent() else {
+        eprintln!("forja memory hook: caminho de hook inválido.");
+        return 1;
+    };
+    if let Err(error) = std::fs::create_dir_all(parent) {
+        eprintln!("forja memory hook: {error}");
+        return 1;
+    }
+    let mut file = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&hook_path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"command":"memory hook install", "status":"existing_hook_preserved"})
+                );
+            } else {
+                eprintln!(
+                    "forja memory hook: hook existente preservado em {}.",
+                    hook_path.display()
+                );
+            }
+            return 2;
+        }
+        Err(error) => {
+            eprintln!("forja memory hook: {error}");
+            return 1;
+        }
+    };
+    use std::io::Write;
+    if let Err(error) = file
+        .write_all(b"#!/bin/sh\n/usr/bin/forja memory collect git >/dev/null 2>&1 || true\n")
+        .and_then(|()| file.sync_all())
+    {
+        let _ = std::fs::remove_file(&hook_path);
+        eprintln!("forja memory hook: {error}");
+        return 1;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(error) =
+            std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o755))
+        {
+            let _ = std::fs::remove_file(&hook_path);
+            eprintln!("forja memory hook: {error}");
+            return 1;
+        }
+    }
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({"command":"memory hook install", "status":"installed"})
+        );
+    } else {
+        println!("Hook post-commit instalado em {}.", hook_path.display());
+    }
+    0
 }
 
 pub fn viewer(json: bool) -> i32 {

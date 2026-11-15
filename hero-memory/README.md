@@ -10,6 +10,8 @@ O serviço publica `org.forjaos.Memory` no D-Bus da sessão:
 - `Timeline(days, limit) -> JSON`
 - `Rebuild() -> JSON`
 - `Remember(note) -> JSON`
+- `Collectors()`, `SetCollector(source, enabled)`, `SetRetention(source, days)`
+- `CollectEvent(source, detail, cwd, exit_code, duration_ms)`, `Purge()`
 
 O transporte MCP por stdio está disponível em `forja memory mcp`. Ele expõe
 `memory_search`, `memory_timeline`, `memory_related`, `memory_remember` e
@@ -25,8 +27,18 @@ Graphify. O vault e o banco recebem permissões restritas ao usuário.
 O serviço não baixa modelos automaticamente. Sem `nomic-embed-text`, as buscas
 continuam funcionando por FTS5 e `forja memory rebuild` informa esse estado.
 
-Comandos disponíveis pela CLI: `forja memory search`, `timeline`, `remember`,
-`rebuild` e `viewer`. O visualizador QML abre timeline, grafo e busca local em
-modo somente leitura. O grafo usa um arranjo radial estático; layout
-força-dirigida, zoom/filtros, medição de desempenho e coletores automáticos com
-retenção configurável ainda estão pendentes.
+Comandos disponíveis pela CLI incluem `search`, `timeline`, `remember`,
+`rebuild`, `viewer`, `collectors`, `retention` e `purge`. O visualizador QML
+abre timeline, grafo e busca local em modo somente leitura.
+
+Os coletores shell e HERO são automáticos. O coletor Git registra o post-commit
+nos repositórios onde `forja memory hook install` foi executado. A configuração
+fica em `~/.config/hero/memory.toml`; shell, Git e HERO começam ativos, enquanto
+janelas, código e notas ficam desativados e indisponíveis nesta versão. O purge
+remove arquivos de eventos antigos pelas retenções configuradas.
+Defina `FORJA_MEMORY_COLLECTOR=0` em uma sessão shell para ignorar comandos
+daquela sessão.
+
+O grafo usa um arranjo radial estático; faltam layout força-dirigida,
+zoom/filtros, medição de desempenho, varredura Git diária e atualização
+incremental do grafo após cada evento.

@@ -59,6 +59,11 @@ Opções:
 - `forja memory rebuild [--json]`
 - `forja memory viewer [--json]` abre o visualizador local QML em modo somente leitura.
 - `forja memory mcp` inicia o transporte MCP por stdio para registro em clientes compatíveis.
+- `forja memory collectors status|enable <origem>|disable <origem>` consulta ou altera os coletores disponíveis (`shell`, `git`, `hero`).
+- `forja memory retention <origem> <dias>` define retenção; `0` significa indefinida. `forja memory purge` aplica as retenções.
+- `forja memory collect shell` lê o comando do stdin; `forja memory collect git` registra o commit atual. O shell recebe hook no primeiro boot; em cada repo Git, execute `forja memory hook install` para registrar `post-commit`. Um hook existente é preservado.
+
+Os eventos guardam comando/commit, diretório, código de saída e duração; padrões conhecidos de segredos são redigidos antes da gravação. Defina `FORJA_MEMORY_COLLECTOR=0` no shell para não registrar comandos daquela sessão. A coleta de janelas, código e notas ainda não está disponível.
 
 ## `forja mascot`
 

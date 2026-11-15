@@ -127,7 +127,7 @@ fn call_tool(paths: &StorePaths, params: &Value) -> Value {
             };
             paths
                 .forget(id)
-                .and_then(|()| Ok(json!({"forgotten":id}).to_string()))
+                .map(|()| json!({"forgotten":id}).to_string())
         }
         _ => return tool_error("Ferramenta desconhecida."),
     };
@@ -166,8 +166,8 @@ fn related(paths: &StorePaths, entity: &str) -> Result<Vec<Value>, String> {
     Ok(links
         .iter()
         .filter(|link| {
-            ids.contains(&link["source"].as_str().unwrap_or(&""))
-                || ids.contains(&link["target"].as_str().unwrap_or(&""))
+            ids.contains(&link["source"].as_str().unwrap_or(""))
+                || ids.contains(&link["target"].as_str().unwrap_or(""))
         })
         .cloned()
         .collect())

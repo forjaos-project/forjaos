@@ -16,7 +16,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=%h/ForjaOS/vault %h/.local/share/hero
+ReadWritePaths=%h/ForjaOS/vault %h/.local/share/hero %h/.config/hero
 
 [Install]
 WantedBy=default.target

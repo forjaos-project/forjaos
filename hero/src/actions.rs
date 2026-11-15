@@ -60,7 +60,32 @@ async fn memory_call(method: &str, payload: &str) -> Result<String, String> {
             .map_err(|error| error.to_string())?
     };
     let value = serde_json::from_str::<Value>(&raw).map_err(|error| error.to_string())?;
-    Ok(serde_json::to_string(&value).map_err(|error| error.to_string())?)
+    serde_json::to_string(&value).map_err(|error| error.to_string())
+}
+
+pub async fn record_hero_action(tool: &str, succeeded: bool, cwd: &str) {
+    let Ok(connection) = Connection::session().await else {
+        return;
+    };
+    let Ok(proxy) = Proxy::new(&connection, MEMORY_BUS, MEMORY_PATH, MEMORY_INTERFACE).await else {
+        return;
+    };
+    let detail = format!(
+        "tool={tool}; approved=true; result={}",
+        if succeeded { "ok" } else { "failed" }
+    );
+    let _ = proxy
+        .call::<_, _, String>(
+            "CollectEvent",
+            &(
+                "hero",
+                detail.as_str(),
+                cwd,
+                if succeeded { 0i32 } else { 1i32 },
+                0u64,
+            ),
+        )
+        .await;
 }
 
 pub async fn execute(action: Action) -> Result<String, String> {

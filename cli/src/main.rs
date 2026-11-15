@@ -204,6 +204,82 @@ enum MemoryAction {
     },
     /// Executa o servidor MCP da Memória usando stdio
     Mcp,
+    /// Configura coletores locais da memória
+    Collectors {
+        #[command(subcommand)]
+        action: CollectorAction,
+    },
+    /// Define retenção em dias; zero mantém os dados indefinidamente
+    Retention {
+        source: String,
+        days: u32,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Remove eventos de coletores além da retenção configurada
+    Purge {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Registra um evento local de shell ou o último commit Git
+    Collect {
+        #[arg(value_enum)]
+        source: CollectorSource,
+        #[arg(long, default_value_t = 0)]
+        exit_code: i32,
+        #[arg(long, default_value_t = 0)]
+        duration_ms: u64,
+    },
+    /// Instala um hook Git post-commit no repositório atual
+    Hook {
+        #[command(subcommand)]
+        action: MemoryHookAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum MemoryHookAction {
+    /// Instala sem substituir um hook existente
+    Install {
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum CollectorAction {
+    /// Lista estado e disponibilidade dos coletores
+    Status {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Ativa um coletor disponível
+    Enable {
+        source: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Desativa um coletor disponível
+    Disable {
+        source: String,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum CollectorSource {
+    Shell,
+    Git,
+}
+
+impl CollectorSource {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Shell => "shell",
+            Self::Git => "git",
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -363,6 +439,27 @@ fn main() {
             MemoryAction::Remember { note, json } => memory::remember(&note, json),
             MemoryAction::Viewer { json } => memory::viewer(json),
             MemoryAction::Mcp => memory::mcp(),
+            MemoryAction::Collectors { action } => match action {
+                CollectorAction::Status { json } => memory::collectors_status(json),
+                CollectorAction::Enable { source, json } => {
+                    memory::set_collector(&source, true, json)
+                }
+                CollectorAction::Disable { source, json } => {
+                    memory::set_collector(&source, false, json)
+                }
+            },
+            MemoryAction::Retention { source, days, json } => {
+                memory::set_retention(&source, days, json)
+            }
+            MemoryAction::Purge { json } => memory::purge(json),
+            MemoryAction::Collect {
+                source,
+                exit_code,
+                duration_ms,
+            } => memory::collect(source.as_str(), exit_code, duration_ms),
+            MemoryAction::Hook {
+                action: MemoryHookAction::Install { json },
+            } => memory::install_git_hook(json),
         },
         Command::Mascot { action } => match action {
             MascotAction::Status { json } => mascot::status(json),
@@ -970,6 +1067,142 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                 })
                 .mut_subcommand("mcp", |action| {
                     localized_help(action.about(mcp), lang, "forja memory mcp")
+                })
+                .mut_subcommand("collectors", |collectors| {
+                    let about = if english {
+                        "Configure local memory collectors"
+                    } else {
+                        "Configura os coletores locais da memória"
+                    };
+                    let collectors = collectors
+                        .mut_subcommand("status", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Show collector status"
+                                } else {
+                                    "Mostra o estado dos coletores"
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory collectors status")
+                        })
+                        .mut_subcommand("enable", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Enable a collector"
+                                } else {
+                                    "Ativa um coletor"
+                                })
+                                .mut_arg("source", |arg| {
+                                    arg.help(if english {
+                                        "Collector source"
+                                    } else {
+                                        "Origem do coletor"
+                                    })
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory collectors enable")
+                        })
+                        .mut_subcommand("disable", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Disable a collector"
+                                } else {
+                                    "Desativa um coletor"
+                                })
+                                .mut_arg("source", |arg| {
+                                    arg.help(if english {
+                                        "Collector source"
+                                    } else {
+                                        "Origem do coletor"
+                                    })
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory collectors disable")
+                        });
+                    localized_help(collectors.about(about), lang, "forja memory collectors")
+                })
+                .mut_subcommand("retention", |action| {
+                    let action = action
+                        .about(if english {
+                            "Set collector retention in days; zero means unlimited"
+                        } else {
+                            "Define retenção do coletor em dias; zero mantém indefinidamente"
+                        })
+                        .mut_arg("source", |arg| {
+                            arg.help(if english {
+                                "Collector source"
+                            } else {
+                                "Origem do coletor"
+                            })
+                        })
+                        .mut_arg("days", |arg| {
+                            arg.help(if english {
+                                "Retention days"
+                            } else {
+                                "Dias de retenção"
+                            })
+                        })
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory retention")
+                })
+                .mut_subcommand("purge", |action| {
+                    let action = action
+                        .about(if english {
+                            "Remove collector events past configured retention"
+                        } else {
+                            "Remove eventos de coletores além da retenção configurada"
+                        })
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory purge")
+                })
+                .mut_subcommand("collect", |action| {
+                    let action = action
+                        .about(if english {
+                            "Record a local shell event or latest Git commit"
+                        } else {
+                            "Registra evento de shell ou o último commit Git"
+                        })
+                        .mut_arg("source", |arg| {
+                            arg.help(if english {
+                                "Event source"
+                            } else {
+                                "Origem do evento"
+                            })
+                        })
+                        .mut_arg("exit_code", |arg| {
+                            arg.help(if english {
+                                "Shell command exit code"
+                            } else {
+                                "Código de saída do comando shell"
+                            })
+                        })
+                        .mut_arg("duration_ms", |arg| {
+                            arg.help(if english {
+                                "Shell command duration in milliseconds"
+                            } else {
+                                "Duração do comando shell em milissegundos"
+                            })
+                        });
+                    localized_help(action, lang, "forja memory collect")
+                })
+                .mut_subcommand("hook", |hook| {
+                    let hook = hook
+                        .about(if english {
+                            "Manage repository memory hooks"
+                        } else {
+                            "Gerencia hooks de memória no repositório"
+                        })
+                        .mut_subcommand("install", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Install a post-commit hook without replacing an existing hook"
+                                } else {
+                                    "Instala post-commit sem substituir um hook existente"
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory hook install")
+                        });
+                    localized_help(hook, lang, "forja memory hook")
                 });
             localized_help(memory.about(about), lang, "forja memory")
         })

@@ -1,7 +1,7 @@
 use chrono::{Local, Utc};
 mod mcp;
 use regex::Regex;
-use rusqlite::{ffi::sqlite3_auto_extension, params, Connection};
+use rusqlite::{ffi::sqlite3_auto_extension, params, Connection, OptionalExtension};
 use serde::Serialize;
 use serde_json::json;
 use sqlite_vec::sqlite3_vec_init;
@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Once;
+use std::sync::{Mutex, Once};
 use std::time::Duration;
 use zbus::{connection, fdo, interface};
 
@@ -21,6 +21,9 @@ const EMBEDDING_DIMENSIONS: usize = 768;
 const OLLAMA_TAGS_URL: &str = "http://127.0.0.1:11434/api/tags";
 const OLLAMA_EMBED_URL: &str = "http://127.0.0.1:11434/api/embed";
 static SQLITE_VEC: Once = Once::new();
+static CONFIG_LOCK: Mutex<()> = Mutex::new(());
+const COLLECTORS: &[&str] = &["shell", "git", "hero", "windows", "code", "notes"];
+const AUTOMATIC_COLLECTORS: &[&str] = &["shell", "git", "hero"];
 
 #[derive(serde::Deserialize)]
 struct EmbeddingReply {
@@ -41,6 +44,7 @@ struct OllamaTag {
 struct StorePaths {
     vault: PathBuf,
     index: PathBuf,
+    config: PathBuf,
 }
 
 #[derive(Serialize)]
@@ -94,6 +98,10 @@ impl StorePaths {
         Ok(Self {
             vault: home.join("ForjaOS/vault"),
             index: data.join("hero/memory.db"),
+            config: std::env::var_os("XDG_CONFIG_HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".config"))
+                .join("hero/memory.toml"),
         })
     }
 
@@ -104,6 +112,10 @@ impl StorePaths {
             self.vault.join("projects"),
             self.vault.join("hero"),
             self.vault.join("graph"),
+            self.config
+                .parent()
+                .ok_or_else(|| "caminho da configuração inválido".to_string())?
+                .to_path_buf(),
             self.index
                 .parent()
                 .ok_or_else(|| "caminho do índice inválido".to_string())?
@@ -111,6 +123,9 @@ impl StorePaths {
         ] {
             fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
             restrict_directory(&directory)?;
+        }
+        if !self.config.exists() {
+            self.write_default_config()?;
         }
         let connection = self.open()?;
         restrict_file(&self.index)?;
@@ -137,9 +152,287 @@ impl StorePaths {
         Ok(())
     }
 
+    fn write_default_config(&self) -> Result<(), String> {
+        let _guard = CONFIG_LOCK.lock().map_err(|error| error.to_string())?;
+        if self.config.exists() {
+            return Ok(());
+        }
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&self.config)
+            .map_err(|error| error.to_string())?;
+        restrict_file(&self.config)?;
+        file.write_all(
+            b"[collectors]\nshell = true\ngit = true\nhero = true\nwindows = false\ncode = false\nnotes = false\n\n[retention_days]\nshell = 365\ngit = 0\nhero = 0\nwindows = 90\ncode = 0\nnotes = 0\n",
+        )
+        .map_err(|error| error.to_string())?;
+        file.sync_all().map_err(|error| error.to_string())
+    }
+
+    fn config_values(&self) -> Result<HashMap<String, String>, String> {
+        let contents = fs::read_to_string(&self.config).map_err(|error| error.to_string())?;
+        let mut section = String::new();
+        let mut values = HashMap::new();
+        for raw_line in contents.lines() {
+            let line = raw_line.split('#').next().unwrap_or("").trim();
+            if line.is_empty() {
+                continue;
+            }
+            if line.starts_with('[') && line.ends_with(']') {
+                section = line[1..line.len() - 1].trim().to_string();
+                continue;
+            }
+            if let Some((key, value)) = line.split_once('=') {
+                values.insert(
+                    format!("{section}.{}", key.trim()),
+                    value.trim().to_string(),
+                );
+            }
+        }
+        Ok(values)
+    }
+
+    fn save_config_values(&self, values: &HashMap<String, String>) -> Result<(), String> {
+        let mut contents = String::from("[collectors]\n");
+        for source in COLLECTORS {
+            let value = values
+                .get(&format!("collectors.{source}"))
+                .map(String::as_str)
+                .unwrap_or(if AUTOMATIC_COLLECTORS.contains(source) {
+                    "true"
+                } else {
+                    "false"
+                });
+            if !matches!(value, "true" | "false") {
+                return Err(format!("valor inválido para collector {source}"));
+            }
+            contents.push_str(&format!("{source} = {value}\n"));
+        }
+        contents.push_str("\n[retention_days]\n");
+        for source in COLLECTORS {
+            let default = if *source == "shell" {
+                "365"
+            } else if *source == "windows" {
+                "90"
+            } else {
+                "0"
+            };
+            let value = values
+                .get(&format!("retention_days.{source}"))
+                .map(String::as_str)
+                .unwrap_or(default);
+            if value.parse::<u32>().map_or(true, |days| days > 36_500) {
+                return Err(format!("retenção inválida para {source}"));
+            }
+            contents.push_str(&format!("{source} = {value}\n"));
+        }
+        let temporary = self.config.with_extension("toml.tmp");
+        let mut file = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&temporary)
+            .map_err(|error| error.to_string())?;
+        file.write_all(contents.as_bytes())
+            .map_err(|error| error.to_string())?;
+        file.sync_all().map_err(|error| error.to_string())?;
+        restrict_file(&temporary)?;
+        fs::rename(temporary, &self.config).map_err(|error| error.to_string())
+    }
+
+    fn collectors(&self) -> Result<Vec<serde_json::Value>, String> {
+        self.initialize()?;
+        let values = self.config_values()?;
+        Ok(COLLECTORS
+            .iter()
+            .map(|source| {
+                let enabled = values
+                    .get(&format!("collectors.{source}"))
+                    .is_some_and(|value| value == "true");
+                let retention_days = values
+                    .get(&format!("retention_days.{source}"))
+                    .and_then(|value| value.parse::<u32>().ok())
+                    .unwrap_or(0);
+                json!({
+                    "source":source,
+                    "enabled":enabled,
+                    "available":AUTOMATIC_COLLECTORS.contains(source),
+                    "retention_days":retention_days
+                })
+            })
+            .collect())
+    }
+
+    fn set_collector(&self, source: &str, enabled: bool) -> Result<(), String> {
+        if !AUTOMATIC_COLLECTORS.contains(&source) {
+            return Err("coletor não disponível nesta versão".into());
+        }
+        self.initialize()?;
+        let _guard = CONFIG_LOCK.lock().map_err(|error| error.to_string())?;
+        let mut values = self.config_values()?;
+        values.insert(format!("collectors.{source}"), enabled.to_string());
+        self.save_config_values(&values)
+    }
+
+    fn set_retention(&self, source: &str, days: u32) -> Result<(), String> {
+        if !COLLECTORS.contains(&source) || days > 36_500 {
+            return Err("coletor inválido ou retenção superior a 100 anos".into());
+        }
+        self.initialize()?;
+        let _guard = CONFIG_LOCK.lock().map_err(|error| error.to_string())?;
+        let mut values = self.config_values()?;
+        values.insert(format!("retention_days.{source}"), days.to_string());
+        self.save_config_values(&values)
+    }
+
+    fn collect_event(
+        &self,
+        source: &str,
+        detail: &str,
+        cwd: &str,
+        exit_code: i32,
+        duration_ms: u64,
+    ) -> Result<String, String> {
+        if !AUTOMATIC_COLLECTORS.contains(&source) {
+            return Err("coletor não disponível nesta versão".into());
+        }
+        if detail.trim().is_empty() || detail.len() > MAX_NOTE_BYTES || cwd.len() > 4096 {
+            return Err("evento vazio ou maior que o limite permitido".into());
+        }
+        self.initialize()?;
+        let values = self.config_values()?;
+        if !values
+            .get(&format!("collectors.{source}"))
+            .is_some_and(|value| value == "true")
+        {
+            return Err("coletor desativado".into());
+        }
+        let safe_detail = markdown_inline(&redact_secrets(detail));
+        let safe_cwd = markdown_inline(&redact_secrets(cwd));
+        let now = Local::now();
+        let date = now.format("%Y-%m-%d").to_string();
+        let directory = self.vault.join("daily/collectors").join(source).join(&date);
+        fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+        restrict_directory(&directory)?;
+        let stamp = now.format("%H%M%S").to_string();
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|error| error.to_string())?
+            .as_nanos();
+        let path = directory.join(format!("{stamp}-{nonce}.md"));
+        let title = format!("{} · {stamp}", source.to_uppercase());
+        let body = format!(
+            "---\ntitle: {}\nsource: collector-{source}\ncreated_at: \"{}\"\n---\n\n- cwd: `{safe_cwd}`\n- exit: {exit_code}\n- duration_ms: {duration_ms}\n- detail: `{safe_detail}`\n",
+            markdown_inline(&title),
+            now.to_rfc3339()
+        );
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&path)
+            .map_err(|error| error.to_string())?;
+        restrict_file(&path)?;
+        file.write_all(body.as_bytes())
+            .map_err(|error| error.to_string())?;
+        file.sync_all().map_err(|error| error.to_string())?;
+        self.index_markdown(&path)?;
+        path.strip_prefix(&self.vault)
+            .map(|path| path.to_string_lossy().replace('\\', "/"))
+            .map_err(|error| error.to_string())
+    }
+
+    fn index_markdown(&self, path: &Path) -> Result<(), String> {
+        let text = fs::read_to_string(path).map_err(|error| error.to_string())?;
+        let safe_text = redact_secrets(&text);
+        let relative = path
+            .strip_prefix(&self.vault)
+            .map_err(|error| error.to_string())?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let modified_at = path
+            .metadata()
+            .ok()
+            .and_then(|metadata| metadata.modified().ok())
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |duration| duration.as_secs() as i64);
+        let title = markdown_title(&safe_text, path);
+        let connection = self.open()?;
+        let transaction = connection
+            .unchecked_transaction()
+            .map_err(|error| error.to_string())?;
+        let existing: Option<i64> = transaction
+            .query_row(
+                "SELECT rowid FROM notes WHERE id = ?1",
+                [&relative],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        if let Some(rowid) = existing {
+            transaction
+                .execute("DELETE FROM note_search WHERE id = ?1", [&relative])
+                .and_then(|_| {
+                    transaction.execute("DELETE FROM note_vectors WHERE note_rowid = ?1", [rowid])
+                })
+                .and_then(|_| {
+                    transaction.execute(
+                        "UPDATE notes SET path = ?1, modified_at = ?2 WHERE rowid = ?3",
+                        params![relative, modified_at, rowid],
+                    )
+                })
+                .map_err(|error| error.to_string())?;
+        } else {
+            transaction
+                .execute(
+                    "INSERT INTO notes(id, path, modified_at) VALUES (?1, ?1, ?2)",
+                    params![relative, modified_at],
+                )
+                .map_err(|error| error.to_string())?;
+        }
+        transaction
+            .execute(
+                "INSERT INTO note_search(id, path, title, content) VALUES (?1, ?2, ?3, ?4)",
+                params![relative, relative, title, safe_text],
+            )
+            .map_err(|error| error.to_string())?;
+        transaction.commit().map_err(|error| error.to_string())
+    }
+
+    fn purge(&self) -> Result<usize, String> {
+        self.initialize()?;
+        let values = self.config_values()?;
+        let now = std::time::SystemTime::now();
+        let mut removed = 0;
+        for source in COLLECTORS {
+            let days = values
+                .get(&format!("retention_days.{source}"))
+                .and_then(|value| value.parse::<u64>().ok())
+                .unwrap_or(0);
+            if days == 0 {
+                continue;
+            }
+            let directory = self.vault.join("daily/collectors").join(source);
+            if directory.exists() {
+                removed += purge_directory(&directory, now, Duration::from_secs(days * 86_400))?;
+            }
+        }
+        if removed > 0 {
+            let _ = self.rebuild()?;
+        }
+        Ok(removed)
+    }
+
     fn open(&self) -> Result<Connection, String> {
         SQLITE_VEC.call_once(|| unsafe {
-            sqlite3_auto_extension(Some(std::mem::transmute(sqlite3_vec_init as *const ())));
+            sqlite3_auto_extension(Some(std::mem::transmute::<
+                *const (),
+                unsafe extern "C" fn(
+                    *mut rusqlite::ffi::sqlite3,
+                    *mut *mut i8,
+                    *const rusqlite::ffi::sqlite3_api_routines,
+                ) -> i32,
+            >(sqlite3_vec_init as *const ())));
         });
         let connection = Connection::open(&self.index).map_err(|error| error.to_string())?;
         connection
@@ -178,7 +471,7 @@ impl StorePaths {
                 .replace('\\', "/");
             let id = relative.clone();
             let safe_text = &safe_documents[index];
-            let title = markdown_title(&safe_text, path);
+            let title = markdown_title(safe_text, path);
             transaction
                 .execute(
                     "INSERT INTO notes(id, path, modified_at) VALUES (?1, ?2, ?3)",
@@ -228,10 +521,7 @@ impl StorePaths {
                 .to_string_lossy()
                 .replace('\\', "/");
             for target in wikilinks(&safe_documents[index]) {
-                let target_name = target
-                    .split(|character| matches!(character, '|' | '#'))
-                    .next()
-                    .unwrap_or(&target);
+                let target_name = target.split(['|', '#']).next().unwrap_or(&target);
                 let key = alias_key(target_name);
                 if let Some(matches) = aliases.get(&key).filter(|matches| matches.len() == 1) {
                     graph_links.push(GraphLink {
@@ -290,6 +580,7 @@ impl StorePaths {
                 |row| row.get(0),
             )
             .map_err(|error| error.to_string())?;
+        let mut hits = Vec::new();
         if has_vectors {
             if let Some(mut embeddings) = embed_texts(&[query.to_string()]) {
                 if let Some(embedding) = embeddings.pop() {
@@ -317,12 +608,9 @@ impl StorePaths {
                             })
                         })
                         .map_err(|error| error.to_string())?;
-                    let hits = rows
+                    hits = rows
                         .collect::<Result<Vec<_>, _>>()
                         .map_err(|error| error.to_string())?;
-                    if !hits.is_empty() {
-                        return Ok(hits);
-                    }
                 }
             }
         }
@@ -344,8 +632,21 @@ impl StorePaths {
                 })
             })
             .map_err(|error| error.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|error| error.to_string())
+        for hit in rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?
+        {
+            if !hits
+                .iter()
+                .any(|existing: &SearchHit| existing.id == hit.id)
+            {
+                hits.push(hit);
+            }
+            if hits.len() >= limit as usize {
+                break;
+            }
+        }
+        Ok(hits)
     }
 
     fn timeline(&self, days: u32, limit: u32) -> Result<Vec<SearchHit>, String> {
@@ -561,19 +862,82 @@ fn redact_secrets(text: &str) -> String {
     )
     .expect("valid secret pattern");
     let bearer = Regex::new(r"(?i)(bearer\s+)[A-Za-z0-9._~+/-]+=*").expect("valid bearer pattern");
-    let token = Regex::new(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b")
-        .expect("valid token pattern");
+    let token = Regex::new(
+        r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16})\b",
+    )
+    .expect("valid token pattern");
+    let url_credentials =
+        Regex::new(r"(?i)\b(https?://)[^/@\s]+:[^/@\s]+@").expect("valid URL credential pattern");
+    let private_header = Regex::new(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
+        .expect("valid private key header pattern");
+    let private_footer = Regex::new(r"-----END [A-Z0-9 ]*PRIVATE KEY-----")
+        .expect("valid private key footer pattern");
+    let inline_secret = Regex::new(
+        r"(?i)((?:--?(?:api[_-]?key|access[_-]?token|token|secret|password|passwd|authorization)|(?:api[_-]?key|access[_-]?token|token|secret|password|passwd|authorization))\s*(?:=|\s+)\s*)[^\s]+",
+    )
+    .expect("valid inline secret pattern");
+    let mut in_private_key = false;
     text.lines()
-        .map(|line| {
-            if assignment.is_match(line) {
-                return "[SEGREDO REDIGIDO]".to_string();
+        .filter_map(|line| {
+            if in_private_key {
+                if private_footer.is_match(line) {
+                    in_private_key = false;
+                }
+                return None;
             }
-            token
-                .replace_all(&bearer.replace_all(line, "$1[REDACTED]"), "[REDACTED]")
-                .to_string()
+            if private_header.is_match(line) {
+                in_private_key = !private_footer.is_match(line);
+                return Some("[CHAVE PRIVADA REDIGIDA]".to_string());
+            }
+            if assignment.is_match(line) {
+                return Some("[SEGREDO REDIGIDO]".to_string());
+            }
+            let safe = inline_secret.replace_all(line, "$1[REDACTED]");
+            let safe = url_credentials.replace_all(&safe, "$1[REDACTED]@");
+            Some(
+                token
+                    .replace_all(&bearer.replace_all(&safe, "$1[REDACTED]"), "[REDACTED]")
+                    .to_string(),
+            )
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn markdown_inline(value: &str) -> String {
+    value
+        .chars()
+        .filter(|character| !character.is_control())
+        .collect::<String>()
+        .replace('\n', " ")
+        .replace('`', "\\`")
+}
+
+fn purge_directory(
+    directory: &Path,
+    now: std::time::SystemTime,
+    retention: Duration,
+) -> Result<usize, String> {
+    let mut removed = 0;
+    for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path).map_err(|error| error.to_string())?;
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
+            removed += purge_directory(&path, now, retention)?;
+        } else if metadata.is_file()
+            && metadata
+                .modified()
+                .is_ok_and(|modified| now.duration_since(modified).unwrap_or_default() > retention)
+        {
+            fs::remove_file(path).map_err(|error| error.to_string())?;
+            removed += 1;
+        }
+    }
+    Ok(removed)
 }
 
 fn markdown_title(content: &str, path: &Path) -> String {
@@ -687,6 +1051,67 @@ impl MemoryService {
             .await
             .map_err(|error| fdo::Error::Failed(error.to_string()))?
             .map(|path| json!({"status":"ok", "path":path}).to_string())
+            .map_err(fdo::Error::Failed)
+    }
+
+    async fn collectors(&self) -> fdo::Result<String> {
+        let paths = self.paths.clone();
+        tokio::task::spawn_blocking(move || paths.collectors())
+            .await
+            .map_err(|error| fdo::Error::Failed(error.to_string()))?
+            .and_then(|result| serde_json::to_string(&result).map_err(|error| error.to_string()))
+            .map_err(fdo::Error::Failed)
+    }
+
+    async fn set_collector(&self, source: &str, enabled: bool) -> fdo::Result<String> {
+        let paths = self.paths.clone();
+        let source = source.to_string();
+        let reply_source = source.clone();
+        tokio::task::spawn_blocking(move || paths.set_collector(&source, enabled))
+            .await
+            .map_err(|error| fdo::Error::Failed(error.to_string()))?
+            .map(|()| json!({"status":"ok", "source":reply_source, "enabled":enabled}).to_string())
+            .map_err(fdo::Error::Failed)
+    }
+
+    async fn set_retention(&self, source: &str, days: u32) -> fdo::Result<String> {
+        let paths = self.paths.clone();
+        let source = source.to_string();
+        let reply_source = source.clone();
+        tokio::task::spawn_blocking(move || paths.set_retention(&source, days))
+            .await
+            .map_err(|error| fdo::Error::Failed(error.to_string()))?
+            .map(|()| {
+                json!({"status":"ok", "source":reply_source, "retention_days":days}).to_string()
+            })
+            .map_err(fdo::Error::Failed)
+    }
+
+    async fn collect_event(
+        &self,
+        source: &str,
+        detail: &str,
+        cwd: &str,
+        exit_code: i32,
+        duration_ms: u64,
+    ) -> fdo::Result<String> {
+        let paths = self.paths.clone();
+        let (source, detail, cwd) = (source.to_string(), detail.to_string(), cwd.to_string());
+        tokio::task::spawn_blocking(move || {
+            paths.collect_event(&source, &detail, &cwd, exit_code, duration_ms)
+        })
+        .await
+        .map_err(|error| fdo::Error::Failed(error.to_string()))?
+        .map(|path| json!({"status":"ok", "path":path}).to_string())
+        .map_err(fdo::Error::Failed)
+    }
+
+    async fn purge(&self) -> fdo::Result<String> {
+        let paths = self.paths.clone();
+        tokio::task::spawn_blocking(move || paths.purge())
+            .await
+            .map_err(|error| fdo::Error::Failed(error.to_string()))?
+            .map(|removed| json!({"status":"ok", "removed":removed}).to_string())
             .map_err(fdo::Error::Failed)
     }
 }

@@ -259,6 +259,7 @@ impl Hero {
         let _ = self.transition_to("pensando", &emitter).await;
         let started = Instant::now();
         let result = actions::execute(proposal.action).await;
+        actions::record_hero_action(proposal.tool, result.is_ok(), &proposal.context).await;
         let elapsed = started.elapsed().as_millis();
         let (status, decision, answer) = match result {
             Ok(answer) => ("ok", "executado", answer),

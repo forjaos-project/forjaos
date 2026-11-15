@@ -20,12 +20,12 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 - [x] `F2-002` Experiência dev: Podman rootless, Docker CE rootless opcional, Git via keyring, Distrobox, Dev Containers CLI e VS Code opcional, Homebrew e zsh + Starship (FR-030–FR-035). VS Code e Docker ficam fora da imagem e exigem escolha explícita no primeiro boot.
 - [x] `F2-003` Jogos e gamedev: Steam e steam-devices preservados; gamescope, MangoHud e Bluetooth na imagem; perfil gamedev instala Godot com templates, ProtonPlus, Lutris e Heroic; Godot Tools entra no VS Code quando escolhido; Modo Jogo ativa `hero-game.target` para Steam/gamescope, Não perturbe e perfil performance. Integração com HERO/Memória e medição de FPS ficam em F4-004; jogos e controles em hardware ficam para o build final (FR-040, FR-041, FR-043, FR-044).
-- [ ] `F2-004` CLI forja completo: subcomandos, --json, completions, confirmação [s/N] (FR-060, FR-061, FR-062, FR-063). Avanço parcial: Compose, relatório, completions instaladas, update/rollback com confirmação, JSON, chat local `forja ai`, confirmação D-Bus de ação, memória, visualizador QML/MCP e `mascot status|name|voice|train`. Faltam coletores/retenção e backends de voz/treino.
+- [ ] `F2-004` CLI forja completo: subcomandos, --json, completions, confirmação [s/N] (FR-060, FR-061, FR-062, FR-063). Avanço parcial: Compose, relatório, completions instaladas, update/rollback com confirmação, JSON, chat local `forja ai`, confirmação D-Bus de ação, memória com status/toggle/retention/purge, visualizador QML/MCP e `mascot status|name|voice|train`. Faltam coletores de janelas/código/notas, varredura Git diária e backends de voz/treino.
 - [ ] `F2-005` forja mcp register + Trivy no CI (FR-111, NFR-026)
 
 ### Fase 3 — HERO v0 nativo (texto + sistema)
 
-- [ ] `F3-001` herod: daemon Rust, D-Bus org.forjaos.Hero, máquina de estados, limites de consumo (FR-070, FR-071, FR-078). Em andamento: API D-Bus de texto/estado, confirmação de ação de uso único e unit com limites; faltam áudio, timeout de turno completo e validação de consumo.
+- [ ] `F3-001` herod: daemon Rust, D-Bus org.forjaos.Hero, máquina de estados, limites de consumo (FR-070, FR-071, FR-078). Em andamento: API D-Bus de texto/estado, confirmação de ação de uso único, resumo de ações aprovadas em memd e unit com limites; faltam áudio, timeout de turno completo e validação de consumo.
 - [ ] `F3-002` Roteador de intenções, provedores por rota, Ollama gerenciado, persona (FR-090, FR-091, FR-092, FR-096). Em andamento: chat local via Ollama, seleção 8B/4B por VRAM/Modo Jogo e keep-alive de cinco minutos; faltam rotas, provedores e persona configuráveis.
 - [ ] `F3-003` Policy Engine (tiers) e AuditEvent em journald (FR-100, FR-101, FR-102, FR-103). Em andamento: tiers livres/alterar/bloqueado, confirmação curta e log sem texto da pergunta; faltam avaliação de rotinas e cobertura por tool.
 - [ ] `F3-004` MCP servers hero-system, hero-desktop, hero-dev (rmcp, stdio) (FR-110, FR-112)
@@ -40,7 +40,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 - [ ] `F4-002` Wake word openWakeWord: 8 modelos embarcados + treino de nome personalizado (FR-080, FR-081, FR-082). Interface CLI presente; modelos, dataset e treinador não estão instalados.
 - [ ] `F4-003` STT faster-whisper, TTS Piper com visemes, mascote animado 60 fps (FR-083, FR-084, FR-123). CLI de seleção de voz presente; worker de áudio, vozes e animação não estão instalados.
 - [ ] `F4-004` Modo Jogo completo e medição de impacto em FPS (FR-043, NFR-008)
-- [ ] `F4-005` memd: vault, coletores, índice SQLite FTS5 + sqlite-vec, graph.json, retenção (FR-130, FR-131, FR-132, FR-133, FR-134, FR-137). Em andamento: serviço D-Bus, vault Markdown, índice FTS5, embeddings locais via Ollama e exportação básica do grafo; faltam coletores e retenção.
+- [ ] `F4-005` memd: vault, coletores, índice SQLite FTS5 + sqlite-vec, graph.json, retenção (FR-130, FR-131, FR-132, FR-133, FR-134, FR-137). Em andamento: eventos de shell, Git por hook post-commit opt-in e ações aprovadas do HERO; toggles, retention_days e purge; faltam varredura Git diária, coletores de janelas/código/notas, toggles na interface e atualização incremental do grafo.
 - [ ] `F4-006` Visualizador de memória (timeline + grafo) e MCP hero-memory — telas visualizador_* (FR-135, FR-136). Visualizador QML inicial com timeline, grafo e busca local; MCP stdio oferece search/timeline/related/remember/forget. Faltam layout força-dirigida, zoom/filtros, teste de desempenho e registro nos clientes.
 
 ### Fase 5 — Release 1.0
