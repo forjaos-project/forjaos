@@ -38,7 +38,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 - [ ] `F4-001` Gatilhos de voz, barge-in, mic kill switch, áudio nunca persiste (FR-072, FR-073, FR-074, FR-075, FR-076, FR-077)
 - [ ] `F4-002` Wake word openWakeWord: 8 modelos embarcados + treino de nome personalizado (FR-080, FR-081, FR-082). Interface CLI presente; modelos, dataset e treinador não estão instalados.
-- [ ] `F4-003` STT faster-whisper, TTS Piper com visemes, mascote animado 60 fps (FR-083, FR-084, FR-123). CLI de seleção de voz presente; worker de áudio, vozes e animação não estão instalados.
+- [ ] `F4-003` STT faster-whisper, TTS Piper com visemes, mascote animado 60 fps (FR-083, FR-084, FR-123). CLI lista e baixa duas vozes pt-BR CC0 com revisão/hash fixados; ainda faltam worker STT/TTS, integração de áudio, visemes e animação.
 - [ ] `F4-004` Modo Jogo completo e medição de impacto em FPS (FR-043, NFR-008)
 - [ ] `F4-005` memd: vault, coletores, índice SQLite FTS5 + sqlite-vec, graph.json, retenção (FR-130, FR-131, FR-132, FR-133, FR-134, FR-137). Em andamento: eventos de shell, Git por hook e varredura diária em repos cadastrados, ações aprovadas do HERO, coletor de janelas KWin opt-in; toggles, retention_days e purge; faltam coletores de código/notas, toggles na interface e atualização incremental do grafo.
 - [ ] `F4-006` Visualizador de memória (timeline + grafo) e MCP hero-memory — telas visualizador_* (FR-135, FR-136). Visualizador QML inicial com timeline, grafo e busca local; MCP stdio oferece search/timeline/related/remember/forget. Faltam layout força-dirigida, zoom/filtros, teste de desempenho e registro nos clientes.

@@ -328,9 +328,29 @@ enum MascotAction {
         #[arg(long)]
         json: bool,
     },
+    /// Lista e instala vozes Piper pt-BR com licença verificada
+    Voices {
+        #[command(subcommand)]
+        action: VoiceCatalogAction,
+    },
     /// Inicia treino local de uma wake word personalizada
     Train {
         name: String,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum VoiceCatalogAction {
+    /// Lista as vozes pt-BR do catálogo curado
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Baixa e valida uma voz do catálogo curado
+    Download {
+        voice: String,
         #[arg(long)]
         json: bool,
     },
@@ -501,6 +521,12 @@ fn main() {
             MascotAction::Status { json } => mascot::status(json),
             MascotAction::Name { name, json } => mascot::set_name(&name, json),
             MascotAction::Voice { voice, json } => mascot::set_voice(&voice, json),
+            MascotAction::Voices { action } => match action {
+                VoiceCatalogAction::List { json } => mascot::list_voices(json),
+                VoiceCatalogAction::Download { voice, json } => {
+                    mascot::download_voice(&voice, json)
+                }
+            },
             MascotAction::Train { name, json } => mascot::train(&name, json),
         },
         Command::Keys {
@@ -774,6 +800,21 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                             .mut_arg("voice", |arg| arg.help("Local voice model ID"))
                             .mut_arg("json", |arg| arg.help("Output JSON"))
                     })
+                    .mut_subcommand("voices", |voices| {
+                        voices
+                            .about("List or download curated Piper voices")
+                            .mut_subcommand("list", |action| {
+                                action
+                                    .about("List curated Brazilian Portuguese voices")
+                                    .mut_arg("json", |arg| arg.help("Output JSON"))
+                            })
+                            .mut_subcommand("download", |action| {
+                                action
+                                    .about("Download and verify a curated voice")
+                                    .mut_arg("voice", |arg| arg.help("Curated voice ID"))
+                                    .mut_arg("json", |arg| arg.help("Output JSON"))
+                            })
+                    })
                     .mut_subcommand("train", |action| {
                         action
                             .about("Train a custom local wake word")
@@ -961,6 +1002,21 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
             )
         })
         .mut_subcommand("mascot", |mascot| {
+            let (voices_about, voice_list, voice_download, voice_id) = if english {
+                (
+                    "Lists and downloads curated Piper voices",
+                    "List curated Brazilian Portuguese voices",
+                    "Download and verify a curated voice",
+                    "Curated voice ID",
+                )
+            } else {
+                (
+                    "Lista e baixa vozes Piper curadas",
+                    "Lista vozes curadas em português brasileiro",
+                    "Baixa e valida uma voz curada",
+                    "ID da voz curada",
+                )
+            };
             let (about, status, name, name_arg, voice, voice_arg, train, train_arg, json_help) =
                 if english {
                     (
@@ -1006,6 +1062,21 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                             .about(voice)
                             .mut_arg("voice", |arg| arg.help(voice_arg))
                             .mut_arg("json", |arg| arg.help(json_help))
+                    })
+                    .mut_subcommand("voices", |voices| {
+                        voices
+                            .about(voices_about)
+                            .mut_subcommand("list", |action| {
+                                action
+                                    .about(voice_list)
+                                    .mut_arg("json", |arg| arg.help(json_help))
+                            })
+                            .mut_subcommand("download", |action| {
+                                action
+                                    .about(voice_download)
+                                    .mut_arg("voice", |arg| arg.help(voice_id))
+                                    .mut_arg("json", |arg| arg.help(json_help))
+                            })
                     })
                     .mut_subcommand("train", |action| {
                         action

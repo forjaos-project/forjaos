@@ -72,6 +72,7 @@ Events store the command/commit, directory, exit code, and duration; known secre
 - `forja mascot status [--json]` shows the configured name and whether local wake word and voice files are installed.
 - `forja mascot name "Guará" [--json]` changes the name in `~/.config/hero/persona.toml`.
 - `forja mascot voice <id> [--json]` selects an installed Piper voice with `<id>.onnx` and `<id>.onnx.json` in `~/.local/share/hero/voices/`.
+- `forja mascot voices list [--json]` lists the curated Cadu and Jeff Brazilian Portuguese voices and their install status. `forja mascot voices download <id> [--json]` downloads an immutable revision and verifies file sizes and SHA-256 before installation. CC0 was verified for these voices and their training bases in Piper's [official commercial-use list](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/COMMERCIAL_USE.md).
 - `forja mascot train "Name" [--json]` queues the local trainer as a transient user service; if the trainer is not installed, it reports that no training was started. Follow progress with `journalctl --user -u forja-wakeword-train.service`.
 
 These commands use `memd` over the session D-Bus. The vault lives in

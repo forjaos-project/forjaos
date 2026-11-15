@@ -4,6 +4,31 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const PIPER_VOICE_REVISION: &str = "cf910fb59f1d79ab3b625a63993a108751c6c25d";
+
+struct PiperVoice {
+    id: &'static str,
+    speaker: &'static str,
+    model_sha256: &'static str,
+    config_sha256: &'static str,
+}
+
+const PIPER_VOICES: &[PiperVoice] = &[
+    PiperVoice {
+        id: "pt_BR-cadu-medium",
+        speaker: "cadu",
+        model_sha256: "d5a662e3f606d5a49dd29ba9ce90c304ae45dd9543f8b0c773bcb0de282499de",
+        config_sha256: "9fa837b7c1237ea5978bcd7be38c130798e8faa064f754873bb4ce5fc498bd88",
+    },
+    PiperVoice {
+        id: "pt_BR-jeff-medium",
+        speaker: "jeff",
+        model_sha256: "82ddcdb01a0342f078bd89ce2815eda27185818d15e15f06fb9a72ac3bce94e1",
+        config_sha256: "078ea4e42a680ca3cb662a8929237c32e2c0d581f5363f2f55f09bc266497bf6",
+    },
+];
 
 #[derive(Default, Deserialize)]
 struct Persona {
@@ -134,6 +159,201 @@ pub fn set_voice(voice: &str, json_output: bool) -> i32 {
     )
 }
 
+pub fn list_voices(json_output: bool) -> i32 {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let voices = PIPER_VOICES
+        .iter()
+        .map(|voice| {
+            let installed = home.as_ref().is_some_and(|home| {
+                let directory = home.join(".local/share/hero/voices");
+                verify_file(
+                    &directory.join(format!("{}.onnx", voice.id)),
+                    63_221_984,
+                    voice.model_sha256,
+                ) && verify_file(
+                    &directory.join(format!("{}.onnx.json", voice.id)),
+                    5_465,
+                    voice.config_sha256,
+                )
+            });
+            json!({
+                "id":voice.id,
+                "language":"pt-BR",
+                "license":"CC0",
+                "installed":installed
+            })
+        })
+        .collect::<Vec<_>>();
+    if json_output {
+        println!(
+            "{}",
+            json!({"command":"mascot voices list", "status":"ok", "voices":voices})
+        );
+    } else {
+        for voice in PIPER_VOICES {
+            let installed = home.as_ref().is_some_and(|home| {
+                let directory = home.join(".local/share/hero/voices");
+                verify_file(
+                    &directory.join(format!("{}.onnx", voice.id)),
+                    63_221_984,
+                    voice.model_sha256,
+                ) && verify_file(
+                    &directory.join(format!("{}.onnx.json", voice.id)),
+                    5_465,
+                    voice.config_sha256,
+                )
+            });
+            println!(
+                "{} · pt-BR · CC0 · {}",
+                voice.id,
+                if installed {
+                    "instalada"
+                } else {
+                    "não instalada"
+                }
+            );
+        }
+    }
+    0
+}
+
+pub fn download_voice(id: &str, json_output: bool) -> i32 {
+    let Some(voice) = PIPER_VOICES.iter().find(|voice| voice.id == id) else {
+        return report(
+            Err("ID indisponível. Consulte `forja mascot voices list`.".into()),
+            json_output,
+        );
+    };
+    report(
+        install_voice(voice)
+            .map(|()| json!({"command":"mascot voices download", "status":"ok", "voice":voice.id})),
+        json_output,
+    )
+}
+
+fn install_voice(voice: &PiperVoice) -> Result<(), String> {
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .ok_or_else(|| "HOME não está definido".to_string())?;
+    let directory = home.join(".local/share/hero/voices");
+    fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+    restrict_dir(&directory)?;
+
+    let model_name = format!("{}.onnx", voice.id);
+    let config_name = format!("{}.onnx.json", voice.id);
+    let model_path = directory.join(&model_name);
+    let config_path = directory.join(&config_name);
+    for (path, size, hash) in [
+        (&model_path, 63_221_984, voice.model_sha256),
+        (&config_path, 5_465, voice.config_sha256),
+    ] {
+        if fs::symlink_metadata(path).is_ok() && !verify_file(path, size, hash) {
+            return Err(format!(
+                "{} já existe e não corresponde ao modelo validado; remova-o manualmente antes de tentar novamente.",
+                path.display()
+            ));
+        }
+    }
+    if verify_file(&model_path, 63_221_984, voice.model_sha256)
+        && verify_file(&config_path, 5_465, voice.config_sha256)
+    {
+        return Ok(());
+    }
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_nanos();
+    let staging = directory.join(format!(
+        ".{}.stage-{}-{nonce}",
+        voice.id,
+        std::process::id()
+    ));
+    fs::create_dir(&staging).map_err(|error| error.to_string())?;
+    if let Err(error) = restrict_dir(&staging) {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(error);
+    }
+    let result = (|| {
+        let model_stage = staging.join(&model_name);
+        let config_stage = staging.join(&config_name);
+        download_piper_file(voice, &model_name, &model_stage)?;
+        download_piper_file(voice, &config_name, &config_stage)?;
+        if !verify_file(&model_stage, 63_221_984, voice.model_sha256)
+            || !verify_file(&config_stage, 5_465, voice.config_sha256)
+        {
+            return Err("O download da voz não corresponde ao tamanho/SHA-256 fixado.".into());
+        }
+        restrict_file(&model_stage)?;
+        restrict_file(&config_stage)?;
+        if fs::symlink_metadata(&model_path).is_err() {
+            fs::hard_link(&model_stage, &model_path).map_err(|error| error.to_string())?;
+            fs::remove_file(&model_stage).map_err(|error| error.to_string())?;
+        }
+        if fs::symlink_metadata(&config_path).is_err() {
+            fs::hard_link(&config_stage, &config_path).map_err(|error| error.to_string())?;
+            fs::remove_file(&config_stage).map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    })();
+    let _ = fs::remove_dir_all(&staging);
+    result
+}
+
+fn download_piper_file(
+    voice: &PiperVoice,
+    filename: &str,
+    destination: &Path,
+) -> Result<(), String> {
+    let url = format!(
+        "https://huggingface.co/rhasspy/piper-voices/resolve/{}/pt/pt_BR/{}/medium/{}",
+        PIPER_VOICE_REVISION, voice.speaker, filename
+    );
+    let output = Command::new("curl")
+        .args([
+            "--fail",
+            "--location",
+            "--silent",
+            "--show-error",
+            "--max-time",
+            "300",
+            "--max-filesize",
+            "70000000",
+            "--output",
+        ])
+        .arg(destination)
+        .arg(url)
+        .output()
+        .map_err(|error| format!("curl: {error}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if detail.is_empty() {
+            format!("download de {filename} falhou ({})", output.status)
+        } else {
+            format!("download de {filename} falhou: {detail}")
+        })
+    }
+}
+
+fn verify_file(path: &Path, expected_size: u64, expected_sha256: &str) -> bool {
+    let Ok(metadata) = fs::symlink_metadata(path) else {
+        return false;
+    };
+    if !metadata.file_type().is_file() || metadata.len() != expected_size {
+        return false;
+    }
+    let Ok(output) = Command::new("sha256sum").arg(path).output() else {
+        return false;
+    };
+    output.status.success()
+        && String::from_utf8_lossy(&output.stdout)
+            .split_whitespace()
+            .next()
+            .is_some_and(|digest| digest.eq_ignore_ascii_case(expected_sha256))
+}
+
 pub fn train(name: &str, json_output: bool) -> i32 {
     let name = name.trim();
     if !(2..=24).contains(&name.chars().count())
@@ -236,7 +456,11 @@ fn report(result: Result<serde_json::Value, String>, json_output: bool) -> i32 {
                     );
                 }
             } else if let Some(voice) = value["voice"].as_str() {
-                println!("Voz selecionada: {voice}");
+                if value["command"] == "mascot voices download" {
+                    println!("Voz baixada e validada: {voice}.");
+                } else {
+                    println!("Voz selecionada: {voice}");
+                }
             } else {
                 println!("Treino local enfileirado.");
             }
