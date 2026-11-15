@@ -1,4 +1,5 @@
 //! `forja` — porta de entrada do ForjaOS (ADR-020). Subcomandos entram aqui conforme os itens do TODO.
+mod ai;
 mod dev;
 mod doctor;
 mod install;
@@ -31,6 +32,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Envia uma pergunta ao HERO local pela sessão D-Bus
+    Ai {
+        query: String,
+        #[arg(long)]
+        json: bool,
+    },
     /// Gerencia chaves de API no KWallet
     Keys {
         #[command(subcommand)]
@@ -262,6 +269,7 @@ fn main() {
     let cli = Cli::from_arg_matches(&matches).expect("parse CLI arguments");
     let _language = cli.lang;
     let code = match cli.command {
+        Command::Ai { query, json } => ai::run(&query, json),
         Command::Keys {
             action: KeysAction::Set { provider, json },
         } => {
@@ -470,6 +478,11 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
 
     if english {
         command = command
+            .mut_subcommand("ai", |ai| {
+                ai.about("Send a question to the local HERO assistant")
+                    .mut_arg("query", |arg| arg.help("Question to send"))
+                    .mut_arg("json", |arg| arg.help("Output JSON"))
+            })
             .mut_subcommand("keys", |keys| {
                 keys.about("Store API keys in KWallet")
                     .mut_subcommand("set", |set| set.about("Read and store a key without echo"))
@@ -624,6 +637,15 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
             });
     }
     command = command
+        .mut_subcommand("ai", |ai| {
+            localized_help(
+                ai.about("Envia uma pergunta ao assistente local HERO")
+                    .mut_arg("query", |arg| arg.help("Pergunta para o HERO"))
+                    .mut_arg("json", |arg| arg.help("Emite JSON")),
+                lang,
+                "forja ai",
+            )
+        })
         .mut_subcommand("keys", |keys| {
             let keys = keys
                 .mut_subcommand("set", |set| {

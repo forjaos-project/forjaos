@@ -11,6 +11,7 @@ ForjaOS: diagnostics, installation, and assistant in one command
 Usage: forja [OPTIONS] <COMMAND>
 
 Commands:
+  ai       Send a question to the local HERO assistant
   keys     Store API keys in KWallet
   setup    Apply a first-boot profile and mascot
   doctor   Check the system and report critical failures
@@ -44,6 +45,10 @@ Options:
       --lang <LANG>  Help language: pt-br or en [default: en] [possible values: pt-br, en]
   -h, --help         Print help
 ```
+
+## `forja ai`
+
+`forja ai "<question>" [--json]` sends the question to HERO over the session D-Bus. Conversation replies use local Ollama with Qwen3 8B or 4B based on free VRAM and Game Mode, and keep the model loaded for up to five minutes. System actions are refused until the action catalog and Policy Engine are available.
 
 ## Official installer documentation
 

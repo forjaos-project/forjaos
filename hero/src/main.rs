@@ -1,3 +1,5 @@
+mod ai;
+
 use zbus::{connection, fdo, interface, object_server::SignalEmitter};
 
 const BUS_NAME: &str = "org.forjaos.Hero";
@@ -80,17 +82,11 @@ struct Hero {
     state: State,
 }
 
-#[interface(name = "org.forjaos.Hero")]
 impl Hero {
-    #[zbus(property)]
-    fn state(&self) -> String {
-        self.state.as_str().to_string()
-    }
-
-    async fn transition_state(
+    async fn transition_to(
         &mut self,
         next: &str,
-        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+        emitter: &SignalEmitter<'_>,
     ) -> fdo::Result<bool> {
         let Some(next) = State::parse(next) else {
             return Err(fdo::Error::InvalidArgs("estado HERO desconhecido".into()));
@@ -104,8 +100,30 @@ impl Hero {
             ));
         }
         self.state = next;
-        Self::state_changed(&emitter, next.as_str()).await?;
+        Self::state_changed(emitter, next.as_str()).await?;
         Ok(true)
+    }
+}
+
+#[interface(name = "org.forjaos.Hero")]
+impl Hero {
+    #[zbus(property)]
+    fn state(&self) -> String {
+        self.state.as_str().to_string()
+    }
+
+    async fn ask_text(
+        &mut self,
+        query: &str,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> String {
+        if self.state != State::Idle {
+            return ai::busy();
+        }
+        let _ = self.transition_to("pensando", &emitter).await;
+        let result = ai::ask(query).await;
+        let _ = self.transition_to("ocioso", &emitter).await;
+        result
     }
 
     #[zbus(signal)]

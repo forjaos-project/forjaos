@@ -11,6 +11,7 @@ ForjaOS: diagnóstico, instalação e assistente em um comando
 Uso: forja [OPÇÕES] <COMANDO>
 
 Comandos:
+  ai       Envia uma pergunta ao assistente local HERO
   keys     Gerencia chaves de API no KWallet
   setup    Aplica um perfil de primeiro boot e o nome do mascote
   doctor   Verifica o sistema (kernel, GPU, Docker, Git, IA, serviços, portas) e sai com código ≠ 0 se algo crítico falhar
@@ -43,6 +44,10 @@ Opções:
       --json  Saída em JSON para scripts
   -h, --help  Exibe ajuda
 ```
+
+## `forja ai`
+
+`forja ai "<pergunta>" [--json]` envia a pergunta ao HERO pela sessão D-Bus. Respostas de conversa usam Ollama local, Qwen3 8B ou 4B conforme VRAM livre e Modo Jogo, e mantêm o modelo por até cinco minutos. Ações de sistema ainda são recusadas enquanto o catálogo e o Policy Engine não estiverem disponíveis.
 
 ## Fontes oficiais dos instaladores
 
