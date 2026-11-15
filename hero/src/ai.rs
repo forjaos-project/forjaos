@@ -1,11 +1,19 @@
 use serde::Serialize;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::Output;
 use std::time::Duration;
+use tokio::process::Command;
 use tokio::time::{sleep, timeout};
 
 const OLLAMA_CHAT_URL: &str = "http://127.0.0.1:11434/api/chat";
 const MAX_QUERY_CHARS: usize = 4000;
+const TURN_TIMEOUT: Duration = Duration::from_secs(58);
+const PROCESS_TIMEOUT: Duration = Duration::from_secs(3);
+
+async fn run_output(command: &mut Command) -> Option<Output> {
+    command.kill_on_drop(true);
+    timeout(PROCESS_TIMEOUT, command.output()).await.ok()?.ok()
+}
 
 #[derive(Serialize)]
 struct AskReply<'a> {
@@ -76,18 +84,23 @@ fn system_request(query: &str) -> bool {
     .any(|prefix| normalized.starts_with(prefix))
 }
 
-fn game_mode_active() -> bool {
-    Command::new("systemctl")
-        .args(["--user", "is-active", "--quiet", "hero-game.target"])
-        .status()
-        .is_ok_and(|status| status.success())
+async fn game_mode_active() -> bool {
+    run_output(Command::new("systemctl").args([
+        "--user",
+        "is-active",
+        "--quiet",
+        "hero-game.target",
+    ]))
+    .await
+    .is_some_and(|output| output.status.success())
 }
 
-fn free_vram_mb() -> Option<u64> {
-    let output = Command::new("nvidia-smi")
-        .args(["--query-gpu=memory.free", "--format=csv,noheader,nounits"])
-        .output()
-        .ok()?;
+async fn free_vram_mb() -> Option<u64> {
+    let output = run_output(
+        Command::new("nvidia-smi")
+            .args(["--query-gpu=memory.free", "--format=csv,noheader,nounits"]),
+    )
+    .await?;
     if !output.status.success() {
         return None;
     }
@@ -97,8 +110,8 @@ fn free_vram_mb() -> Option<u64> {
         .min()
 }
 
-fn selected_model() -> &'static str {
-    if game_mode_active() || free_vram_mb().is_none_or(|free| free < 6_144) {
+async fn selected_model() -> &'static str {
+    if game_mode_active().await || free_vram_mb().await.is_none_or(|free| free < 6_144) {
         "qwen3:4b"
     } else {
         "qwen3:8b"
@@ -122,11 +135,10 @@ async fn server_ready(client: &reqwest::Client) -> bool {
         .is_ok_and(|response| response.status().is_success())
 }
 
-fn start_ollama_service() -> bool {
-    Command::new("systemctl")
-        .args(["--user", "start", "--no-block", "ollama.service"])
-        .output()
-        .is_ok_and(|output| output.status.success())
+async fn start_ollama_service() -> bool {
+    run_output(Command::new("systemctl").args(["--user", "start", "--no-block", "ollama.service"]))
+        .await
+        .is_some_and(|output| output.status.success())
 }
 
 fn ollama_installed() -> bool {
@@ -139,7 +151,7 @@ async fn ensure_server(client: &reqwest::Client) -> bool {
     if server_ready(client).await {
         return true;
     }
-    if !start_ollama_service() {
+    if !start_ollama_service().await {
         return false;
     }
 
@@ -198,6 +210,21 @@ async fn local_answer(client: &reqwest::Client, query: &str, model: &str) -> Res
 }
 
 pub async fn ask(query: &str) -> String {
+    match timeout(TURN_TIMEOUT, ask_inner(query)).await {
+        Ok(reply) => reply,
+        Err(_) => json_reply(AskReply {
+            status: "timeout",
+            route: "conversa-de-voz",
+            context: "nenhum",
+            tier: "livre",
+            requires_confirmation: false,
+            answer: "O turno excedeu o limite local de 58 segundos. Tente novamente.".into(),
+            model: None,
+        }),
+    }
+}
+
+async fn ask_inner(query: &str) -> String {
     let query = query.trim();
     if query.is_empty() || query.chars().count() > MAX_QUERY_CHARS {
         return json_reply(AskReply {
@@ -236,7 +263,7 @@ pub async fn ask(query: &str) -> String {
         return backend_unavailable("O serviço Ollama local não pôde ser iniciado.", None);
     }
 
-    let model = selected_model();
+    let model = selected_model().await;
     if !model_available(&client, model).await {
         return json_reply(AskReply {
             status: "model_not_installed",

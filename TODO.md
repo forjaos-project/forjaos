@@ -25,7 +25,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 ### Fase 3 — HERO v0 nativo (texto + sistema)
 
-- [ ] `F3-001` herod: daemon Rust, D-Bus org.forjaos.Hero, máquina de estados, limites de consumo (FR-070, FR-071, FR-078). Em andamento: API D-Bus de texto/estado, confirmação de ação de uso único, resumo de ações aprovadas em memd e unit com limites; faltam áudio, timeout de turno completo e validação de consumo.
+- [ ] `F3-001` herod: daemon Rust, D-Bus org.forjaos.Hero, máquina de estados, limites de consumo (FR-070, FR-071, FR-078). Em andamento: API D-Bus de texto/estado, confirmação de ação de uso único, resumo de ações aprovadas em memd, unit com limites e timeout de 58 s com subprocessos canceláveis; faltam áudio e validação de consumo em hardware Linux de referência.
 - [ ] `F3-002` Roteador de intenções, provedores por rota, Ollama gerenciado, persona (FR-090, FR-091, FR-092, FR-096). Em andamento: chat local via Ollama, seleção 8B/4B por VRAM/Modo Jogo e keep-alive de cinco minutos; faltam rotas, provedores e persona configuráveis.
 - [ ] `F3-003` Policy Engine (tiers) e AuditEvent em journald (FR-100, FR-101, FR-102, FR-103). Em andamento: tiers livres/alterar/bloqueado, confirmação curta e log sem texto da pergunta; faltam avaliação de rotinas e cobertura por tool.
 - [ ] `F3-004` MCP servers hero-system, hero-desktop, hero-dev (rmcp, stdio) (FR-110, FR-112)
