@@ -51,7 +51,11 @@ fn write_value(key: &str, value: &str) -> Result<(), String> {
         .ok_or_else(|| "diretório de configuração inválido".to_string())?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     restrict_dir(parent)?;
-    let current = fs::read_to_string(&path).unwrap_or_default();
+    let current = match fs::read_to_string(&path) {
+        Ok(current) => current,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(error.to_string()),
+    };
     let mut lines = current
         .lines()
         .filter(|line| {

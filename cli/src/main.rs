@@ -803,95 +803,175 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
     }
     command = command
         .mut_subcommand("ai", |ai| {
+            let (about, query, confirm, json_help) = if english {
+                (
+                    "Send a question to the local HERO assistant",
+                    "Question to send",
+                    "Confirm a pending action",
+                    "Output JSON",
+                )
+            } else {
+                (
+                    "Envia uma pergunta ao assistente local HERO",
+                    "Pergunta para o HERO",
+                    "Confirma uma ação pendente",
+                    "Emite JSON",
+                )
+            };
             localized_help(
-                ai.about("Envia uma pergunta ao assistente local HERO")
-                    .mut_arg("query", |arg| arg.help("Pergunta para o HERO"))
-                    .mut_arg("confirm", |arg| arg.help("Confirma uma ação pendente"))
-                    .mut_arg("json", |arg| arg.help("Emite JSON")),
+                ai.about(about)
+                    .mut_arg("query", |arg| arg.help(query))
+                    .mut_arg("confirm", |arg| arg.help(confirm))
+                    .mut_arg("json", |arg| arg.help(json_help)),
                 lang,
                 "forja ai",
             )
         })
         .mut_subcommand("mascot", |mascot| {
+            let (about, status, name, name_arg, voice, voice_arg, train, train_arg, json_help) =
+                if english {
+                    (
+                        "Configure the HERO mascot name and voice",
+                        "Show mascot and local model availability",
+                        "Set the display name",
+                        "Mascot name",
+                        "Select an installed local Piper voice",
+                        "Local voice model ID",
+                        "Train a custom local wake word",
+                        "Wake word name",
+                        "Output JSON",
+                    )
+                } else {
+                    (
+                        "Configura nome e voz do mascote HERO",
+                        "Mostra o mascote e os modelos locais",
+                        "Altera o nome exibido",
+                        "Nome do mascote",
+                        "Seleciona uma voz Piper local instalada",
+                        "ID do modelo de voz local",
+                        "Treina uma wake word personalizada local",
+                        "Nome da wake word",
+                        "Emite JSON",
+                    )
+                };
             localized_help(
                 mascot
-                    .about("Configura nome e voz do mascote HERO")
+                    .about(about)
                     .mut_subcommand("status", |action| {
                         action
-                            .about("Mostra o mascote e os modelos locais")
-                            .mut_arg("json", |arg| arg.help("Emite JSON"))
+                            .about(status)
+                            .mut_arg("json", |arg| arg.help(json_help))
                     })
                     .mut_subcommand("name", |action| {
                         action
-                            .about("Altera o nome exibido")
-                            .mut_arg("name", |arg| arg.help("Nome do mascote"))
-                            .mut_arg("json", |arg| arg.help("Emite JSON"))
+                            .about(name)
+                            .mut_arg("name", |arg| arg.help(name_arg))
+                            .mut_arg("json", |arg| arg.help(json_help))
                     })
                     .mut_subcommand("voice", |action| {
                         action
-                            .about("Seleciona uma voz Piper local instalada")
-                            .mut_arg("voice", |arg| arg.help("ID do modelo de voz local"))
-                            .mut_arg("json", |arg| arg.help("Emite JSON"))
+                            .about(voice)
+                            .mut_arg("voice", |arg| arg.help(voice_arg))
+                            .mut_arg("json", |arg| arg.help(json_help))
                     })
                     .mut_subcommand("train", |action| {
                         action
-                            .about("Treina uma wake word personalizada local")
-                            .mut_arg("name", |arg| arg.help("Nome da wake word"))
-                            .mut_arg("json", |arg| arg.help("Emite JSON"))
+                            .about(train)
+                            .mut_arg("name", |arg| arg.help(train_arg))
+                            .mut_arg("json", |arg| arg.help(json_help))
                     }),
                 lang,
                 "forja mascot",
             )
         })
         .mut_subcommand("memory", |memory| {
+            let (
+                about,
+                search,
+                query,
+                limit,
+                timeline,
+                days,
+                entries,
+                rebuild,
+                remember,
+                note,
+                viewer,
+                mcp,
+                json_help,
+            ) = if english {
+                (
+                    "Search and maintain the local ForjaOS vault",
+                    "Search Markdown notes",
+                    "Search expression",
+                    "Maximum results",
+                    "List recent notes",
+                    "Look-back period in days",
+                    "Maximum entries",
+                    "Rebuild the index and graph from Markdown",
+                    "Save a note in the local vault",
+                    "Note text",
+                    "Open the local vault viewer",
+                    "Run the Memory MCP server over stdio",
+                    "Output JSON",
+                )
+            } else {
+                (
+                    "Busca e mantém o vault local ForjaOS",
+                    "Pesquisa notas Markdown",
+                    "Texto para pesquisar",
+                    "Máximo de resultados",
+                    "Lista notas recentes",
+                    "Período em dias",
+                    "Máximo de registros",
+                    "Reconstrói o índice e o grafo a partir do vault",
+                    "Salva uma nota no vault local",
+                    "Texto da nota",
+                    "Abre o visualizador local do vault",
+                    "Executa o servidor MCP da Memória por stdio",
+                    "Emite JSON",
+                )
+            };
             let memory = memory
                 .mut_subcommand("search", |action| {
                     let action = action
-                        .about("Pesquisa notas Markdown")
-                        .mut_arg("query", |arg| arg.help("Texto para pesquisar"))
-                        .mut_arg("limit", |arg| arg.help("Máximo de resultados"))
-                        .mut_arg("json", |arg| arg.help("Emite JSON"));
+                        .about(search)
+                        .mut_arg("query", |arg| arg.help(query))
+                        .mut_arg("limit", |arg| arg.help(limit))
+                        .mut_arg("json", |arg| arg.help(json_help));
                     localized_help(action, lang, "forja memory search")
                 })
                 .mut_subcommand("timeline", |action| {
                     let action = action
-                        .about("Lista notas recentes")
-                        .mut_arg("days", |arg| arg.help("Período em dias"))
-                        .mut_arg("limit", |arg| arg.help("Máximo de registros"))
-                        .mut_arg("json", |arg| arg.help("Emite JSON"));
+                        .about(timeline)
+                        .mut_arg("days", |arg| arg.help(days))
+                        .mut_arg("limit", |arg| arg.help(entries))
+                        .mut_arg("json", |arg| arg.help(json_help));
                     localized_help(action, lang, "forja memory timeline")
                 })
                 .mut_subcommand("rebuild", |action| {
                     let action = action
-                        .about("Reconstrói o índice e o grafo a partir do vault")
-                        .mut_arg("json", |arg| arg.help("Emite JSON"));
+                        .about(rebuild)
+                        .mut_arg("json", |arg| arg.help(json_help));
                     localized_help(action, lang, "forja memory rebuild")
                 })
                 .mut_subcommand("remember", |action| {
                     let action = action
-                        .about("Salva uma nota no vault local")
-                        .mut_arg("note", |arg| arg.help("Texto da nota"))
-                        .mut_arg("json", |arg| arg.help("Emite JSON"));
+                        .about(remember)
+                        .mut_arg("note", |arg| arg.help(note))
+                        .mut_arg("json", |arg| arg.help(json_help));
                     localized_help(action, lang, "forja memory remember")
                 })
                 .mut_subcommand("viewer", |action| {
                     let action = action
-                        .about("Abre o visualizador local do vault")
-                        .mut_arg("json", |arg| arg.help("Emite JSON"));
+                        .about(viewer)
+                        .mut_arg("json", |arg| arg.help(json_help));
                     localized_help(action, lang, "forja memory viewer")
                 })
                 .mut_subcommand("mcp", |action| {
-                    localized_help(
-                        action.about("Executa o servidor MCP da Memória por stdio"),
-                        lang,
-                        "forja memory mcp",
-                    )
+                    localized_help(action.about(mcp), lang, "forja memory mcp")
                 });
-            localized_help(
-                memory.about("Busca e mantém o vault local ForjaOS"),
-                lang,
-                "forja memory",
-            )
+            localized_help(memory.about(about), lang, "forja memory")
         })
         .mut_subcommand("keys", |keys| {
             let keys = keys
@@ -974,9 +1054,17 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
             localized_help(completion, lang, "forja completions")
         })
         .mut_subcommand("report", |report| {
+            let (about, json_help) = if english {
+                ("Create a sanitized diagnostic report", "Output JSON only")
+            } else {
+                (
+                    "Gera um relatório de diagnóstico sanitizado",
+                    "Emite somente JSON",
+                )
+            };
             report
-                .about("Gera um relatório de diagnóstico sanitizado")
-                .mut_arg("json", |arg| arg.help("Emite somente JSON"))
+                .about(about)
+                .mut_arg("json", |arg| arg.help(json_help))
         })
         .mut_subcommand("up", |action| {
             localized_help(action, lang, "forja up").mut_arg("json", |arg| arg.help("Emite JSON"))
