@@ -265,11 +265,29 @@ def main():
             notify(f"Instalação pendente em {command[0]}. Execute forja setup novamente.")
             return 1
         events[-1]["status"] = "done"
+    events.append({"step": "forja mcp register", "status": "running"})
+    try:
+        mcp_registration = subprocess.run(
+            ["forja", "mcp", "register", "--json"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        mcp_registration = None
+    mcp_registration_failed = (
+        mcp_registration is None or mcp_registration.returncode != 0
+    )
+    events[-1]["status"] = "pending" if mcp_registration_failed else "done"
     configure_shell()
     private_json(state, {"status": "complete",
                          "profile": args.profile, "wakeword": wakeword,
-                         "done": len(commands), "total": len(commands), "events": events})
-    notify("Configuração concluída.")
+                         "done": len(commands) + 1, "total": len(commands) + 1,
+                         "events": events})
+    if mcp_registration_failed:
+        notify("Configuração concluída. Execute forja mcp register para revisar os clientes MCP.")
+    else:
+        notify("Configuração concluída.")
     return 0
 
 

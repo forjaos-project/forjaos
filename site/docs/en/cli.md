@@ -11,29 +11,34 @@ ForjaOS: diagnostics, installation, and assistant in one command
 Usage: forja [OPTIONS] <COMMAND>
 
 Commands:
-  ai       Send a question to the local HERO assistant
-  memory   Search and maintain the local ForjaOS vault
-  mascot   Configure the HERO mascot name, voice, and training
+  mcp          Register local MCP servers with installed clients
+  ai           Send a question to the local HERO assistant
+  memory       Search and maintain the local ForjaOS vault
+  mascot       Configure the HERO mascot name and voice
   keys     Store API keys in KWallet
   setup    Apply a first-boot profile and mascot
   doctor   Check the system and report critical failures
   install  Install optional development tools for the current user
   box      Create rootless Distrobox environments with Podman
   docker   Install and configure Docker CE rootless
-  game-mode Control per-user Game Mode
-  up       Start current project Compose services
-  down     Stop current project Compose services
-  logs     Show current project Compose logs
-  report   Create a sanitized diagnostic report
-  completions Generate shell completion script
-  update   Download and queue a bootc update
-  rollback Queue the previous deployment for next boot
+  game-mode    Control per-user Game Mode
+  up           Start current project services
+  down         Stop current project services
+  logs         Show current project logs
+  completions  Generate shell completion script
+  report       Create a sanitized diagnostic report
+  update       Download and queue a bootc update
+  rollback     Queue the previous deployment for next boot
 
 Options:
       --lang <LANG>  Help language: pt-br or en [default: en] [possible values: pt-br, en]
   -h, --help         Print help
   -V, --version      Print version
 ```
+
+## `forja mcp`
+
+- `forja mcp register [--json]` registers installed MCP servers with Claude Code, Codex CLI, and Hermes Agent. It preserves existing entries and reports clients or servers that are unavailable.
 
 ## `forja doctor`
 

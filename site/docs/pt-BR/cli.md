@@ -11,29 +11,34 @@ ForjaOS: diagnóstico, instalação e assistente em um comando
 Uso: forja [OPÇÕES] <COMANDO>
 
 Comandos:
-  ai       Envia uma pergunta ao assistente local HERO
-  memory   Busca e mantém o vault local ForjaOS
-  mascot   Configura nome, voz e treino do mascote HERO
-  keys     Gerencia chaves de API no KWallet
-  setup    Aplica um perfil de primeiro boot e o nome do mascote
-  doctor   Verifica o sistema (kernel, GPU, Docker, Git, IA, serviços, portas) e sai com código ≠ 0 se algo crítico falhar
-  install  Instala ferramentas de desenvolvimento no espaço do usuário
-  box      Cria ambientes Distrobox rootless usando Podman
-  docker   Instala e configura Docker CE em modo rootless
-  game-mode Controla o Modo Jogo do usuário
-  up       Inicia os serviços Compose do projeto atual
-  down     Para os serviços Compose do projeto atual
-  logs     Exibe os logs Compose do projeto atual
-  report   Gera um relatório de diagnóstico sanitizado
-  completions Gera script de completion do shell
-  update   Baixa e prepara a atualização bootc
-  rollback Agenda a implantação anterior para o próximo boot
+  mcp          Registra os servidores MCP locais nos clientes instalados
+  ai           Envia uma pergunta ao assistente local HERO
+  memory       Busca e mantém o vault local ForjaOS
+  mascot       Configura nome e voz do mascote HERO
+  keys         Gerencia chaves de API no KWallet
+  setup        Aplica um perfil de primeiro boot e o nome do mascote
+  doctor       Verifica o sistema (kernel, GPU, Docker, Git, IA, serviços, portas) e sai com código ≠ 0 se algo crítico falhar
+  install      Instala ferramentas de desenvolvimento no espaço do usuário
+  box          Cria ambientes Distrobox rootless usando Podman
+  docker       Instala e configura Docker CE em modo rootless
+  game-mode    Controla o Modo Jogo do usuário
+  up           Atalhos para o Compose do projeto atual
+  down
+  logs
+  completions  Gera completions para o shell informado
+  report       Gera um relatório de diagnóstico sanitizado
+  update       Baixa e prepara a atualização bootc
+  rollback     Agenda a implantação bootc anterior para o próximo boot
 
 Opções:
       --lang <LANG>  Idioma da ajuda: pt-br ou en [default: pt-br] [possible values: pt-br, en]
   -h, --help         Exibe ajuda
   -V, --version      Exibe a versão
 ```
+
+## `forja mcp`
+
+- `forja mcp register [--json]` registra servidores MCP instalados em Claude Code, Codex CLI e Hermes Agent. O comando preserva entradas já configuradas; servidores e clientes ausentes são informados.
 
 ## `forja doctor`
 
