@@ -31,7 +31,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 - [ ] `F3-004` MCP servers hero-system, hero-desktop, hero-dev (rmcp, stdio) (FR-110, FR-112)
 - [ ] `F3-005` Overlay Central de Comando em modo texto — tela central_de_comando_hero_corrigida (FR-121, FR-085, FR-124, FR-125)
 - [ ] `F3-006` Plasmoid do Guará (texto) e plugin KRunner — tela plasmoid_do_guar (FR-120, FR-122)
-- [ ] `F3-007` Catálogo de ações (10 do G3), rota código, rota saúde-do-sistema (FR-093, FR-094, FR-095). Em andamento: Compose, modo jogo, Git status, GPU, URL, memória, update, rollback e reinício de serviço; faltam catálogo restante, rota código e diagnóstico completo.
+- [ ] `F3-007` Catálogo de ações (10 do G3), rota código, rota saúde-do-sistema (FR-093, FR-094, FR-095). Em andamento: Compose up/down/logs, modo jogo, Git status, abrir projeto atual, testes com confirmação, GPU/CPU/RAM/rede, Wi-Fi/Bluetooth/VPN com confirmação, URL, memória, update, rollback e reinício de serviço; faltam apps/serviços adicionais, política por manifesto e validação de catálogo.
 - [ ] `F3-008` Spike Hermes Agent (1 semana) → ADR-025 (FR-097)
 
 ### Fase 4 — Voz + Memória

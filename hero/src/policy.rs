@@ -19,9 +19,16 @@ impl Tier {
 pub enum Action {
     GameMode(bool),
     Compose { up: bool, cwd: PathBuf },
+    ComposeLogs(PathBuf),
     GitStatus(PathBuf),
     GpuStatus,
+    SystemStatus,
+    OpenProject(PathBuf),
     OpenUrl(String),
+    Wifi(bool),
+    Bluetooth(bool),
+    Vpn { enabled: bool, name: String },
+    RunTests(PathBuf),
     MemorySearch(String),
     Remember(String),
     Update,
@@ -64,6 +71,137 @@ pub fn classify(query: &str, cwd: &str) -> Classification {
             Tier::Alter,
             Action::GameMode(true),
         ))
+    } else if [
+        "abra projeto",
+        "abra o projeto",
+        "abra meu projeto",
+        "abra projeto atual",
+        "abra o projeto atual",
+        "abra meu projeto atual",
+    ]
+    .contains(&text.as_str())
+    {
+        Some((
+            "código",
+            "project.open",
+            Tier::Free,
+            Action::OpenProject(cwd.clone()),
+        ))
+    } else if starts_with_any(
+        &text,
+        &["mostre logs do compose", "mostre os logs do compose"],
+    ) {
+        Some((
+            "código",
+            "compose.logs",
+            Tier::Free,
+            Action::ComposeLogs(cwd.clone()),
+        ))
+    } else if starts_with_any(
+        &text,
+        &["rode os testes", "execute os testes", "rode testes"],
+    ) {
+        Some((
+            "código",
+            "project.tests",
+            Tier::Alter,
+            Action::RunTests(cwd.clone()),
+        ))
+    } else if starts_with_any(
+        &text,
+        &[
+            "mostre estado do sistema",
+            "mostre o estado do sistema",
+            "diagnóstico do sistema",
+        ],
+    ) {
+        Some((
+            "saúde-do-sistema",
+            "system.status",
+            Tier::Free,
+            Action::SystemStatus,
+        ))
+    } else if starts_with_any(
+        &text,
+        &["ligue wifi", "ligue o wifi", "ative wifi", "ative o wifi"],
+    ) {
+        Some(("sistema", "network.wifi", Tier::Alter, Action::Wifi(true)))
+    } else if starts_with_any(
+        &text,
+        &[
+            "desligue wifi",
+            "desligue o wifi",
+            "desative wifi",
+            "desative o wifi",
+        ],
+    ) {
+        Some(("sistema", "network.wifi", Tier::Alter, Action::Wifi(false)))
+    } else if starts_with_any(
+        &text,
+        &[
+            "ligue bluetooth",
+            "ligue o bluetooth",
+            "ative bluetooth",
+            "ative o bluetooth",
+        ],
+    ) {
+        Some((
+            "sistema",
+            "network.bluetooth",
+            Tier::Alter,
+            Action::Bluetooth(true),
+        ))
+    } else if starts_with_any(
+        &text,
+        &[
+            "desligue bluetooth",
+            "desligue o bluetooth",
+            "desative bluetooth",
+            "desative o bluetooth",
+        ],
+    ) {
+        Some((
+            "sistema",
+            "network.bluetooth",
+            Tier::Alter,
+            Action::Bluetooth(false),
+        ))
+    } else if let Some(name) = text
+        .strip_prefix("ligue vpn ")
+        .or_else(|| text.strip_prefix("ative vpn "))
+    {
+        let name = name.trim();
+        if valid_connection_name(name) {
+            Some((
+                "sistema",
+                "network.vpn",
+                Tier::Alter,
+                Action::Vpn {
+                    enabled: true,
+                    name: name.to_string(),
+                },
+            ))
+        } else {
+            None
+        }
+    } else if let Some(name) = text
+        .strip_prefix("desligue vpn ")
+        .or_else(|| text.strip_prefix("desative vpn "))
+    {
+        let name = name.trim();
+        if valid_connection_name(name) {
+            Some((
+                "sistema",
+                "network.vpn",
+                Tier::Alter,
+                Action::Vpn {
+                    enabled: false,
+                    name: name.to_string(),
+                },
+            ))
+        } else {
+            None
+        }
     } else if starts_with_any(
         &text,
         &[
@@ -271,4 +409,10 @@ fn valid_unit_name(value: &str) -> bool {
         && value.chars().all(|character| {
             character.is_ascii_alphanumeric() || matches!(character, '@' | '_' | '-' | '.' | ':')
         })
+}
+
+fn valid_connection_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value.chars().all(|character| !character.is_control())
 }

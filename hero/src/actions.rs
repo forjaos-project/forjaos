@@ -85,6 +85,16 @@ pub async fn execute(action: Action) -> Result<String, String> {
             }
             output_text(command.output().map_err(|error| error.to_string())?)
         }
+        Action::ComposeLogs(cwd) => {
+            require_project(&cwd)?;
+            output_text(
+                Command::new("podman")
+                    .current_dir(cwd)
+                    .args(["compose", "logs", "--tail", "50"])
+                    .output()
+                    .map_err(|error| error.to_string())?,
+            )
+        }
         Action::GitStatus(cwd) => output_text(
             Command::new("git")
                 .current_dir(cwd)
@@ -101,12 +111,63 @@ pub async fn execute(action: Action) -> Result<String, String> {
                 .output()
                 .map_err(|error| error.to_string())?,
         ),
+        Action::SystemStatus => system_status(),
+        Action::OpenProject(cwd) => {
+            if !cwd.is_dir() {
+                return Err("O diretório do projeto não está disponível.".into());
+            }
+            output_text(
+                Command::new("code")
+                    .args(["--reuse-window"])
+                    .arg(cwd)
+                    .output()
+                    .map_err(|error| error.to_string())?,
+            )
+        }
         Action::OpenUrl(url) => {
             let output = Command::new("xdg-open")
                 .arg(url)
                 .output()
                 .map_err(|error| error.to_string())?;
             output_text(output)
+        }
+        Action::Wifi(enabled) => {
+            let state = if enabled { "on" } else { "off" };
+            output_text(
+                Command::new("nmcli")
+                    .args(["radio", "wifi", state])
+                    .output()
+                    .map_err(|error| error.to_string())?,
+            )
+        }
+        Action::Bluetooth(enabled) => {
+            let state = if enabled { "on" } else { "off" };
+            output_text(
+                Command::new("bluetoothctl")
+                    .args(["power", state])
+                    .output()
+                    .map_err(|error| error.to_string())?,
+            )
+        }
+        Action::Vpn { enabled, name } => vpn(enabled, &name),
+        Action::RunTests(cwd) => {
+            let (program, args): (&str, &[&str]) =
+                if cwd.join("justfile").is_file() || cwd.join("Justfile").is_file() {
+                    ("just", &["test"])
+                } else if cwd.join("Cargo.toml").is_file() {
+                    ("cargo", &["test", "--locked"])
+                } else {
+                    return Err(
+                        "Não encontrei justfile ou Cargo.toml; nenhum teste foi executado.".into(),
+                    );
+                };
+            output_text(
+                Command::new(program)
+                    .current_dir(cwd)
+                    .args(args)
+                    .output()
+                    .map_err(|error| error.to_string())?,
+            )
         }
         Action::MemorySearch(query) => memory_call("Search", &query).await,
         Action::Remember(note) => memory_call("Remember", &note).await,
@@ -129,4 +190,62 @@ pub async fn execute(action: Action) -> Result<String, String> {
                 .map_err(|error| error.to_string())?,
         ),
     }
+}
+
+fn system_status() -> Result<String, String> {
+    let mut details = Vec::new();
+    for (program, args) in [
+        ("uptime", vec!["--pretty"]),
+        ("free", vec!["-h"]),
+        ("nmcli", vec!["general", "status"]),
+    ] {
+        let output = Command::new(program)
+            .args(args)
+            .output()
+            .map_err(|error| format!("{program}: {error}"))?;
+        if output.status.success() {
+            let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !text.is_empty() {
+                details.push(text);
+            }
+        }
+    }
+    if details.is_empty() {
+        Err("Nenhum dado de saúde do sistema está disponível.".into())
+    } else {
+        Ok(details.join("\n"))
+    }
+}
+
+fn vpn(enabled: bool, name: &str) -> Result<String, String> {
+    let output = Command::new("nmcli")
+        .args(["-t", "-f", "NAME,TYPE", "connection", "show"])
+        .output()
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return output_text(output);
+    }
+    let connections = String::from_utf8_lossy(&output.stdout);
+    let matching = connections.lines().find_map(|line| {
+        let (candidate, kind) = line.split_once(':')?;
+        (candidate.eq_ignore_ascii_case(name) && kind.to_ascii_lowercase().contains("vpn"))
+            .then_some(candidate)
+    });
+    let Some(connection_name) = matching else {
+        return Err("Não encontrei uma conexão VPN com esse nome.".into());
+    };
+    let operation = if enabled { "up" } else { "down" };
+    output_text(
+        Command::new("nmcli")
+            .args([
+                "--wait",
+                "10",
+                "connection",
+                operation,
+                "id",
+                connection_name,
+            ])
+            .output()
+            .map_err(|error| error.to_string())?,
+    )
 }
