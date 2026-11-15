@@ -4,8 +4,8 @@ set -euo pipefail
 
 variant="${1:-}"
 case "$variant" in
-  forjaos-nvidia-open) base=bazzite-nvidia-open ;;
-  forjaos) base=bazzite ;;
+  forjaos-nvidia-open) ;;
+  forjaos) ;;
   *) echo 'daily-image: expected forjaos or forjaos-nvidia-open' >&2; exit 2 ;;
 esac
 
@@ -21,9 +21,22 @@ cd "$repo"
 image="ghcr.io/forjaos-project/$variant"
 local_image="localhost/$variant:daily-build"
 credentials="$GITHUB_ACTOR:$GH_TOKEN"
+case "$variant" in
+  forjaos-nvidia-open) base_image=ghcr.io/ublue-os/bazzite-nvidia-open:stable ;;
+  forjaos) base_image=ghcr.io/ublue-os/bazzite:stable ;;
+esac
+base_digest="$(skopeo inspect --format '{{.Digest}}' "docker://$base_image")"
+if [[ ! "$base_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  echo 'daily-image: base registry returned an invalid digest' >&2
+  exit 1
+fi
+base_ref="${base_image%:*}@$base_digest"
+report_root="${TRIVY_REPORT_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/forjaos-trivy}"
+report_dir="$report_root/$variant"
+mkdir -p "$report_dir"
 
 podman build --pull=always --file image/Containerfile \
-  --build-arg "BASE_IMAGE=ghcr.io/ublue-os/$base:stable" \
+  --build-arg "BASE_IMAGE=$base_ref" \
   --build-arg "IMAGE_NAME=$variant" --tag "$local_image" .
 podman run --rm --entrypoint /usr/bin/bootc "$local_image" container lint
 podman run --rm --entrypoint /usr/bin/python3 "$local_image" -c '
@@ -65,6 +78,19 @@ if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
   echo 'daily-image: registry returned an invalid digest' >&2
   exit 1
 fi
+
+# Scan both the exact candidate digest and its declared upstream base before
+# signing or updating :testing. New critical CVEs stop promotion; base findings
+# are retained for the isolated issue-reporting job.
+trivy image --timeout 15m --scanners vuln --severity CRITICAL --exit-code 0 \
+  --platform linux/amd64 --format json --output "$report_dir/base.json" "$base_ref"
+TRIVY_USERNAME="$GITHUB_ACTOR" TRIVY_PASSWORD="$GH_TOKEN" \
+  trivy image --timeout 15m --scanners vuln --severity CRITICAL --exit-code 0 \
+  --platform linux/amd64 --format json --output "$report_dir/image.json" "$image@$digest"
+python3 scripts/classify_trivy_report.py \
+  --image-report "$report_dir/image.json" \
+  --base-report "$report_dir/base.json" \
+  --output "$report_dir/classified.json"
 
 # containers/image's use-sigstore-attachments policy reads the legacy
 # sha256-<digest>.sig attachment, not Cosign 3's default OCI 1.1 bundle.

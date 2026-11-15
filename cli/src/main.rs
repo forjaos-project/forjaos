@@ -5,6 +5,7 @@ mod doctor;
 mod install;
 mod keys;
 mod mascot;
+mod mcp;
 mod memory;
 
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -35,6 +36,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Registra os servidores MCP locais nos clientes instalados
+    Mcp {
+        #[command(subcommand)]
+        action: McpAction,
+    },
     /// Envia uma pergunta ao HERO local pela sessão D-Bus
     Ai {
         #[arg(required_unless_present = "confirm")]
@@ -150,6 +156,15 @@ enum Command {
     Rollback {
         #[arg(short, long)]
         yes: bool,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum McpAction {
+    /// Registra os servidores MCP disponíveis sem substituir entradas existentes
+    Register {
         #[arg(long)]
         json: bool,
     },
@@ -516,8 +531,11 @@ fn main() {
         .try_get_matches_from(args)
         .unwrap_or_else(|error| error.exit());
     let cli = Cli::from_arg_matches(&matches).expect("parse CLI arguments");
-    let _language = cli.lang;
+    let language = cli.lang;
     let code = match cli.command {
+        Command::Mcp {
+            action: McpAction::Register { json },
+        } => mcp::register(json, language == Language::En),
         Command::Ai {
             query,
             confirm,
@@ -834,6 +852,16 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
 
     if english {
         command = command
+            .mut_subcommand("mcp", |mcp| {
+                mcp.about("Register local MCP servers with installed clients")
+                    .mut_subcommand("register", |action| {
+                        action
+                            .about(
+                                "Register available MCP servers without replacing existing entries",
+                            )
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+            })
             .mut_subcommand("ai", |ai| {
                 ai.about("Send a question to the local HERO assistant")
                     .mut_arg("query", |arg| arg.help("Question to send"))
