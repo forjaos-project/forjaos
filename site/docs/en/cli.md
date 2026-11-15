@@ -61,6 +61,8 @@ Providers and models can be set in `~/.config/hero/routes.toml`. The `conversa-d
 
 The name and editable instructions are stored in `~/.config/hero/persona.toml`. The fixed safety block takes precedence over editable instructions; the ten most recent exchanges stay in memory only. The D-Bus API accepts `SnapshotDoApp`; the CLI sends `{}` when it has no window data.
 
+The `hero/tool-policy.toml` manifest declares each tool's minimum tier. `ToolTiers` lists tiers and `SetToolTier` only raises them; overrides are stored in `~/.config/hero/policy.toml`. `SaveRoutine` validates tool IDs and the maximum tier before saving a sequence to `~/.config/hero/routines.toml`. Action replies include the tool, tier, and result. Events are JSON in journald under `hero-audit`, without the question or audio.
+
 ## `forja memory`
 
 - `forja memory search "<terms>" [--limit N] [--json]`
