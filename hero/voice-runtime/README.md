@@ -24,5 +24,11 @@ fica somente na memória dos processos. O Piper 1.8.0 é GPL-3.0-or-later;
 o faster-whisper 1.2.1 é MIT. Vozes possuem licenças próprias, e o catálogo
 `forja mascot voices` só inclui duas vozes pt-BR CC0 verificadas.
 
-Ainda falta conectar o worker ao `herod`, à captura PipeWire, à reprodução,
-ao `SpeechHandle` e ao QML. As metas de latência exigem o Linux de referência.
+`hero-speak --model /caminho/voz.onnx` lê texto do stdin, supervisiona o
+worker TTS e envia os blocos PCM ao `pw-cat` em modo raw. Emite no stdout os
+visemas com deslocamento por bloco. `SIGTERM`/`SIGINT` interrompem os dois
+processos; o teste sintético de cancelamento não exige dispositivo de áudio.
+
+Ainda falta conectar a reprodução ao `herod` e ao QML, implementar a captura
+PipeWire pelo nó HERO, a API D-Bus de interrupção e medir a latência no Linux
+de referência.

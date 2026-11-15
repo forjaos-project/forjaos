@@ -95,6 +95,7 @@ COPY hero/systemd/herod.service /usr/lib/systemd/user/herod.service
 COPY hero/systemd/ollama.service /usr/lib/systemd/user/ollama.service
 COPY hero/voice-runtime/launcher.py /usr/share/forjaos/voice-runtime/launcher.py
 COPY hero/voice-runtime/worker.py /usr/share/forjaos/voice-runtime/worker.py
+COPY hero/voice-runtime/playback.py /usr/share/forjaos/voice-runtime/playback.py
 COPY hero/voice-runtime/requirements.txt /usr/share/forjaos/voice-runtime/requirements.txt
 COPY hero/voice-runtime/pyproject.toml /usr/share/forjaos/voice-runtime/pyproject.toml
 COPY hero/voice-runtime/uv.lock /usr/share/forjaos/voice-runtime/uv.lock
@@ -132,8 +133,11 @@ RUN install -D -m 0755 /tmp/forjaos-firstboot/setup-dual-boot.sh \
 RUN ln -s /opt/forjaos/graphify-runtime/.venv/bin/graphify /usr/bin/graphify \
     && chmod 0755 /usr/share/forjaos/voice-runtime/launcher.py \
     && ln -s /usr/share/forjaos/voice-runtime/launcher.py /usr/libexec/forjaos/voice-worker \
+    && chmod 0755 /usr/share/forjaos/voice-runtime/playback.py \
+    && ln -s /usr/share/forjaos/voice-runtime/playback.py /usr/libexec/forjaos/hero-speak \
     && test -x /usr/bin/graphify \
-    && test -x /usr/libexec/forjaos/voice-worker
+    && test -x /usr/libexec/forjaos/voice-worker \
+    && test -x /usr/libexec/forjaos/hero-speak
 
 RUN python3 /tmp/configure_image.py \
       --root / \
