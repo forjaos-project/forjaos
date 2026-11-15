@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily ForjaOS scan of registered Git repositories
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=15m
+Unit=forja-memory-git-scan.service
+
+[Install]
+WantedBy=timers.target

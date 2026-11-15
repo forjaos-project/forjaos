@@ -82,6 +82,8 @@ COPY image/firstboot/forjaos-firstboot.service /usr/lib/systemd/user/forjaos-fir
 COPY hero/systemd/herod.service /usr/lib/systemd/user/herod.service
 COPY hero/systemd/ollama.service /usr/lib/systemd/user/ollama.service
 COPY hero-memory/systemd/memd.service /usr/lib/systemd/user/memd.service
+COPY hero-memory/systemd/forja-memory-git-scan.service /usr/lib/systemd/user/forja-memory-git-scan.service
+COPY hero-memory/systemd/forja-memory-git-scan.timer /usr/lib/systemd/user/forja-memory-git-scan.timer
 COPY hero-memory/visualizer/ /usr/share/forjaos/memory-viewer/
 COPY image/game/game_mode.py /usr/libexec/forjaos/game_mode.py
 COPY image/game/hero-game.target /usr/lib/systemd/user/hero-game.target
@@ -91,6 +93,8 @@ RUN mkdir -p /usr/lib/systemd/user/graphical-session.target.wants \
     && mkdir -p /usr/lib/systemd/user/default.target.wants \
     && ln -s ../herod.service /usr/lib/systemd/user/default.target.wants/herod.service \
     && ln -s ../memd.service /usr/lib/systemd/user/default.target.wants/memd.service \
+    && mkdir -p /usr/lib/systemd/user/timers.target.wants \
+    && ln -s ../forja-memory-git-scan.timer /usr/lib/systemd/user/timers.target.wants/forja-memory-git-scan.timer \
     && ln -s ../forjaos-firstboot.service \
       /usr/lib/systemd/user/graphical-session.target.wants/forjaos-firstboot.service \
     && ln -s ../forjaos-game-watch.service \

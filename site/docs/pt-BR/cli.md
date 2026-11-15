@@ -62,6 +62,7 @@ Opções:
 - `forja memory collectors status|enable <origem>|disable <origem>` consulta ou altera os coletores disponíveis (`shell`, `git`, `hero`).
 - `forja memory retention <origem> <dias>` define retenção; `0` significa indefinida. `forja memory purge` aplica as retenções.
 - `forja memory collect shell` lê o comando do stdin; `forja memory collect git` registra o commit atual. O shell recebe hook no primeiro boot; em cada repo Git, execute `forja memory hook install` para registrar `post-commit`. Um hook existente é preservado.
+- `forja memory git register [caminho]` inclui explicitamente um repo na varredura diária; ela começa no HEAD atual. `unregister <caminho>` remove um repo. `forja memory git scan [--json]` executa a varredura manual, e um timer de usuário a repete diariamente. Desativar o coletor Git avança os cursores para o HEAD atual, sem buscar o período desativado.
 
 Os eventos guardam comando/commit, diretório, código de saída e duração; padrões conhecidos de segredos são redigidos antes da gravação. Defina `FORJA_MEMORY_COLLECTOR=0` no shell para não registrar comandos daquela sessão. A coleta de janelas, código e notas ainda não está disponível.
 

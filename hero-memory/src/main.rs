@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::{Mutex, Once};
 use std::time::Duration;
 use zbus::{connection, fdo, interface};
@@ -146,6 +147,10 @@ impl StorePaths {
                  CREATE VIRTUAL TABLE IF NOT EXISTS note_vectors USING vec0(
                      note_rowid INTEGER PRIMARY KEY,
                      embedding float[768] distance_metric=cosine
+                 );
+                 CREATE TABLE IF NOT EXISTS git_repositories (
+                     path TEXT PRIMARY KEY,
+                     last_seen_commit TEXT NOT NULL
                  );",
             )
             .map_err(|error| error.to_string())?;
@@ -272,7 +277,11 @@ impl StorePaths {
         let _guard = CONFIG_LOCK.lock().map_err(|error| error.to_string())?;
         let mut values = self.config_values()?;
         values.insert(format!("collectors.{source}"), enabled.to_string());
-        self.save_config_values(&values)
+        self.save_config_values(&values)?;
+        if source == "git" {
+            self.refresh_git_cursors()?;
+        }
+        Ok(())
     }
 
     fn set_retention(&self, source: &str, days: u32) -> Result<(), String> {
@@ -337,9 +346,294 @@ impl StorePaths {
             .map_err(|error| error.to_string())?;
         file.sync_all().map_err(|error| error.to_string())?;
         self.index_markdown(&path)?;
+        if source == "git" {
+            self.advance_git_cursor_from_event(cwd, detail)?;
+        }
         path.strip_prefix(&self.vault)
             .map(|path| path.to_string_lossy().replace('\\', "/"))
             .map_err(|error| error.to_string())
+    }
+
+    fn advance_git_cursor_from_event(&self, cwd: &str, detail: &str) -> Result<(), String> {
+        let Some((commit, _)) = detail.split_once('\t') else {
+            return Ok(());
+        };
+        if !matches!(commit.len(), 40 | 64) || !commit.bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Ok(());
+        }
+        let root_output = Command::new("git")
+            .args(["-C", cwd, "rev-parse", "--show-toplevel"])
+            .output()
+            .map_err(|error| error.to_string())?;
+        if !root_output.status.success() {
+            return Ok(());
+        }
+        let root = PathBuf::from(String::from_utf8_lossy(&root_output.stdout).trim())
+            .canonicalize()
+            .map_err(|error| error.to_string())?
+            .to_string_lossy()
+            .to_string();
+        let reference = format!("{commit}^{{commit}}");
+        if git_output(&root, &["cat-file", "-e", &reference]).is_err() {
+            return Ok(());
+        }
+        self.open()?
+            .execute(
+                "UPDATE git_repositories SET last_seen_commit = ?1 WHERE path = ?2",
+                params![commit, root],
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    fn register_git_repository(&self, path: &str) -> Result<String, String> {
+        if path.trim().is_empty() || path.len() > 4096 {
+            return Err("caminho de repositório vazio ou acima de 4096 bytes".into());
+        }
+        self.initialize()?;
+        let root_output = Command::new("git")
+            .args(["-C", path, "rev-parse", "--show-toplevel"])
+            .output()
+            .map_err(|error| error.to_string())?;
+        if !root_output.status.success() {
+            return Err("o caminho informado não pertence a um repositório Git".into());
+        }
+        let root = PathBuf::from(String::from_utf8_lossy(&root_output.stdout).trim())
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        let root = root.to_string_lossy().to_string();
+        let head = match git_output(&root, &["rev-parse", "--verify", "HEAD"]) {
+            Ok(head) => head,
+            Err(_)
+                if git_output(&root, &["rev-parse", "--is-inside-work-tree"])
+                    .is_ok_and(|value| value == "true") =>
+            {
+                String::new()
+            }
+            Err(error) => return Err(error),
+        };
+        let connection = self.open()?;
+        let inserted = connection
+            .execute(
+                "INSERT OR IGNORE INTO git_repositories(path, last_seen_commit) VALUES (?1, ?2)",
+                params![root, head],
+            )
+            .map_err(|error| error.to_string())?
+            > 0;
+        Ok(json!({"status":"ok", "repository":root, "registered":inserted}).to_string())
+    }
+
+    fn unregister_git_repository(&self, path: &str) -> Result<String, String> {
+        if path.trim().is_empty() || path.len() > 4096 {
+            return Err("caminho de repositório vazio ou acima de 4096 bytes".into());
+        }
+        self.initialize()?;
+        let requested = PathBuf::from(path);
+        let resolved = if let Ok(canonical) = requested.canonicalize() {
+            canonical
+        } else if requested.is_absolute() {
+            requested
+        } else {
+            return Err("para remover um repositório ausente, informe o caminho absoluto".into());
+        };
+        let resolved = resolved.to_string_lossy().to_string();
+        let root_output = Command::new("git")
+            .args(["-C", &resolved, "rev-parse", "--show-toplevel"])
+            .output();
+        let root = match root_output {
+            Ok(output) if output.status.success() => {
+                PathBuf::from(String::from_utf8_lossy(&output.stdout).trim())
+                    .canonicalize()
+                    .unwrap_or_else(|_| PathBuf::from(&resolved))
+                    .to_string_lossy()
+                    .to_string()
+            }
+            _ => resolved,
+        };
+        let connection = self.open()?;
+        let removed = connection
+            .execute("DELETE FROM git_repositories WHERE path = ?1", [&root])
+            .map_err(|error| error.to_string())?
+            > 0;
+        Ok(json!({"status":"ok", "repository":root, "unregistered":removed}).to_string())
+    }
+
+    fn scan_git_repositories(&self) -> Result<String, String> {
+        self.initialize()?;
+        let values = self.config_values()?;
+        if !values
+            .get("collectors.git")
+            .is_some_and(|value| value == "true")
+        {
+            return Ok(json!({
+                "status":"disabled",
+                "repositories":0,
+                "commits_recorded":0,
+                "errors":[]
+            })
+            .to_string());
+        }
+        let repositories = {
+            let connection = self.open()?;
+            let mut statement = connection
+                .prepare("SELECT path, last_seen_commit FROM git_repositories ORDER BY path")
+                .map_err(|error| error.to_string())?;
+            let repositories = statement
+                .query_map([], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?;
+            repositories
+        };
+        let mut scanned = 0usize;
+        let mut errors = Vec::new();
+        for (root, last_seen) in &repositories {
+            let result = self.scan_git_repository(root, last_seen);
+            match result {
+                Ok(count) => scanned += count,
+                Err(error) => errors.push(json!({"repository":root, "error":error})),
+            }
+        }
+        Ok(json!({
+            "status": if errors.is_empty() { "ok" } else { "partial" },
+            "repositories": repositories.len(),
+            "commits_recorded": scanned,
+            "errors": errors
+        })
+        .to_string())
+    }
+
+    fn refresh_git_cursors(&self) -> Result<(), String> {
+        let repositories = {
+            let connection = self.open()?;
+            let mut statement = connection
+                .prepare("SELECT path FROM git_repositories ORDER BY path")
+                .map_err(|error| error.to_string())?;
+            let repositories = statement
+                .query_map([], |row| row.get::<_, String>(0))
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?;
+            repositories
+        };
+        for root in repositories {
+            let head = match git_output(&root, &["rev-parse", "--verify", "HEAD"]) {
+                Ok(head) => head,
+                Err(_) => {
+                    self.open()?
+                        .execute("DELETE FROM git_repositories WHERE path = ?1", [&root])
+                        .map_err(|error| error.to_string())?;
+                    continue;
+                }
+            };
+            self.open()?
+                .execute(
+                    "UPDATE git_repositories SET last_seen_commit = ?1 WHERE path = ?2",
+                    params![head, root],
+                )
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn scan_git_repository(&self, root: &str, last_seen: &str) -> Result<usize, String> {
+        let head = match git_output(root, &["rev-parse", "--verify", "HEAD"]) {
+            Ok(head) => head,
+            Err(_)
+                if git_output(root, &["rev-parse", "--is-inside-work-tree"])
+                    .is_ok_and(|value| value == "true") =>
+            {
+                return Ok(0);
+            }
+            Err(error) => return Err(error),
+        };
+        if head == *last_seen {
+            return Ok(0);
+        }
+        let merge_base = if last_seen.is_empty() {
+            None
+        } else {
+            Command::new("git")
+                .args(["-C", root, "merge-base", last_seen, "HEAD"])
+                .output()
+                .ok()
+                .filter(|output| output.status.success())
+                .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+        };
+        if merge_base.as_deref() == Some(head.as_str()) {
+            self.open()?
+                .execute(
+                    "UPDATE git_repositories SET last_seen_commit = ?1 WHERE path = ?2",
+                    params![head, root],
+                )
+                .map_err(|error| error.to_string())?;
+            return Ok(0);
+        }
+        let output = if let Some(base) = merge_base {
+            let range = format!("{base}..HEAD");
+            Command::new("git")
+                .args([
+                    "-C",
+                    root,
+                    "log",
+                    "--reverse",
+                    "--format=%H%x09%ct%x09%s",
+                    &range,
+                ])
+                .output()
+        } else if last_seen.is_empty() {
+            Command::new("git")
+                .args(["-C", root, "log", "--reverse", "--format=%H%x09%ct%x09%s"])
+                .output()
+        } else {
+            Command::new("git")
+                .args(["-C", root, "log", "-1", "--format=%H%x09%ct%x09%s", "HEAD"])
+                .output()
+        }
+        .map_err(|error| error.to_string())?;
+        if !output.status.success() {
+            return Err("não foi possível ler commits posteriores ao último cursor".into());
+        }
+        if output.stdout.len() > 16 * 1024 * 1024 {
+            return Err(
+                "intervalo Git excede o limite de 16 MiB; nenhum cursor foi alterado".into(),
+            );
+        }
+        let commits = String::from_utf8_lossy(&output.stdout);
+        let mut recorded = 0usize;
+        for line in commits.lines() {
+            let mut fields = line.splitn(3, '\t');
+            let Some(commit) = fields.next() else {
+                continue;
+            };
+            let Some(timestamp) = fields.next() else {
+                continue;
+            };
+            let Some(subject) = fields.next() else {
+                continue;
+            };
+            let detail = format!("commit={commit}; timestamp={timestamp}; subject={subject}");
+            self.collect_event("git", &detail, root, 0, 0)?;
+            self.open()?
+                .execute(
+                    "UPDATE git_repositories SET last_seen_commit = ?1 WHERE path = ?2",
+                    params![commit, root],
+                )
+                .map_err(|error| error.to_string())?;
+            recorded += 1;
+        }
+        if recorded == 0 && head != *last_seen {
+            self.open()?
+                .execute(
+                    "UPDATE git_repositories SET last_seen_commit = ?1 WHERE path = ?2",
+                    params![head, root],
+                )
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(recorded)
     }
 
     fn index_markdown(&self, path: &Path) -> Result<(), String> {
@@ -1106,6 +1400,32 @@ impl MemoryService {
         .map_err(fdo::Error::Failed)
     }
 
+    async fn register_git_repository(&self, path: &str) -> fdo::Result<String> {
+        let paths = self.paths.clone();
+        let path = path.to_string();
+        tokio::task::spawn_blocking(move || paths.register_git_repository(&path))
+            .await
+            .map_err(|error| fdo::Error::Failed(error.to_string()))?
+            .map_err(fdo::Error::Failed)
+    }
+
+    async fn unregister_git_repository(&self, path: &str) -> fdo::Result<String> {
+        let paths = self.paths.clone();
+        let path = path.to_string();
+        tokio::task::spawn_blocking(move || paths.unregister_git_repository(&path))
+            .await
+            .map_err(|error| fdo::Error::Failed(error.to_string()))?
+            .map_err(fdo::Error::Failed)
+    }
+
+    async fn scan_git_repositories(&self) -> fdo::Result<String> {
+        let paths = self.paths.clone();
+        tokio::task::spawn_blocking(move || paths.scan_git_repositories())
+            .await
+            .map_err(|error| fdo::Error::Failed(error.to_string()))?
+            .map_err(fdo::Error::Failed)
+    }
+
     async fn purge(&self) -> fdo::Result<String> {
         let paths = self.paths.clone();
         tokio::task::spawn_blocking(move || paths.purge())
@@ -1114,6 +1434,18 @@ impl MemoryService {
             .map(|removed| json!({"status":"ok", "removed":removed}).to_string())
             .map_err(fdo::Error::Failed)
     }
+}
+
+fn git_output(root: &str, args: &[&str]) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(["-C", root])
+        .args(args)
+        .output()
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err("comando Git falhou para o repositório registrado".into());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 #[tokio::main]

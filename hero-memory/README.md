@@ -28,17 +28,21 @@ O serviço não baixa modelos automaticamente. Sem `nomic-embed-text`, as buscas
 continuam funcionando por FTS5 e `forja memory rebuild` informa esse estado.
 
 Comandos disponíveis pela CLI incluem `search`, `timeline`, `remember`,
-`rebuild`, `viewer`, `collectors`, `retention` e `purge`. O visualizador QML
-abre timeline, grafo e busca local em modo somente leitura.
+`rebuild`, `viewer`, `collectors`, `retention`, `purge` e `git
+register|unregister|scan`. O visualizador QML abre timeline, grafo e busca local
+em modo somente leitura.
 
-Os coletores shell e HERO são automáticos. O coletor Git registra o post-commit
-nos repositórios onde `forja memory hook install` foi executado. A configuração
-fica em `~/.config/hero/memory.toml`; shell, Git e HERO começam ativos, enquanto
+Os coletores shell e HERO são automáticos. O Git oferece hook post-commit e
+varredura diária somente nos repositórios cadastrados com `forja memory git
+register`; o registro começa no HEAD atual e não importa histórico anterior.
+Use `unregister` para remover um repo. Ao desativar o coletor Git, os cursores
+avançam ao HEAD atual para não coletar o período desativado. A configuração fica
+em `~/.config/hero/memory.toml`; shell, Git e HERO começam ativos, enquanto
 janelas, código e notas ficam desativados e indisponíveis nesta versão. O purge
 remove arquivos de eventos antigos pelas retenções configuradas.
 Defina `FORJA_MEMORY_COLLECTOR=0` em uma sessão shell para ignorar comandos
 daquela sessão.
 
 O grafo usa um arranjo radial estático; faltam layout força-dirigida,
-zoom/filtros, medição de desempenho, varredura Git diária e atualização
-incremental do grafo após cada evento.
+zoom/filtros, medição de desempenho, coletores de janelas/código/notas e
+atualização incremental do grafo após cada evento.

@@ -76,6 +76,24 @@ async fn call_collect_event(
         .await
 }
 
+async fn call_register_git_repository(path: &str) -> Result<String, zbus::Error> {
+    let connection = Connection::session().await?;
+    let proxy = proxy(&connection).await?;
+    proxy.call("RegisterGitRepository", &path).await
+}
+
+async fn call_unregister_git_repository(path: &str) -> Result<String, zbus::Error> {
+    let connection = Connection::session().await?;
+    let proxy = proxy(&connection).await?;
+    proxy.call("UnregisterGitRepository", &path).await
+}
+
+async fn call_scan_git_repositories() -> Result<String, zbus::Error> {
+    let connection = Connection::session().await?;
+    let proxy = proxy(&connection).await?;
+    proxy.call("ScanGitRepositories", &()).await
+}
+
 fn unavailable(json: bool, error: &zbus::Error) -> i32 {
     if json {
         println!("{}", serde_json::json!({"status":"memd_unavailable"}));
@@ -466,6 +484,105 @@ pub fn install_git_hook(json: bool) -> i32 {
         println!("Hook post-commit instalado em {}.", hook_path.display());
     }
     0
+}
+
+pub fn register_git_repository(path: &str, json: bool) -> i32 {
+    let path = match std::fs::canonicalize(path) {
+        Ok(path) => path.to_string_lossy().to_string(),
+        Err(error) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"status":"invalid_repository_path"})
+                );
+            } else {
+                eprintln!("forja memory git register: {error}");
+            }
+            return 2;
+        }
+    };
+    match zbus::block_on(call_register_git_repository(&path)) {
+        Ok(raw) => match parse_reply(raw, json) {
+            Ok(value) => {
+                if json {
+                    println!("{value}");
+                } else {
+                    println!(
+                        "Repositório {} para varredura diária.",
+                        if value["registered"].as_bool().unwrap_or(false) {
+                            "registrado"
+                        } else {
+                            "já estava registrado"
+                        }
+                    );
+                }
+                0
+            }
+            Err(code) => code,
+        },
+        Err(error) => unavailable(json, &error),
+    }
+}
+
+pub fn unregister_git_repository(path: &str, json: bool) -> i32 {
+    let path = match std::fs::canonicalize(path) {
+        Ok(path) => path.to_string_lossy().to_string(),
+        Err(_) if std::path::Path::new(path).is_absolute() => path.to_string(),
+        Err(error) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"status":"invalid_repository_path"})
+                );
+            } else {
+                eprintln!("forja memory git unregister: {error}");
+            }
+            return 2;
+        }
+    };
+    match zbus::block_on(call_unregister_git_repository(&path)) {
+        Ok(raw) => match parse_reply(raw, json) {
+            Ok(value) => {
+                if json {
+                    println!("{value}");
+                } else if value["unregistered"].as_bool().unwrap_or(false) {
+                    println!("Repositório removido da varredura diária.");
+                } else {
+                    println!("Repositório não estava registrado.");
+                }
+                0
+            }
+            Err(code) => code,
+        },
+        Err(error) => unavailable(json, &error),
+    }
+}
+
+pub fn scan_git_repositories(json: bool) -> i32 {
+    match zbus::block_on(call_scan_git_repositories()) {
+        Ok(raw) => match parse_reply(raw, json) {
+            Ok(value) => {
+                let failed = value["status"] == "partial";
+                if json {
+                    println!("{value}");
+                } else {
+                    println!(
+                        "Varredura Git: {} commits em {} repositórios; {} falhas.",
+                        value["commits_recorded"].as_u64().unwrap_or(0),
+                        value["repositories"].as_u64().unwrap_or(0),
+                        value["errors"].as_array().map_or(0, Vec::len)
+                    );
+                }
+                if failed {
+                    1
+                } else {
+                    0
+                }
+            }
+            Err(code) => code,
+        },
+        Err(error) => unavailable(json, &error),
+    }
 }
 
 pub fn viewer(json: bool) -> i32 {

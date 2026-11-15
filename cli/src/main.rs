@@ -235,12 +235,39 @@ enum MemoryAction {
         #[command(subcommand)]
         action: MemoryHookAction,
     },
+    /// Gerencia repositórios incluídos na varredura Git diária
+    Git {
+        #[command(subcommand)]
+        action: MemoryGitAction,
+    },
 }
 
 #[derive(Subcommand)]
 enum MemoryHookAction {
     /// Instala sem substituir um hook existente
     Install {
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum MemoryGitAction {
+    /// Registra um repositório para a varredura diária de novos commits
+    Register {
+        #[arg(default_value = ".")]
+        path: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Remove um repositório da varredura diária
+    Unregister {
+        path: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Varre novos commits dos repositórios registrados
+    Scan {
         #[arg(long)]
         json: bool,
     },
@@ -460,6 +487,15 @@ fn main() {
             MemoryAction::Hook {
                 action: MemoryHookAction::Install { json },
             } => memory::install_git_hook(json),
+            MemoryAction::Git { action } => match action {
+                MemoryGitAction::Register { path, json } => {
+                    memory::register_git_repository(&path, json)
+                }
+                MemoryGitAction::Unregister { path, json } => {
+                    memory::unregister_git_repository(&path, json)
+                }
+                MemoryGitAction::Scan { json } => memory::scan_git_repositories(json),
+            },
         },
         Command::Mascot { action } => match action {
             MascotAction::Status { json } => mascot::status(json),
@@ -1203,6 +1239,60 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                             localized_help(action, lang, "forja memory hook install")
                         });
                     localized_help(hook, lang, "forja memory hook")
+                })
+                .mut_subcommand("git", |git| {
+                    let about = if english {
+                        "Manage repositories in the daily Git scan"
+                    } else {
+                        "Gerencia repositórios na varredura Git diária"
+                    };
+                    let git = git
+                        .about(about)
+                        .mut_subcommand("register", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Register a repository; scanning starts from its current HEAD"
+                                } else {
+                                    "Registra um repositório; a varredura começa no HEAD atual"
+                                })
+                                .mut_arg("path", |arg| {
+                                    arg.help(if english {
+                                        "Repository path"
+                                    } else {
+                                        "Caminho do repositório"
+                                    })
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory git register")
+                        })
+                        .mut_subcommand("unregister", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Remove a repository from the daily scan"
+                                } else {
+                                    "Remove um repositório da varredura diária"
+                                })
+                                .mut_arg("path", |arg| {
+                                    arg.help(if english {
+                                        "Repository path"
+                                    } else {
+                                        "Caminho do repositório"
+                                    })
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory git unregister")
+                        })
+                        .mut_subcommand("scan", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Record new commits from registered repositories"
+                                } else {
+                                    "Registra novos commits dos repositórios cadastrados"
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory git scan")
+                        });
+                    localized_help(git, lang, "forja memory git")
                 });
             localized_help(memory.about(about), lang, "forja memory")
         })
