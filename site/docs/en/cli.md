@@ -143,6 +143,8 @@ While active, the target requests the `performance` power profile and Plasma Do 
 
 `forja install vscode-devcontainers` installs Homebrew, Node.js, Dev Containers CLI, official VS Code and the extension for the current user. Confirmation is required (`--yes` for automation); proprietary VS Code is not included in the image.
 
+`forja install escudo` is recognized by the CLI, but returns `unavailable` until F5-002 is delivered. The command makes no system changes.
+
 ## `forja install unity`
 
 ```text

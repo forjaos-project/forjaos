@@ -394,6 +394,13 @@ enum VoiceCatalogAction {
 
 #[derive(Subcommand)]
 enum InstallPackage {
+    /// Módulo Escudo opcional (disponível na fase 5)
+    Escudo {
+        #[arg(short, long)]
+        yes: bool,
+        #[arg(long)]
+        json: bool,
+    },
     /// Baixa o Unity Hub oficial como AppImage em ~/.local
     Unity {
         /// Confirma a instalação sem interação
@@ -673,6 +680,7 @@ fn main() {
         }
         Command::Doctor { json } => doctor::run(json),
         Command::Install { package } => match package {
+            InstallPackage::Escudo { yes, json } => install::escudo(yes, json),
             InstallPackage::Unity { yes, json } => install::unity(yes, json),
             InstallPackage::ClaudeCode { yes, json } => install::claude_code(yes, json),
             InstallPackage::Homebrew { yes, json } => install::homebrew(yes, json),
@@ -1527,6 +1535,17 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
         .mut_subcommand("install", |install| {
             let install = install
                 .disable_help_subcommand(true)
+                .mut_subcommand("escudo", |escudo| {
+                    localized_help(
+                        escudo.about(if english {
+                            "Optional Escudo module (available in phase 5)"
+                        } else {
+                            "Módulo Escudo opcional (disponível na fase 5)"
+                        }),
+                        lang,
+                        "forja install escudo",
+                    )
+                })
                 .mut_subcommand("unity", |unity| {
                     localized_help(unity, lang, "forja install unity")
                 })

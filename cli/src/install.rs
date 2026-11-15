@@ -47,6 +47,19 @@ fn failed(package: &'static str, json: bool, message: impl Into<String>) -> i32 
     )
 }
 
+pub fn escudo(_yes: bool, json: bool) -> i32 {
+    emit(
+        json,
+        InstallResult {
+            package: "escudo",
+            status: "unavailable",
+            message: "O módulo Escudo ainda não está disponível; acompanhe F5-002. Nenhuma alteração foi feita no sistema.".into(),
+            path: None,
+        },
+        1,
+    )
+}
+
 fn approved(package: &'static str, route: &str, context: &str, yes: bool, json: bool) -> bool {
     if yes {
         return true;

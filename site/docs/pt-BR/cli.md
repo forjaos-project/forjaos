@@ -141,6 +141,8 @@ O alvo solicita o perfil de energia `performance` e Não perturbe no Plasma enqu
 
 `forja install vscode-devcontainers` instala Homebrew, Node.js, Dev Containers CLI, VS Code oficial e a extensão Dev Containers para o usuário atual. A instalação requer confirmação (`--yes` para automação); o VS Code proprietário não é incluído na imagem.
 
+`forja install escudo` já é reconhecido pela CLI, mas retorna `unavailable` até a entrega de F5-002. A chamada não altera o sistema.
+
 ## `forja install unity`
 
 ```text
