@@ -5,12 +5,16 @@ ARG IMAGE_NAME=forjaos-nvidia-open
 RUN dnf install -y cargo rust rpm-build jetbrains-mono-fonts grub2-tools-extra && dnf clean all
 COPY cli/Cargo.toml cli/Cargo.lock /tmp/forja-cli/
 COPY cli/src/ /tmp/forja-cli/src/
+COPY hero/Cargo.toml hero/Cargo.lock /tmp/herod/
+COPY hero/src/ /tmp/herod/src/
 RUN cargo build --manifest-path /tmp/forja-cli/Cargo.toml --locked --release \
     && install -D -m 0755 /tmp/forja-cli/target/release/forja /tmp/forja \
     && install -d -m 0755 /tmp/forja-completions \
     && /tmp/forja completions bash > /tmp/forja-completions/forja.bash \
     && /tmp/forja completions zsh > /tmp/forja-completions/_forja \
-    && /tmp/forja completions fish > /tmp/forja-completions/forja.fish
+    && /tmp/forja completions fish > /tmp/forja-completions/forja.fish \
+    && cargo build --manifest-path /tmp/herod/Cargo.toml --locked --release \
+    && install -D -m 0755 /tmp/herod/target/release/herod /tmp/herod
 COPY image/build_files/ /tmp/forjaos-build/
 COPY brand/ /tmp/brand/
 RUN bash /tmp/forjaos-build/build_branding_rpm.sh \
@@ -38,9 +42,13 @@ RUN bash /tmp/install_dx_tools.sh \
 COPY --from=branding-builder /tmp/forjaos-branding.rpm /tmp/forjaos-branding.rpm
 COPY --from=branding-builder /tmp/forjaos-plasma.rpm /tmp/forjaos-plasma.rpm
 COPY --from=branding-builder /tmp/forja /usr/bin/forja
+<<<<<<< HEAD
 COPY --from=branding-builder /tmp/forja-completions/forja.bash /usr/share/bash-completion/completions/forja
 COPY --from=branding-builder /tmp/forja-completions/_forja /usr/share/zsh/site-functions/_forja
 COPY --from=branding-builder /tmp/forja-completions/forja.fish /usr/share/fish/vendor_completions.d/forja.fish
+=======
+COPY --from=branding-builder /tmp/herod /usr/libexec/forjaos/herod
+>>>>>>> f8bb612 (feat(hero): add session D-Bus state daemon)
 RUN dnf install -y /tmp/forjaos-branding.rpm && dnf clean all && rm /tmp/forjaos-branding.rpm
 RUN dnf install -y /tmp/forjaos-plasma.rpm \
     && dnf remove -y --no-autoremove plasma-lookandfeel-fedora f45-backgrounds-kde \
@@ -69,11 +77,14 @@ COPY image/firstboot/install_chrome.py /usr/libexec/forjaos/install_chrome.py
 COPY image/firstboot/install_godot_templates.py /usr/libexec/forjaos/install_godot_templates.py
 COPY image/firstboot/install_hermes.py /usr/libexec/forjaos/install_hermes.py
 COPY image/firstboot/forjaos-firstboot.service /usr/lib/systemd/user/forjaos-firstboot.service
+COPY hero/systemd/herod.service /usr/lib/systemd/user/herod.service
 COPY image/game/game_mode.py /usr/libexec/forjaos/game_mode.py
 COPY image/game/hero-game.target /usr/lib/systemd/user/hero-game.target
 COPY image/game/forjaos-game-session.service /usr/lib/systemd/user/forjaos-game-session.service
 COPY image/game/forjaos-game-watch.service /usr/lib/systemd/user/forjaos-game-watch.service
 RUN mkdir -p /usr/lib/systemd/user/graphical-session.target.wants \
+    && mkdir -p /usr/lib/systemd/user/default.target.wants \
+    && ln -s ../herod.service /usr/lib/systemd/user/default.target.wants/herod.service \
     && ln -s ../forjaos-firstboot.service \
       /usr/lib/systemd/user/graphical-session.target.wants/forjaos-firstboot.service \
     && ln -s ../forjaos-game-watch.service \

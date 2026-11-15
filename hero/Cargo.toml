@@ -1,0 +1,10 @@
+[package]
+name = "herod"
+version = "0.1.0"
+edition = "2021"
+description = "HERO session daemon for ForjaOS"
+license = "Apache-2.0"
+
+[dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+zbus = { version = "5.19", default-features = false, features = ["tokio"] }
