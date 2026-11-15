@@ -468,7 +468,8 @@ enum GameModeAction {
 fn main() {
     let args = std::env::args_os().collect::<Vec<OsString>>();
     let lang = selected_language(&args);
-    let matches = localized_command(Cli::command(), lang)
+    let command = localized_command(Cli::command(), lang);
+    let matches = localized_help_tree(command, lang, "forja")
         .try_get_matches_from(args)
         .unwrap_or_else(|error| error.exit());
     let cli = Cli::from_arg_matches(&matches).expect("parse CLI arguments");
@@ -1493,6 +1494,14 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
 }
 
 fn localized_help(command: clap::Command, lang: Language, bin_name: &str) -> clap::Command {
+    let commands = if lang == Language::En {
+        "Commands"
+    } else {
+        "Comandos"
+    };
+    let command = command
+        .disable_help_subcommand(true)
+        .subcommand_help_heading(commands);
     if lang == Language::En {
         return command;
     }
@@ -1503,11 +1512,20 @@ fn localized_help(command: clap::Command, lang: Language, bin_name: &str) -> cla
         .to_string()
         .replace("Usage:", "Uso:")
         .replace("Options:", "Opções:")
+        .replace("Commands:", "Comandos:")
+        .replace("Arguments:", "Argumentos:")
         .replace("<COMMAND>", "<COMANDO>")
         .replace("[OPTIONS]", "[OPÇÕES]")
         .replace("Print help", "Exibe ajuda")
         .replace("Print version", "Exibe a versão");
     command.override_help(rendered)
+}
+
+fn localized_help_tree(command: clap::Command, lang: Language, bin_name: &str) -> clap::Command {
+    localized_help(command, lang, bin_name).mut_subcommands(|subcommand| {
+        let child_bin_name = format!("{bin_name} {}", subcommand.get_name());
+        localized_help_tree(subcommand, lang, &child_bin_name)
+    })
 }
 
 #[cfg(test)]
