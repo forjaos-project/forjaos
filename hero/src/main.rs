@@ -182,16 +182,22 @@ impl Hero {
                 }
                 response
             }
-            Classification::Blocked { route, message } => {
-                audit::record(route, "policy.blocked", "bloqueado", "recusado", 0);
+            Classification::Blocked {
+                route,
+                tool,
+                message,
+            } => {
+                audit::record(route, tool, "bloqueado", "recusado", 0);
                 json!({
                     "status":"blocked",
                     "route":route,
+                    "tool":tool,
                     "context":"nenhum",
                     "tier":"bloqueado",
                     "requires_confirmation":false,
                     "answer":message
-                }).to_string()
+                })
+                .to_string()
             }
             Classification::Proposal(proposal) => match proposal.tier {
                 Tier::Alter => match confirmation_id() {
@@ -206,26 +212,41 @@ impl Hero {
                         let response = json!({
                             "status":"confirmation_required",
                             "route":proposal.route,
+                            "tool":proposal.tool,
                             "context":&proposal.context,
                             "tier":"alterar",
                             "requires_confirmation":true,
                             "confirmation_id":&id,
                             "answer":format!("Confirme a ação {}.", proposal.tool)
-                        }).to_string();
-                        self.pending.insert(id, PendingAction {
-                            proposal,
-                            expires_at: Instant::now() + Duration::from_secs(120),
-                        });
+                        })
+                        .to_string();
+                        self.pending.insert(
+                            id,
+                            PendingAction {
+                                proposal,
+                                expires_at: Instant::now() + Duration::from_secs(120),
+                            },
+                        );
                         response
                     }
-                    None => json!({
-                        "status":"confirmation_unavailable",
-                        "route":proposal.route,
-                        "context":proposal.context,
-                        "tier":"alterar",
-                        "requires_confirmation":true,
-                        "answer":"Não foi possível criar uma confirmação segura; nenhuma ação foi executada."
-                    }).to_string(),
+                    None => {
+                        audit::record(
+                            proposal.route,
+                            proposal.tool,
+                            proposal.tier.as_str(),
+                            "confirmacao_indisponivel",
+                            0,
+                        );
+                        json!({
+                            "status":"confirmation_unavailable",
+                            "route":proposal.route,
+                            "tool":proposal.tool,
+                            "context":proposal.context,
+                            "tier":"alterar",
+                            "requires_confirmation":true,
+                            "answer":"Não foi possível criar uma confirmação segura; nenhuma ação foi executada."
+                        }).to_string()
+                    }
                 },
                 Tier::Free => {
                     let started = Instant::now();
@@ -239,10 +260,30 @@ impl Hero {
                     json!({
                         "status":status,
                         "route":proposal.route,
+                        "tool":proposal.tool,
                         "context":proposal.context,
                         "tier":"livre",
                         "requires_confirmation":false,
                         "answer":answer
+                    })
+                    .to_string()
+                }
+                Tier::Blocked => {
+                    audit::record(
+                        proposal.route,
+                        proposal.tool,
+                        proposal.tier.as_str(),
+                        "recusado",
+                        0,
+                    );
+                    json!({
+                        "status":"blocked",
+                        "route":proposal.route,
+                        "tool":proposal.tool,
+                        "context":proposal.context,
+                        "tier":"bloqueado",
+                        "requires_confirmation":false,
+                        "answer":"Esta ferramenta está bloqueada pela política local. Nenhuma ação foi executada."
                     }).to_string()
                 }
             },
@@ -317,6 +358,7 @@ impl Hero {
         let response = json!({
             "status":status,
             "route":proposal.route,
+            "tool":proposal.tool,
             "context":proposal.context,
             "tier":proposal.tier.as_str(),
             "requires_confirmation":false,
@@ -347,6 +389,24 @@ impl Hero {
 
     fn set_persona_instructions(&mut self, instructions: &str) -> fdo::Result<String> {
         persona::set_instructions(instructions)
+            .map_err(|error| fdo::Error::InvalidArgs(error.into()))
+    }
+
+    fn tool_tiers(&self) -> String {
+        policy::tool_tiers_json().unwrap_or_else(|error| json!({"error":error}).to_string())
+    }
+
+    fn set_tool_tier(&mut self, tool: &str, tier: &str) -> fdo::Result<String> {
+        policy::set_tool_tier(tool, tier).map_err(|error| fdo::Error::InvalidArgs(error.into()))
+    }
+
+    fn save_routine(
+        &mut self,
+        id: &str,
+        steps_json: &str,
+        maximum_tier: &str,
+    ) -> fdo::Result<String> {
+        policy::save_routine(id, steps_json, maximum_tier)
             .map_err(|error| fdo::Error::InvalidArgs(error.into()))
     }
 }

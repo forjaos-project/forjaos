@@ -25,7 +25,6 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 ### Fase 3 — HERO v0 nativo (texto + sistema)
 
-- [ ] `F3-003` Policy Engine (tiers) e AuditEvent em journald (FR-100, FR-101, FR-102, FR-103). Em andamento: tiers livres/alterar/bloqueado, confirmação curta e log sem texto da pergunta; faltam avaliação de rotinas e cobertura por tool.
 - [ ] `F3-004` MCP servers hero-system, hero-desktop, hero-dev (rmcp, stdio) (FR-110, FR-112)
 - [ ] `F3-005` Overlay Central de Comando em modo texto — tela central_de_comando_hero_corrigida (FR-121, FR-085, FR-124, FR-125)
 - [ ] `F3-006` Plasmoid do Guará (texto) e plugin KRunner — tela plasmoid_do_guar (FR-120, FR-122)
@@ -60,11 +59,12 @@ Testes, medições de NFR, boot/instalação das ISOs e validação em hardware 
 - [ ] `F5-001` Validação física completa (§11) nos 2 hardwares com registro em docs/releases/ (ADR-024, G5). No Dell Inspiron de teste, o Anaconda iniciou e conectou à rede; o particionador parou com `no free partition slots` apesar de 97,66 GiB livres. Repetir após a correção da partição e validar Windows, GRUB e Secure Boot/MOK.
 - [ ] Gerar a ISO final e subir no GitHub Release
 
-## Feito (34)
+## Feito (35)
 
 - [x] `F2-001` Wizard de primeiro boot QML com seis passos, preflight, perfis instalados em segundo plano, chaves no KWallet e reprodução por `forja setup`. Prévia de voz e modelos wake word ficam para F4, conforme decisão do mantenedor em 2026-11-14. Build, testes e validação em hardware ficam para o build final.
 - [x] `F3-001` Daemon `herod` em Rust com `org.forjaos.Hero`, propriedade `State`, `PropertiesChanged`, sinal `StateChanged(s)` e socket Unix local com diretório `0700` e socket `0600`. Unit limita 400 MiB/50% CPU/Nice 5; turno local tem timeout de 58 s, Ollama indisponível retorna resposta local sem fallback cloud e subprocessos são cancelados no timeout. Build release Linux passou; medição de consumo e validação em hardware Linux ficam para o build final (FR-070, FR-071, FR-078).
 - [x] `F3-002` Roteador por regras + Qwen3 4B local para sete intenções; provedores Ollama, Anthropic, OpenAI, OpenRouter e Nous configuráveis por rota em TOML/D-Bus, com rotas de voz e sistema restritas ao local e chaves lidas do KWallet. Ollama escolhe Qwen3 8B/4B por VRAM livre/Modo Jogo e usa `keep_alive` de cinco minutos; persona editável fica subordinada ao bloco fixo, `SnapshotDoApp` entra no prompt e as dez trocas mais recentes ficam somente em memória. Build release Linux passou; acurácia no conjunto de 200 frases e validação de prompt ficam para a validação funcional final (FR-090, FR-091, FR-092, FR-096).
+- [x] `F3-003` Policy Engine aplica o tier mínimo declarado em `hero/tool-policy.toml`, permite apenas elevação em `~/.config/hero/policy.toml`, recusa ferramentas bloqueadas e valida tier/IDs antes de persistir rotinas. D-Bus expõe tiers e `SaveRoutine`; decisões, confirmações, recusas e resultados geram AuditEvent JSON em journald sem texto da solicitação nem áudio. Respostas incluem ferramenta, tier e resultado; a apresentação visual do FR-103 pertence ao overlay F3-005. Build release Linux passou; validação funcional de tools/rotinas/journald fica para a integração final (FR-100, FR-101, FR-102, FR-103).
 
 - [x] `F1-006` Layout (dock com Code/Godot), atalho Meta+E, temas e wallpapers instalados no rpm forjaos-plasma. Faltam: Super+Espaço, Super+G e Super+M (dependem do HERO e do Modo Jogo)
 - [x] `F1-007` Plymouth forjaos-dark como padrão (embutido no initramfs), temas GRUB instalados em /usr/share/grub/themes e fontes PF2 geradas. O serviço de primeiro boot do F1-003 ativa o tema GRUB. O SDDM não se aplica: a base usa o Plasma Login Manager, que não aceita tema QML de terceiros; o login já usa o wallpaper ForjaOS

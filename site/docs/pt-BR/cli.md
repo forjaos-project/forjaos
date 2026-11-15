@@ -60,6 +60,8 @@ Provedores e modelos podem ser definidos em `~/.config/hero/routes.toml`. As rot
 
 O nome e as instruções editáveis ficam em `~/.config/hero/persona.toml`. O bloco fixo de segurança tem precedência sobre as instruções editáveis; as dez trocas mais recentes ficam apenas em memória. A API D-Bus recebe `SnapshotDoApp`; o comando CLI envia `{}` quando não tem dados de janela.
 
+O manifesto `hero/tool-policy.toml` declara o tier mínimo de cada ferramenta. `ToolTiers` lista os tiers e `SetToolTier` só permite elevá-los; as alterações ficam em `~/.config/hero/policy.toml`. `SaveRoutine` valida os IDs das ferramentas e o tier máximo antes de gravar uma sequência em `~/.config/hero/routines.toml`. Respostas de ação incluem ferramenta, tier e resultado. Eventos são JSON no journald com o identificador `hero-audit`, sem pergunta ou áudio.
+
 ## `forja memory`
 
 - `forja memory search "<termos>" [--limit N] [--json]`
