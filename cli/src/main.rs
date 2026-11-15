@@ -254,6 +254,8 @@ enum MemoryAction {
         exit_code: i32,
         #[arg(long, default_value_t = 0)]
         duration_ms: u64,
+        #[arg(long)]
+        json: bool,
     },
     /// Instala um hook Git post-commit no repositório atual
     Hook {
@@ -536,7 +538,8 @@ fn main() {
                 source,
                 exit_code,
                 duration_ms,
-            } => memory::collect(source.as_str(), exit_code, duration_ms),
+                json,
+            } => memory::collect(source.as_str(), exit_code, duration_ms, json),
             MemoryAction::Hook {
                 action: MemoryHookAction::Install { json },
             } => memory::install_git_hook(json),
@@ -1343,7 +1346,8 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                             } else {
                                 "Duração do comando shell em milissegundos"
                             })
-                        });
+                        })
+                        .mut_arg("json", |arg| arg.help(json_help));
                     localized_help(action, lang, "forja memory collect")
                 })
                 .mut_subcommand("hook", |hook| {

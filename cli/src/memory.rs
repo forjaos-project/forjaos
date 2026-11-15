@@ -439,7 +439,7 @@ pub fn graph_repository(path: &str, json: bool) -> i32 {
     }
 }
 
-pub fn collect(source: &str, exit_code: i32, duration_ms: u64) -> i32 {
+pub fn collect(source: &str, exit_code: i32, duration_ms: u64, json: bool) -> i32 {
     let detail = if source == "shell" {
         let mut detail = String::new();
         if io::stdin()
@@ -448,7 +448,14 @@ pub fn collect(source: &str, exit_code: i32, duration_ms: u64) -> i32 {
             .is_err()
             || detail.len() > 64 * 1024
         {
-            eprintln!("forja memory collect: entrada acima de 64 KiB ou leitura inválida.");
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"command":"memory collect", "status":"error", "error":"invalid_stdin"})
+                );
+            } else {
+                eprintln!("forja memory collect: entrada acima de 64 KiB ou leitura inválida.");
+            }
             return 2;
         }
         detail
@@ -459,11 +466,25 @@ pub fn collect(source: &str, exit_code: i32, duration_ms: u64) -> i32 {
         {
             Ok(output) if output.status.success() => output,
             Ok(_) => {
-                eprintln!("forja memory collect: não foi possível ler o último commit Git.");
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::json!({"command":"memory collect", "status":"error", "error":"git_unavailable"})
+                    );
+                } else {
+                    eprintln!("forja memory collect: não foi possível ler o último commit Git.");
+                }
                 return 2;
             }
             Err(error) => {
-                eprintln!("forja memory collect: {error}");
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::json!({"command":"memory collect", "status":"error", "error":"git_unavailable"})
+                    );
+                } else {
+                    eprintln!("forja memory collect: {error}");
+                }
                 return 2;
             }
         };
@@ -479,9 +500,24 @@ pub fn collect(source: &str, exit_code: i32, duration_ms: u64) -> i32 {
         exit_code,
         duration_ms,
     )) {
-        Ok(_) => 0,
+        Ok(raw) => {
+            if json {
+                match parse_reply(raw, true) {
+                    Ok(value) => println!("{value}"),
+                    Err(code) => return code,
+                }
+            }
+            0
+        }
         Err(error) => {
-            eprintln!("forja memory collect: {error}");
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"command":"memory collect", "status":"error", "error":"memd_unavailable"})
+                );
+            } else {
+                eprintln!("forja memory collect: {error}");
+            }
             1
         }
     }
