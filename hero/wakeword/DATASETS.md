@@ -6,6 +6,17 @@ fora do repositório; publique somente modelos com procedência verificável e
 métricas agregadas. Nenhum dos conjuntos abaixo fornece, por si só, a validação
 das oito frases por 20 locutores reais exigida em FR-081.
 
+Os datasets de treino e validação (incluindo os 1,3 GB do SLR28 e os 4,85 GB
+do Common Voice) **não entram na ISO**. Eles permanecem em armazenamento local
+de desenvolvimento. A imagem final recebe apenas os componentes de inferência
+e os modelos aprovados, respeitando as licenças e os critérios de validação.
+
+**Situação em 15/11/2026:** Rodrigo informou que as gravações dos 20 locutores
+não estarão disponíveis nesta etapa. A coleta e a validação FR-081 ficam
+pendentes; o trabalho de software e de preparação dos dados pode prosseguir.
+Não substitua essa evidência por áudio sintético ou por frases genéricas do
+Common Voice.
+
 | Uso | Fonte | Licença e limite |
 | --- | --- | --- |
 | Exemplos positivos sintéticos | [Piper sample generator](https://github.com/dscripka/piper-sample-generator), com vozes pt-BR verificadas uma a uma | Verificar a licença de cada voz usada; gerar as frases do ForjaOS localmente. |
@@ -20,6 +31,14 @@ Registre por amostra somente um código de participante, frase, ambiente e
 dispositivo. Separe locutores de treino e validação; não publique gravações ou
 identidades sem autorização específica. Os critérios de falso positivo,
 latência e consumo continuam em FR-080/FR-081.
+
+Quando houver gravações, guarde-as em uma pasta privada fora do repositório.
+Crie ali um `manifest.tsv` com as colunas `speaker_code`, `phrase`, `path`,
+`environment` e `device`. `path` aponta para WAV PCM mono de 16 kHz e 16 bits,
+relativo ao manifesto. Uma linha corresponde a uma gravação. Execute
+`python3 hero/wakeword/validate_corpus.py /caminho/privado/manifest.tsv` para
+conferir formato e cobertura de 20 códigos distintos por frase. O script não
+atesta que a voz seja humana nem que haja consentimento; essa revisão é manual.
 
 **Bloqueio de licença:** os [modelos pré-treinados do openWakeWord](https://github.com/dscripka/openWakeWord#license)
 e as [features negativas prontas](https://huggingface.co/datasets/davidscripka/openwakeword_features)
