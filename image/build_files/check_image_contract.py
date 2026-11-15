@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Check scoped F1-001 package and service defaults inside a built image."""
 
+import os
 import subprocess
 import sys
+from pathlib import Path
 
 
 REQUIRED_RPMS = frozenset({
@@ -35,6 +37,11 @@ REQUIRED_UNIT_STATES = {
     "sshd.service": "disabled",
     "cockpit.socket": "disabled",
 }
+REQUIRED_EXECUTABLES = (
+    "/usr/bin/forja",
+    "/usr/libexec/forjaos/herod",
+    "/usr/libexec/forjaos/memd",
+)
 
 
 def read_packages() -> set[str]:
@@ -84,6 +91,10 @@ def check_contract(packages: set[str], unit_states: dict[str, str]) -> list[str]
             continue  # Cockpit components are present, but no listening socket exists.
         if actual != expected:
             errors.append(f"{unit}: expected {expected}, got {actual}")
+    for executable in REQUIRED_EXECUTABLES:
+        path = Path(executable)
+        if not path.is_file() or path.is_symlink() or not os.access(path, os.X_OK):
+            errors.append(f"required executable missing or invalid: {executable}")
     return errors
 
 

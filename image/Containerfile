@@ -19,15 +19,15 @@ COPY hero/src/ /tmp/herod/src/
 COPY hero-memory/Cargo.toml hero-memory/Cargo.lock /tmp/memd/
 COPY hero-memory/src/ /tmp/memd/src/
 RUN cargo build --manifest-path /tmp/forja-cli/Cargo.toml --locked --release \
-    && install -D -m 0755 /tmp/forja-cli/target/release/forja /tmp/forja \
+    && install -D -m 0755 /tmp/forja-cli/target/release/forja /tmp/forjaos-bin/forja \
     && install -d -m 0755 /tmp/forja-completions \
-    && /tmp/forja completions bash > /tmp/forja-completions/forja.bash \
-    && /tmp/forja completions zsh > /tmp/forja-completions/_forja \
-    && /tmp/forja completions fish > /tmp/forja-completions/forja.fish \
+    && /tmp/forjaos-bin/forja completions bash > /tmp/forja-completions/forja.bash \
+    && /tmp/forjaos-bin/forja completions zsh > /tmp/forja-completions/_forja \
+    && /tmp/forjaos-bin/forja completions fish > /tmp/forja-completions/forja.fish \
     && cargo build --manifest-path /tmp/herod/Cargo.toml --locked --release \
-    && install -D -m 0755 /tmp/herod/target/release/herod /tmp/herod \
+    && install -D -m 0755 /tmp/herod/target/release/herod /tmp/forjaos-bin/herod \
     && cargo build --manifest-path /tmp/memd/Cargo.toml --locked --release \
-    && install -D -m 0755 /tmp/memd/target/release/memd /tmp/memd
+    && install -D -m 0755 /tmp/memd/target/release/memd /tmp/forjaos-bin/memd
 COPY image/build_files/ /tmp/forjaos-build/
 COPY brand/ /tmp/brand/
 RUN bash /tmp/forjaos-build/build_branding_rpm.sh \
@@ -55,12 +55,12 @@ RUN bash /tmp/install_dx_tools.sh \
 
 COPY --from=branding-builder /tmp/forjaos-branding.rpm /tmp/forjaos-branding.rpm
 COPY --from=branding-builder /tmp/forjaos-plasma.rpm /tmp/forjaos-plasma.rpm
-COPY --from=branding-builder /tmp/forja /usr/bin/forja
+COPY --from=branding-builder /tmp/forjaos-bin/forja /usr/bin/forja
 COPY --from=branding-builder /tmp/forja-completions/forja.bash /usr/share/bash-completion/completions/forja
 COPY --from=branding-builder /tmp/forja-completions/_forja /usr/share/zsh/site-functions/_forja
 COPY --from=branding-builder /tmp/forja-completions/forja.fish /usr/share/fish/vendor_completions.d/forja.fish
-COPY --from=branding-builder /tmp/herod /usr/libexec/forjaos/herod
-COPY --from=branding-builder /tmp/memd /usr/libexec/forjaos/memd
+COPY --from=branding-builder /tmp/forjaos-bin/herod /usr/libexec/forjaos/herod
+COPY --from=branding-builder /tmp/forjaos-bin/memd /usr/libexec/forjaos/memd
 COPY --from=branding-builder /opt/forjaos/graphify-runtime/.venv /opt/forjaos/graphify-runtime/.venv
 COPY --from=branding-builder /tmp/THIRD_PARTY_PYTHON_LICENSES.md /usr/share/licenses/forjaos/THIRD_PARTY_PYTHON_LICENSES.md
 RUN dnf install -y /tmp/forjaos-branding.rpm && dnf clean all && rm /tmp/forjaos-branding.rpm
@@ -138,4 +138,5 @@ RUN python3 /tmp/configure_image.py \
     && rm /tmp/configure_image.py /tmp/configure_plasma.py /tmp/forjaos.pub /tmp/forjaos-icons/* \
     && rm /tmp/configure_startup.sh /tmp/rebuild_initramfs.sh \
     && rmdir /tmp/forjaos-icons \
-    && bootc container lint
+    && bootc container lint \
+    && python3 /usr/libexec/forjaos/check_image_contract.py
