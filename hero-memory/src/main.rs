@@ -25,6 +25,7 @@ static SQLITE_VEC: Once = Once::new();
 static CONFIG_LOCK: Mutex<()> = Mutex::new(());
 const COLLECTORS: &[&str] = &["shell", "git", "hero", "windows", "code", "notes"];
 const AUTOMATIC_COLLECTORS: &[&str] = &["shell", "git", "hero"];
+const AVAILABLE_COLLECTORS: &[&str] = &["shell", "git", "hero", "windows"];
 
 #[derive(serde::Deserialize)]
 struct EmbeddingReply {
@@ -262,7 +263,7 @@ impl StorePaths {
                 json!({
                     "source":source,
                     "enabled":enabled,
-                    "available":AUTOMATIC_COLLECTORS.contains(source),
+                    "available":AVAILABLE_COLLECTORS.contains(source),
                     "retention_days":retention_days
                 })
             })
@@ -270,7 +271,7 @@ impl StorePaths {
     }
 
     fn set_collector(&self, source: &str, enabled: bool) -> Result<(), String> {
-        if !AUTOMATIC_COLLECTORS.contains(&source) {
+        if !AVAILABLE_COLLECTORS.contains(&source) {
             return Err("coletor não disponível nesta versão".into());
         }
         self.initialize()?;
@@ -303,7 +304,7 @@ impl StorePaths {
         exit_code: i32,
         duration_ms: u64,
     ) -> Result<String, String> {
-        if !AUTOMATIC_COLLECTORS.contains(&source) {
+        if !AVAILABLE_COLLECTORS.contains(&source) {
             return Err("coletor não disponível nesta versão".into());
         }
         if detail.trim().is_empty() || detail.len() > MAX_NOTE_BYTES || cwd.len() > 4096 {
@@ -1393,6 +1394,25 @@ impl MemoryService {
         let (source, detail, cwd) = (source.to_string(), detail.to_string(), cwd.to_string());
         tokio::task::spawn_blocking(move || {
             paths.collect_event(&source, &detail, &cwd, exit_code, duration_ms)
+        })
+        .await
+        .map_err(|error| fdo::Error::Failed(error.to_string()))?
+        .map(|path| json!({"status":"ok", "path":path}).to_string())
+        .map_err(fdo::Error::Failed)
+    }
+
+    async fn collect_window(&self, app: &str, title: &str) -> fdo::Result<String> {
+        if app.trim().is_empty() || app.len() > 256 || title.trim().is_empty() || title.len() > 4096
+        {
+            return Err(fdo::Error::InvalidArgs(
+                "metadados de janela vazios ou acima do limite permitido".into(),
+            ));
+        }
+        let paths = self.paths.clone();
+        let (app, title) = (app.to_string(), title.to_string());
+        tokio::task::spawn_blocking(move || {
+            let detail = format!("app={app}; title={title}");
+            paths.collect_event("windows", &detail, "", 0, 30_000)
         })
         .await
         .map_err(|error| fdo::Error::Failed(error.to_string()))?

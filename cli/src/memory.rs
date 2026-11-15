@@ -103,6 +103,38 @@ fn unavailable(json: bool, error: &zbus::Error) -> i32 {
     1
 }
 
+fn configure_window_collector(enabled: bool) -> Result<bool, String> {
+    let output = Command::new("kwriteconfig6")
+        .args([
+            "--file",
+            "kwinrc",
+            "--group",
+            "Plugins",
+            "--key",
+            "forja-memory-windowEnabled",
+            if enabled { "true" } else { "false" },
+        ])
+        .output()
+        .map_err(|error| format!("kwriteconfig6: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "kwriteconfig6: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    for program in ["qdbus6", "qdbus"] {
+        match Command::new(program)
+            .args(["org.kde.KWin", "/KWin", "reconfigure"])
+            .status()
+        {
+            Ok(status) if status.success() => return Ok(true),
+            Ok(_) => continue,
+            Err(_) => continue,
+        }
+    }
+    Ok(false)
+}
+
 fn parse_reply(raw: String, json: bool) -> Result<Value, i32> {
     serde_json::from_str(&raw).map_err(|_| {
         if json {
@@ -255,14 +287,42 @@ pub fn collectors_status(json: bool) -> i32 {
 pub fn set_collector(source: &str, enabled: bool, json: bool) -> i32 {
     match zbus::block_on(call_set_collector(source, enabled)) {
         Ok(raw) => match parse_reply(raw, json) {
-            Ok(value) => {
+            Ok(mut value) => {
+                if source == "windows" {
+                    match configure_window_collector(enabled) {
+                        Ok(reloaded) => {
+                            value["active_session_reloaded"] = serde_json::json!(reloaded)
+                        }
+                        Err(error) => {
+                            let _ = zbus::block_on(call_set_collector(source, !enabled));
+                            if json {
+                                println!(
+                                    "{}",
+                                    serde_json::json!({"status":"kwin_configuration_failed"})
+                                );
+                            } else {
+                                eprintln!("forja memory windows: {error}");
+                            }
+                            return 1;
+                        }
+                    }
+                }
                 if json {
                     println!("{value}");
                 } else {
-                    println!(
-                        "Coletor {source}: {}.",
-                        if enabled { "ativado" } else { "desativado" }
-                    );
+                    if source == "windows"
+                        && !value["active_session_reloaded"].as_bool().unwrap_or(false)
+                    {
+                        println!(
+                            "Coletor {source}: {} para a próxima sessão do KWin.",
+                            if enabled { "ativado" } else { "desativado" }
+                        );
+                    } else {
+                        println!(
+                            "Coletor {source}: {}.",
+                            if enabled { "ativado" } else { "desativado" }
+                        );
+                    }
                 }
                 0
             }

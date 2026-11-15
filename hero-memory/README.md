@@ -11,7 +11,8 @@ O serviço publica `org.forjaos.Memory` no D-Bus da sessão:
 - `Rebuild() -> JSON`
 - `Remember(note) -> JSON`
 - `Collectors()`, `SetCollector(source, enabled)`, `SetRetention(source, days)`
-- `CollectEvent(source, detail, cwd, exit_code, duration_ms)`, `Purge()`
+- `CollectEvent(source, detail, cwd, exit_code, duration_ms)`,
+  `CollectWindow(app, title)`, `Purge()`
 
 O transporte MCP por stdio está disponível em `forja memory mcp`. Ele expõe
 `memory_search`, `memory_timeline`, `memory_related`, `memory_remember` e
@@ -38,11 +39,16 @@ register`; o registro começa no HEAD atual e não importa histórico anterior.
 Use `unregister` para remover um repo. Ao desativar o coletor Git, os cursores
 avançam ao HEAD atual para não coletar o período desativado. A configuração fica
 em `~/.config/hero/memory.toml`; shell, Git e HERO começam ativos, enquanto
-janelas, código e notas ficam desativados e indisponíveis nesta versão. O purge
-remove arquivos de eventos antigos pelas retenções configuradas.
+janelas, código e notas começam desativados. O coletor de janelas está
+disponível como plugin de script do KWin e registra somente aplicativo,
+título e intervalo de 30 segundos, sem conteúdo ou captura de tela. Ative
+ou desative com `forja memory collectors enable|disable windows`; a
+configuração do KWin é recarregada na sessão ativa quando possível.
+Código e notas ainda não estão disponíveis. O purge remove arquivos de
+eventos antigos pelas retenções configuradas.
 Defina `FORJA_MEMORY_COLLECTOR=0` em uma sessão shell para ignorar comandos
 daquela sessão.
 
 O grafo usa um arranjo radial estático; faltam layout força-dirigida,
-zoom/filtros, medição de desempenho, coletores de janelas/código/notas e
+zoom/filtros, medição de desempenho, coletores de código/notas e
 atualização incremental do grafo após cada evento.

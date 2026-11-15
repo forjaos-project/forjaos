@@ -60,12 +60,12 @@ Options:
 - `forja memory rebuild [--json]`
 - `forja memory viewer [--json]` opens the local read-only QML viewer.
 - `forja memory mcp` starts the stdio MCP transport for registration in a compatible client.
-- `forja memory collectors status|enable <source>|disable <source>` lists or changes available collectors (`shell`, `git`, `hero`).
+- `forja memory collectors status|enable <source>|disable <source>` lists or changes available collectors (`shell`, `git`, `hero`, `windows`). The optional `windows` collector records only the active window's application and title every 30 seconds, without window contents or screenshots.
 - `forja memory retention <source> <days>` sets retention; `0` means unlimited. `forja memory purge` applies the configured retention.
 - `forja memory collect shell` reads a command from stdin; `forja memory collect git` records the current commit. First boot installs the shell hook; run `forja memory hook install` in each Git repo to install its `post-commit` hook. Existing hooks are preserved.
 - `forja memory git register [path]` explicitly adds a repo to the daily scan, starting at its current HEAD. `unregister <path>` removes a repo. `forja memory git scan [--json]` runs a manual scan, and a user timer repeats it daily. Disabling the Git collector advances cursors to the current HEAD, skipping the disabled period.
 
-Events store the command/commit, directory, exit code, and duration; known secret patterns are redacted before writing. Set `FORJA_MEMORY_COLLECTOR=0` in the shell to skip commands in that session. Window, code, and notes collectors are not available yet.
+Events store the command/commit, directory, exit code, and duration; known secret patterns are redacted before writing. Set `FORJA_MEMORY_COLLECTOR=0` in the shell to skip commands in that session. Enable the KWin window plugin with `forja memory collectors enable windows`; the active session is reconfigured when possible. Code and notes collectors are not available yet.
 
 ## `forja mascot`
 
