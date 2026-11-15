@@ -58,7 +58,7 @@ struct SearchHit {
     modified_at: i64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, serde::Deserialize)]
 struct GraphDocument {
     graph: GraphMetadata,
     nodes: Vec<GraphNode>,
@@ -66,27 +66,27 @@ struct GraphDocument {
     hyperedges: Vec<serde_json::Value>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, serde::Deserialize)]
 struct GraphMetadata {
     schema_version: u32,
-    graphify_version: &'static str,
+    graphify_version: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, serde::Deserialize)]
 struct GraphNode {
     id: String,
     label: String,
     source_file: String,
-    node_type: &'static str,
+    node_type: String,
     modified_at: i64,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, serde::Deserialize)]
 struct GraphLink {
     source: String,
     target: String,
-    relation: &'static str,
-    confidence: &'static str,
+    relation: String,
+    confidence: String,
     confidence_score: f32,
 }
 
@@ -294,6 +294,9 @@ impl StorePaths {
         if source == "notes" {
             self.rebuild()?;
         }
+        if source == "code" {
+            self.rebuild()?;
+        }
         Ok(())
     }
 
@@ -379,6 +382,7 @@ impl StorePaths {
             return Err("graphify gerou um grafo sem arrays nodes e links".into());
         }
         restrict_file(&graph_path)?;
+        self.rebuild()?;
         Ok(json!({
             "status":"ok",
             "repository":root.to_string_lossy(),
@@ -451,6 +455,7 @@ impl StorePaths {
             .map_err(|error| error.to_string())?;
         file.sync_all().map_err(|error| error.to_string())?;
         self.index_markdown(&path)?;
+        self.update_event_graph(&path)?;
         if source == "git" {
             self.advance_git_cursor_from_event(cwd, detail)?;
         }
@@ -798,6 +803,81 @@ impl StorePaths {
         transaction.commit().map_err(|error| error.to_string())
     }
 
+    fn update_event_graph(&self, path: &Path) -> Result<(), String> {
+        let graph_path = self.vault.join("graph/graph.json");
+        let metadata = match fs::symlink_metadata(&graph_path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.rebuild()?;
+                return Ok(());
+            }
+            Err(error) => return Err(error.to_string()),
+        };
+        if !metadata.is_file()
+            || metadata.file_type().is_symlink()
+            || metadata.len() > 100 * 1024 * 1024
+        {
+            return Err("grafo local ausente, inválido ou acima de 100 MiB".into());
+        }
+        let graph_bytes = fs::read(&graph_path).map_err(|error| error.to_string())?;
+        let mut graph: GraphDocument = match serde_json::from_slice(&graph_bytes) {
+            Ok(graph) => graph,
+            Err(_) => {
+                self.rebuild()?;
+                return Ok(());
+            }
+        };
+        let text = fs::read_to_string(path).map_err(|error| error.to_string())?;
+        let id = path
+            .strip_prefix(&self.vault)
+            .map_err(|error| error.to_string())?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let modified_at = path
+            .metadata()
+            .ok()
+            .and_then(|metadata| metadata.modified().ok())
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |duration| duration.as_secs() as i64);
+        let title = markdown_title(&redact_secrets(&text), path);
+        graph.nodes.retain(|node| node.id != id);
+        graph
+            .links
+            .retain(|link| link.source != id && link.target != id);
+        for other in graph.nodes.iter().filter(|node| {
+            matches!(
+                node.node_type.as_str(),
+                "command" | "commit" | "conversation" | "window"
+            ) && node.modified_at.abs_diff(modified_at) <= 900
+        }) {
+            graph.links.push(GraphLink {
+                source: id.clone(),
+                target: other.id.clone(),
+                relation: "co_occurs".into(),
+                confidence: "EXTRACTED".into(),
+                confidence_score: 1.0,
+            });
+        }
+        graph.nodes.push(GraphNode {
+            id,
+            label: title,
+            source_file: path
+                .strip_prefix(&self.vault)
+                .map_err(|error| error.to_string())?
+                .to_string_lossy()
+                .replace('\\', "/"),
+            node_type: memory_node_type(
+                &path
+                    .strip_prefix(&self.vault)
+                    .map_err(|error| error.to_string())?
+                    .to_string_lossy(),
+            )
+            .to_string(),
+            modified_at,
+        });
+        self.write_graph(&graph.nodes, &graph.links)
+    }
+
     fn purge(&self) -> Result<usize, String> {
         self.initialize()?;
         let values = self.config_values()?;
@@ -904,7 +984,7 @@ impl StorePaths {
                 id: id.clone(),
                 label: title.clone(),
                 source_file: relative.clone(),
-                node_type: memory_node_type(&relative),
+                node_type: memory_node_type(&relative).to_string(),
                 modified_at: *modified_at,
             });
             if relative.starts_with("daily/collectors/") {
@@ -939,8 +1019,8 @@ impl StorePaths {
                     graph_links.push(GraphLink {
                         source: source.clone(),
                         target: matches[0].clone(),
-                        relation: "references",
-                        confidence: "EXTRACTED",
+                        relation: "references".into(),
+                        confidence: "EXTRACTED".into(),
                         confidence_score: 1.0,
                     });
                 }
@@ -951,11 +1031,17 @@ impl StorePaths {
                 graph_links.extend(related.iter().map(|target| GraphLink {
                     source: anchor.clone(),
                     target: target.clone(),
-                    relation: "co_occurs",
-                    confidence: "EXTRACTED",
+                    relation: "co_occurs".into(),
+                    confidence: "EXTRACTED".into(),
                     confidence_score: 1.0,
                 }));
             }
+        }
+        let code_enabled = values
+            .get("collectors.code")
+            .is_some_and(|value| value == "true");
+        if code_enabled {
+            append_code_graphs(&self.vault, &mut graph_nodes, &mut graph_links)?;
         }
         transaction.commit().map_err(|error| error.to_string())?;
         self.write_graph(&graph_nodes, &graph_links)?;
@@ -966,7 +1052,7 @@ impl StorePaths {
         let graph = GraphDocument {
             graph: GraphMetadata {
                 schema_version: 1,
-                graphify_version: "forjaos-graphify-compatible",
+                graphify_version: "forjaos-graphify-compatible".into(),
             },
             nodes: nodes.to_vec(),
             links: links.to_vec(),
@@ -1160,6 +1246,124 @@ impl StorePaths {
         fs::remove_file(resolved).map_err(|error| error.to_string())?;
         self.rebuild().map(|_| ())
     }
+}
+
+fn append_code_graphs(
+    vault: &Path,
+    nodes: &mut Vec<GraphNode>,
+    links: &mut Vec<GraphLink>,
+) -> Result<(), String> {
+    let root = vault.join("graph/code");
+    let entries = match fs::read_dir(&root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.to_string()),
+    };
+    let mut repositories = entries
+        .map(|entry| entry.map_err(|error| error.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    repositories.sort_by_key(|entry| entry.file_name());
+
+    for repository in repositories {
+        let file_type = repository.file_type().map_err(|error| error.to_string())?;
+        if !file_type.is_dir() || file_type.is_symlink() {
+            continue;
+        }
+        let repository_id = repository.file_name().to_string_lossy().into_owned();
+        let graph_path = repository.path().join("graphify-out/graph.json");
+        let metadata = match fs::symlink_metadata(&graph_path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.to_string()),
+        };
+        if !metadata.is_file()
+            || metadata.file_type().is_symlink()
+            || metadata.len() > 100 * 1024 * 1024
+        {
+            continue;
+        }
+        let modified_at = metadata
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |duration| duration.as_secs() as i64);
+        let graph: serde_json::Value =
+            serde_json::from_slice(&fs::read(&graph_path).map_err(|error| error.to_string())?)
+                .map_err(|error| format!("grafo de código inválido: {error}"))?;
+        let Some(source_nodes) = graph.get("nodes").and_then(serde_json::Value::as_array) else {
+            continue;
+        };
+        let Some(source_links) = graph.get("links").and_then(serde_json::Value::as_array) else {
+            continue;
+        };
+        let mut remapped = HashMap::new();
+        for node in source_nodes {
+            let Some(source_id) = ["id", "name"]
+                .iter()
+                .find_map(|key| node.get(*key).and_then(serde_json::Value::as_str))
+            else {
+                continue;
+            };
+            if source_id.is_empty() || source_id.len() > 4096 {
+                continue;
+            }
+            let id = format!("code:{repository_id}:{source_id}");
+            let label = ["label", "name", "id"]
+                .iter()
+                .find_map(|key| node.get(*key).and_then(serde_json::Value::as_str))
+                .unwrap_or(source_id)
+                .chars()
+                .filter(|character| !character.is_control())
+                .take(512)
+                .collect::<String>();
+            let source_file = ["source_file", "file_path", "filePath", "file"]
+                .iter()
+                .find_map(|key| node.get(*key).and_then(serde_json::Value::as_str))
+                .map(|path| {
+                    path.chars()
+                        .filter(|character| !character.is_control())
+                        .take(2048)
+                        .collect()
+                })
+                .unwrap_or_else(|| repository_id.clone());
+            remapped.insert(source_id.to_string(), id.clone());
+            nodes.push(GraphNode {
+                id,
+                label,
+                source_file,
+                node_type: "code".to_string(),
+                modified_at,
+            });
+        }
+        for link in source_links {
+            let Some(source_id) = link.get("source").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            let Some(target_id) = link.get("target").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            let (Some(source), Some(target)) = (remapped.get(source_id), remapped.get(target_id))
+            else {
+                continue;
+            };
+            let relation = ["relation", "type", "label"]
+                .iter()
+                .find_map(|key| link.get(*key).and_then(serde_json::Value::as_str))
+                .unwrap_or("code_reference")
+                .chars()
+                .filter(|character| !character.is_control())
+                .take(64)
+                .collect::<String>();
+            links.push(GraphLink {
+                source: source.clone(),
+                target: target.clone(),
+                relation,
+                confidence: "EXTRACTED".into(),
+                confidence_score: 1.0,
+            });
+        }
+    }
+    Ok(())
 }
 
 fn repository_key(root: &Path) -> Result<String, String> {

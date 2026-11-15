@@ -93,8 +93,8 @@ ApplicationWindow {
                 Label { text: "Grafo"; color: "#f3f6fa"; font.bold: true }
                 ComboBox {
                     id: graphTypeFilter
-                    model: ["Todos os tipos", "Notas", "Repositórios", "Commits", "Comandos", "Conversas", "Janelas"]
-                    onActivated: graphCanvas.nodeTypeFilter = ["", "note", "repository", "commit", "command", "conversation", "window"][currentIndex]
+                    model: ["Todos os tipos", "Notas", "Repositórios", "Commits", "Comandos", "Conversas", "Janelas", "Código"]
+                    onActivated: graphCanvas.nodeTypeFilter = ["", "note", "repository", "commit", "command", "conversation", "window", "code"][currentIndex]
                 }
                 ComboBox {
                     id: graphDateFilter

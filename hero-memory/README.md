@@ -34,8 +34,8 @@ Comandos disponíveis pela CLI incluem `search`, `timeline`, `remember`,
 `code` ativo e chama o executável Graphify com `--code-only --no-viz`, sem
 envio do código a um modelo remoto. O coletor só aparece como disponível se o
 pacote oficial [`graphifyy`](https://github.com/Graphify-Labs/graphify) estiver
-instalado no usuário com uv. O resultado fica isolado em `vault/graph/code/` e
-não é mesclado ao grafo de notas.
+instalado no usuário com uv. O resultado original fica em `vault/graph/code/`;
+a reconstrução mescla os nós e relações no `vault/graph/graph.json`.
 
 Os coletores shell e HERO são automáticos. O Git oferece hook post-commit e
 varredura diária somente nos repositórios cadastrados com `forja memory git
@@ -59,7 +59,7 @@ daquela sessão.
 
 O grafo de notas e eventos distingue comandos, commits, conversas, janelas,
 repositórios e notas, e liga eventos da mesma janela de 15 minutos. O
-visualizador usa arranjo radial com zoom, pan e filtros por tipo e período;
-faltam layout força-dirigida, medir desempenho e atualizar o grafo
-incrementalmente após cada evento. Grafos Graphify de código ainda ficam em
-arquivos separados.
+visualizador usa arranjo radial com zoom, pan e filtros por tipo e período,
+incluindo nós de código; eventos novos atualizam o grafo sem reconstruir o
+índice inteiro. Faltam layout força-dirigida, medir desempenho e embarcar o
+runtime Graphify.
