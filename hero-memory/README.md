@@ -29,9 +29,12 @@ O serviço não baixa modelos automaticamente. Sem `nomic-embed-text`, as buscas
 continuam funcionando por FTS5 e `forja memory rebuild` informa esse estado.
 
 Comandos disponíveis pela CLI incluem `search`, `timeline`, `remember`,
-`rebuild`, `viewer`, `collectors`, `retention`, `purge` e `git
-register|unregister|scan`. O visualizador QML abre timeline, grafo e busca local
-em modo somente leitura.
+`rebuild`, `viewer`, `collectors`, `retention`, `purge`, `graph <repo>` e
+`git register|unregister|scan`. `forja memory graph <repo>` exige o coletor
+`code` ativo e chama o executável Graphify com `--code-only --no-viz`, sem
+envio do código a um modelo remoto. O coletor só aparece como disponível se
+`graphify` estiver instalado. O resultado fica isolado em `vault/graph/code/`
+e não é mesclado ao grafo de notas.
 
 Os coletores shell e HERO são automáticos. O Git oferece hook post-commit e
 varredura diária somente nos repositórios cadastrados com `forja memory git
@@ -43,12 +46,16 @@ janelas, código e notas começam desativados. O coletor de janelas está
 disponível como plugin de script do KWin e registra somente aplicativo,
 título e intervalo de 30 segundos, sem conteúdo ou captura de tela. Ative
 ou desative com `forja memory collectors enable|disable windows`; a
-configuração do KWin é recarregada na sessão ativa quando possível.
-Código e notas ainda não estão disponíveis. O purge remove arquivos de
-eventos antigos pelas retenções configuradas.
+configuração do KWin é recarregada na sessão ativa quando possível. O coletor
+`notes`, desligado por padrão, inclui no índice apenas Markdown em
+`vault/notes/`; ativar ou desativar reconstrói o índice, sem remover arquivos.
+O coletor `code`, também desligado por padrão, executa a análise por comando e
+requer a raiz Git do repositório. Todos os toggles aparecem no menu Coletores
+do visualizador; `code` fica desabilitado quando Graphify não está instalado.
+O purge remove arquivos de eventos antigos pelas retenções configuradas.
 Defina `FORJA_MEMORY_COLLECTOR=0` em uma sessão shell para ignorar comandos
 daquela sessão.
 
-O grafo usa um arranjo radial estático; faltam layout força-dirigida,
-zoom/filtros, medição de desempenho, coletores de código/notas e
-atualização incremental do grafo após cada evento.
+O grafo usa um arranjo radial estático com zoom e pan; faltam layout
+força-dirigida, filtros por tipo/data, medição de desempenho e atualização
+incremental do grafo após cada evento.

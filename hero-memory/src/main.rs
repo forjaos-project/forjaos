@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::{Mutex, Once};
 use std::time::Duration;
 use zbus::{connection, fdo, interface};
@@ -25,7 +25,7 @@ static SQLITE_VEC: Once = Once::new();
 static CONFIG_LOCK: Mutex<()> = Mutex::new(());
 const COLLECTORS: &[&str] = &["shell", "git", "hero", "windows", "code", "notes"];
 const AUTOMATIC_COLLECTORS: &[&str] = &["shell", "git", "hero"];
-const AVAILABLE_COLLECTORS: &[&str] = &["shell", "git", "hero", "windows"];
+const AVAILABLE_COLLECTORS: &[&str] = &["shell", "git", "hero", "windows", "code", "notes"];
 
 #[derive(serde::Deserialize)]
 struct EmbeddingReply {
@@ -114,6 +114,7 @@ impl StorePaths {
             self.vault.join("projects"),
             self.vault.join("hero"),
             self.vault.join("graph"),
+            self.vault.join("notes"),
             self.config
                 .parent()
                 .ok_or_else(|| "caminho da configuração inválido".to_string())?
@@ -263,7 +264,7 @@ impl StorePaths {
                 json!({
                     "source":source,
                     "enabled":enabled,
-                    "available":AVAILABLE_COLLECTORS.contains(source),
+                    "available":collector_available(source),
                     "retention_days":retention_days
                 })
             })
@@ -274,15 +275,114 @@ impl StorePaths {
         if !AVAILABLE_COLLECTORS.contains(&source) {
             return Err("coletor não disponível nesta versão".into());
         }
+        if source == "code" && enabled && !command_available("graphify") {
+            return Err("Graphify não está instalado no sistema".into());
+        }
         self.initialize()?;
-        let _guard = CONFIG_LOCK.lock().map_err(|error| error.to_string())?;
-        let mut values = self.config_values()?;
-        values.insert(format!("collectors.{source}"), enabled.to_string());
-        self.save_config_values(&values)?;
+        {
+            let _guard = CONFIG_LOCK.lock().map_err(|error| error.to_string())?;
+            let mut values = self.config_values()?;
+            values.insert(format!("collectors.{source}"), enabled.to_string());
+            self.save_config_values(&values)?;
+        }
         if source == "git" {
             self.refresh_git_cursors()?;
         }
+        if source == "notes" {
+            self.rebuild()?;
+        }
         Ok(())
+    }
+
+    fn graph_repository(&self, path: &str) -> Result<serde_json::Value, String> {
+        self.initialize()?;
+        let values = self.config_values()?;
+        if !values
+            .get("collectors.code")
+            .is_some_and(|value| value == "true")
+        {
+            return Err(
+                "coletor code desativado; habilite com `forja memory collectors enable code`"
+                    .into(),
+            );
+        }
+        if !command_available("graphify") {
+            return Err("Graphify não está instalado no sistema".into());
+        }
+
+        let root = Path::new(path)
+            .canonicalize()
+            .map_err(|error| format!("repositório inválido: {error}"))?;
+        if !root.is_dir() {
+            return Err("o caminho informado não é um diretório".into());
+        }
+        let root_text = root.to_string_lossy().into_owned();
+        let git_root = git_output(&root_text, &["rev-parse", "--show-toplevel"])?;
+        let git_root = Path::new(&git_root)
+            .canonicalize()
+            .map_err(|error| format!("raiz Git inválida: {error}"))?;
+        if git_root != root {
+            return Err(format!(
+                "informe a raiz do repositório Git: {}",
+                git_root.display()
+            ));
+        }
+
+        let output_root = self.vault.join("graph/code").join(repository_key(&root)?);
+        fs::create_dir_all(&output_root).map_err(|error| error.to_string())?;
+        restrict_directory(&self.vault.join("graph/code"))?;
+        restrict_directory(&output_root)?;
+        let output = Command::new("timeout")
+            .args([
+                "--signal=TERM",
+                "--kill-after=15s",
+                "1800s",
+                "graphify",
+                "extract",
+            ])
+            .arg(&root)
+            .args(["--code-only", "--no-viz", "--out"])
+            .arg(&output_root)
+            .output()
+            .map_err(|error| format!("graphify indisponível ou falhou ao iniciar: {error}"))?;
+        if !output.status.success() {
+            if output.status.code() == Some(124) || output.status.code() == Some(137) {
+                return Err("Graphify excedeu o limite de 30 minutos".into());
+            }
+            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(if detail.is_empty() {
+                format!("graphify terminou com {}", output.status)
+            } else {
+                format!("graphify falhou: {detail}")
+            });
+        }
+        restrict_tree(&output_root)?;
+        let graph_path = output_root.join("graphify-out/graph.json");
+        let graph_metadata = fs::symlink_metadata(&graph_path)
+            .map_err(|_| "graphify terminou sem produzir graphify-out/graph.json".to_string())?;
+        if !graph_metadata.is_file() || graph_metadata.file_type().is_symlink() {
+            return Err("a saída graphify/graph.json não é um arquivo regular".into());
+        }
+        if graph_metadata.len() > 100 * 1024 * 1024 {
+            return Err("o grafo excede o limite de 100 MiB".into());
+        }
+        let graph: serde_json::Value =
+            serde_json::from_slice(&fs::read(&graph_path).map_err(|error| error.to_string())?)
+                .map_err(|error| format!("graphify gerou JSON inválido: {error}"))?;
+        let nodes = graph["nodes"].as_array().map_or(0, Vec::len);
+        let links = graph["links"].as_array().map_or(0, Vec::len);
+        if !graph["nodes"].is_array() || !graph["links"].is_array() {
+            return Err("graphify gerou um grafo sem arrays nodes e links".into());
+        }
+        restrict_file(&graph_path)?;
+        Ok(json!({
+            "status":"ok",
+            "repository":root.to_string_lossy(),
+            "path":graph_path.strip_prefix(&self.vault).unwrap_or(&graph_path).to_string_lossy().replace('\\', "/"),
+            "nodes":nodes,
+            "links":links,
+            "local_only":true
+        }))
     }
 
     fn set_retention(&self, source: &str, days: u32) -> Result<(), String> {
@@ -739,7 +839,11 @@ impl StorePaths {
     fn rebuild(&self) -> Result<(usize, bool), String> {
         self.initialize()?;
         let mut documents = Vec::new();
-        collect_markdown(&self.vault, &mut documents)?;
+        let values = self.config_values()?;
+        let notes_enabled = values
+            .get("collectors.notes")
+            .is_some_and(|value| value == "true");
+        collect_markdown(&self.vault, &self.vault, notes_enabled, &mut documents)?;
         let safe_documents = documents
             .iter()
             .map(|(_, text, _)| redact_secrets(text))
@@ -1034,6 +1138,101 @@ impl StorePaths {
     }
 }
 
+fn repository_key(root: &Path) -> Result<String, String> {
+    let mut child = Command::new("sha256sum")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("sha256sum: {error}"))?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| "stdin do sha256sum indisponível".to_string())?
+        .write_all(root.as_os_str().as_encoded_bytes())
+        .map_err(|error| error.to_string())?;
+    let output = child
+        .wait_with_output()
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err("não foi possível gerar o identificador do repositório".into());
+    }
+    let digest = String::from_utf8_lossy(&output.stdout);
+    let digest = digest
+        .split_whitespace()
+        .next()
+        .ok_or_else(|| "sha256sum não retornou um digest".to_string())?;
+    let label = root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("repository")
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || character == '-' || character == '_' {
+                character.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .take(40)
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string();
+    Ok(format!(
+        "{}-{}",
+        if label.is_empty() {
+            "repository"
+        } else {
+            &label
+        },
+        &digest[..12]
+    ))
+}
+
+fn restrict_tree(path: &Path) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(path).map_err(|error| error.to_string())?;
+    if metadata.file_type().is_symlink() {
+        return Err("a saída do Graphify contém um link simbólico".into());
+    }
+    if metadata.is_dir() {
+        restrict_directory(path)?;
+        for entry in fs::read_dir(path).map_err(|error| error.to_string())? {
+            restrict_tree(&entry.map_err(|error| error.to_string())?.path())?;
+        }
+    } else if metadata.is_file() {
+        restrict_file(path)?;
+    } else {
+        return Err("a saída do Graphify contém um tipo de arquivo não suportado".into());
+    }
+    Ok(())
+}
+
+fn collector_available(source: &str) -> bool {
+    AVAILABLE_COLLECTORS.contains(&source) && (source != "code" || command_available("graphify"))
+}
+
+fn command_available(command: &str) -> bool {
+    std::env::var_os("PATH").is_some_and(|paths| {
+        std::env::split_paths(&paths).any(|directory| {
+            let candidate = directory.join(command);
+            let Ok(metadata) = fs::metadata(candidate) else {
+                return false;
+            };
+            if !metadata.is_file() {
+                return false;
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                metadata.permissions().mode() & 0o111 != 0
+            }
+            #[cfg(not(unix))]
+            {
+                true
+            }
+        })
+    })
+}
+
 fn ollama_tags(client: &reqwest::blocking::Client) -> Option<OllamaTags> {
     client
         .get(OLLAMA_TAGS_URL)
@@ -1117,6 +1316,8 @@ fn embed_texts(texts: &[String]) -> Option<Vec<Vec<f32>>> {
 
 fn collect_markdown(
     current: &Path,
+    vault: &Path,
+    notes_enabled: bool,
     output: &mut Vec<(PathBuf, String, i64)>,
 ) -> Result<(), String> {
     let entries = fs::read_dir(current).map_err(|error| error.to_string())?;
@@ -1131,7 +1332,10 @@ fn collect_markdown(
             if entry.file_name().to_string_lossy().starts_with('.') {
                 continue;
             }
-            collect_markdown(&path, output)?;
+            if path == vault.join("notes") && !notes_enabled {
+                continue;
+            }
+            collect_markdown(&path, vault, notes_enabled, output)?;
         } else if metadata.is_file()
             && path.extension().is_some_and(|extension| extension == "md")
             && !path
@@ -1366,6 +1570,16 @@ impl MemoryService {
             .await
             .map_err(|error| fdo::Error::Failed(error.to_string()))?
             .map(|()| json!({"status":"ok", "source":reply_source, "enabled":enabled}).to_string())
+            .map_err(fdo::Error::Failed)
+    }
+
+    async fn graph_repository(&self, path: &str) -> fdo::Result<String> {
+        let paths = self.paths.clone();
+        let path = path.to_string();
+        tokio::task::spawn_blocking(move || paths.graph_repository(&path))
+            .await
+            .map_err(|error| fdo::Error::Failed(error.to_string()))?
+            .and_then(|result| serde_json::to_string(&result).map_err(|error| error.to_string()))
             .map_err(fdo::Error::Failed)
     }
 

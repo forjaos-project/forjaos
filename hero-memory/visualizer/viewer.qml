@@ -12,12 +12,37 @@ ApplicationWindow {
     title: "Memória ForjaOS"
     color: "#11151b"
 
-    header: TabBar {
-        id: tabs
-        background: Rectangle { color: "#1b222c" }
-        TabButton { text: "Linha do tempo" }
-        TabButton { text: "Grafo" }
-        TabButton { text: "Busca" }
+    header: RowLayout {
+        spacing: 0
+        TabBar {
+            id: tabs
+            Layout.fillWidth: true
+            background: Rectangle { color: "#1b222c" }
+            TabButton { text: "Linha do tempo" }
+            TabButton { text: "Grafo" }
+            TabButton { text: "Busca" }
+        }
+        ToolButton {
+            text: "Coletores"
+            onClicked: collectorMenu.open()
+        }
+        Menu {
+            id: collectorMenu
+            Repeater {
+                model: vault.collectors
+                MenuItem {
+                    required property var modelData
+                    text: modelData.source + (modelData.available ? "" : " (indisponível)")
+                    checkable: true
+                    checked: modelData.enabled
+                    enabled: modelData.available
+                    onTriggered: {
+                        if (!vault.setCollector(modelData.source, checked))
+                            collectorMenu.close()
+                    }
+                }
+            }
+        }
     }
 
     StackLayout {
@@ -59,16 +84,79 @@ ApplicationWindow {
         }
 
         Item {
+            RowLayout {
+                id: graphControls
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.margins: 12
+                z: 1
+                Label { text: "Grafo"; color: "#f3f6fa"; font.bold: true }
+                ToolButton {
+                    text: "−"
+                    Accessible.name: "Reduzir zoom do grafo"
+                    onClicked: graphCanvas.zoom = Math.max(0.25, graphCanvas.zoom / 1.2)
+                }
+                Label {
+                    text: Math.round(graphCanvas.zoom * 100) + "%"
+                    color: "#91a1b5"
+                    Layout.minimumWidth: 48
+                    horizontalAlignment: Text.AlignHCenter
+                }
+                ToolButton {
+                    text: "+"
+                    Accessible.name: "Aumentar zoom do grafo"
+                    onClicked: graphCanvas.zoom = Math.min(4, graphCanvas.zoom * 1.2)
+                }
+                ToolButton {
+                    text: "Centralizar"
+                    onClicked: {
+                        graphCanvas.zoom = 1
+                        graphCanvas.panX = 0
+                        graphCanvas.panY = 0
+                    }
+                }
+                Label { text: "Arraste para mover · roda do mouse para zoom"; color: "#91a1b5"; font.pixelSize: 11 }
+            }
             Canvas {
                 id: graphCanvas
                 anchors.fill: parent
                 anchors.margins: 20
+                anchors.topMargin: 58
                 property var graphNodes: vault.nodes
                 property var graphLinks: vault.links
+                property real zoom: 1
+                property real panX: 0
+                property real panY: 0
                 onGraphNodesChanged: requestPaint()
                 onGraphLinksChanged: requestPaint()
                 onWidthChanged: requestPaint()
                 onHeightChanged: requestPaint()
+                onZoomChanged: requestPaint()
+                onPanXChanged: requestPaint()
+                onPanYChanged: requestPaint()
+                WheelHandler {
+                    onWheel: event => {
+                        const factor = event.angleDelta.y > 0 ? 1.12 : 1 / 1.12
+                        graphCanvas.zoom = Math.max(0.25, Math.min(4, graphCanvas.zoom * factor))
+                    }
+                }
+                DragHandler {
+                    target: null
+                    property real previousX: 0
+                    property real previousY: 0
+                    onActiveChanged: {
+                        if (active) {
+                            previousX = translation.x
+                            previousY = translation.y
+                        }
+                    }
+                    onTranslationChanged: {
+                        graphCanvas.panX += translation.x - previousX
+                        graphCanvas.panY += translation.y - previousY
+                        previousX = translation.x
+                        previousY = translation.y
+                    }
+                }
                 onPaint: {
                     const ctx = getContext("2d")
                     ctx.reset()
@@ -78,9 +166,11 @@ ApplicationWindow {
                     for (let i = 0; i < count; i++) {
                         const angle = i * 2.399963 + Math.PI
                         const radius = Math.sqrt((i + 0.5) / count) * Math.min(width, height) * 0.44
-                        positions.set(graphNodes[i].id, [width / 2 + Math.cos(angle) * radius,
-                                                         height / 2 + Math.sin(angle) * radius])
+                        positions.set(graphNodes[i].id, [Math.cos(angle) * radius,
+                                                         Math.sin(angle) * radius])
                     }
+                    ctx.translate(width / 2 + panX, height / 2 + panY)
+                    ctx.scale(zoom, zoom)
                     ctx.strokeStyle = "#405165"
                     ctx.lineWidth = 1
                     for (let i = 0; i < graphLinks.length; i++) {
@@ -154,6 +244,13 @@ ApplicationWindow {
                 Label { anchors.centerIn: parent; visible: searchResults.count === 0; text: "Digite um termo para buscar."; color: "#91a1b5" }
             }
         }
+    }
+
+    footer: Label {
+        padding: 8
+        text: vault.collectorStatus
+        color: "#91a1b5"
+        background: Rectangle { color: "#1b222c" }
     }
 
     function runSearch() {

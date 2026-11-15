@@ -240,6 +240,13 @@ enum MemoryAction {
         #[command(subcommand)]
         action: MemoryGitAction,
     },
+    /// Gera localmente o grafo de código de um repositório Git
+    Graph {
+        #[arg(default_value = ".")]
+        path: String,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -517,6 +524,7 @@ fn main() {
                 }
                 MemoryGitAction::Scan { json } => memory::scan_git_repositories(json),
             },
+            MemoryAction::Graph { path, json } => memory::graph_repository(&path, json),
         },
         Command::Mascot { action } => match action {
             MascotAction::Status { json } => mascot::status(json),
@@ -1175,6 +1183,23 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                 })
                 .mut_subcommand("mcp", |action| {
                     localized_help(action.about(mcp), lang, "forja memory mcp")
+                })
+                .mut_subcommand("graph", |action| {
+                    let action = action
+                        .about(if english {
+                            "Build a local code graph for a Git repository"
+                        } else {
+                            "Gera um grafo local de código para um repositório Git"
+                        })
+                        .mut_arg("path", |arg| {
+                            arg.help(if english {
+                                "Path to the repository root"
+                            } else {
+                                "Caminho para a raiz do repositório"
+                            })
+                        })
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory graph")
                 })
                 .mut_subcommand("collectors", |collectors| {
                     let about = if english {

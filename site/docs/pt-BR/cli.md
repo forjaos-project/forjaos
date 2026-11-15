@@ -57,14 +57,15 @@ Opções:
 - `forja memory timeline [--days N] [--limit N] [--json]`
 - `forja memory remember "<nota>" [--json]`
 - `forja memory rebuild [--json]`
-- `forja memory viewer [--json]` abre o visualizador local QML em modo somente leitura.
+- `forja memory viewer [--json]` abre o visualizador local QML.
+- `forja memory graph [caminho] [--json]` gera o grafo de código pela análise local do Graphify; exige Graphify instalado e o coletor `code` ativo.
 - `forja memory mcp` inicia o transporte MCP por stdio para registro em clientes compatíveis.
-- `forja memory collectors status|enable <origem>|disable <origem>` consulta ou altera os coletores disponíveis (`shell`, `git`, `hero`, `windows`). O coletor `windows` é opcional e registra somente aplicativo e título da janela ativa a cada 30 segundos, sem conteúdo nem captura de tela.
+- `forja memory collectors status|enable <origem>|disable <origem>` consulta ou altera `shell`, `git`, `hero`, `windows`, `code` e `notes`. `windows`, `code` e `notes` começam desativados. O coletor `windows` registra somente aplicativo e título da janela ativa a cada 30 segundos, sem conteúdo nem captura de tela. `notes` indexa Markdown em `vault/notes/`; `code` só gera o grafo quando `forja memory graph` é executado, requer Graphify instalado e não envia código a modelos remotos.
 - `forja memory retention <origem> <dias>` define retenção; `0` significa indefinida. `forja memory purge` aplica as retenções.
 - `forja memory collect shell` lê o comando do stdin; `forja memory collect git` registra o commit atual. O shell recebe hook no primeiro boot; em cada repo Git, execute `forja memory hook install` para registrar `post-commit`. Um hook existente é preservado.
 - `forja memory git register [caminho]` inclui explicitamente um repo na varredura diária; ela começa no HEAD atual. `unregister <caminho>` remove um repo. `forja memory git scan [--json]` executa a varredura manual, e um timer de usuário a repete diariamente. Desativar o coletor Git avança os cursores para o HEAD atual, sem buscar o período desativado.
 
-Os eventos guardam comando/commit, diretório, código de saída e duração; padrões conhecidos de segredos são redigidos antes da gravação. Defina `FORJA_MEMORY_COLLECTOR=0` no shell para não registrar comandos daquela sessão. Para habilitar o plugin de janelas do KWin, use `forja memory collectors enable windows`; a configuração é recarregada na sessão ativa quando possível. Coletores de código e notas ainda não estão disponíveis.
+Os eventos guardam comando/commit, diretório, código de saída e duração; padrões conhecidos de segredos são redigidos antes da gravação. Defina `FORJA_MEMORY_COLLECTOR=0` no shell para não registrar comandos daquela sessão. Todos os toggles ficam no menu Coletores do visualizador. Ativar ou desativar `notes` reconstrói o índice, sem remover arquivos.
 
 ## `forja mascot`
 

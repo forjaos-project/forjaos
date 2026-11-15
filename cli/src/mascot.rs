@@ -366,12 +366,21 @@ pub fn train(name: &str, json_output: bool) -> i32 {
             json_output,
         );
     }
+    let false_positive_risk = high_false_positive_risk(name);
+    let warning = "Nome curto ou palavra comum pode gerar falsos positivos.";
+    if false_positive_risk && !json_output {
+        eprintln!("Aviso: {warning}");
+    }
     let trainer = Path::new("/usr/libexec/forjaos/train-wakeword");
     if !trainer.is_file() {
-        return report(
-            Err("Treinador de wake word não está instalado. Nenhum treino foi iniciado.".into()),
-            json_output,
-        );
+        let detail = if false_positive_risk {
+            format!(
+                "Treinador de wake word não está instalado. Nenhum treino foi iniciado. {warning}"
+            )
+        } else {
+            "Treinador de wake word não está instalado. Nenhum treino foi iniciado.".into()
+        };
+        return report(Err(detail), json_output);
     }
     let result = Command::new("systemd-run")
         .args([
@@ -389,7 +398,8 @@ pub fn train(name: &str, json_output: bool) -> i32 {
                 "command":"mascot train",
                 "status":"queued",
                 "name":name,
-                "unit":"forja-wakeword-train.service"
+                "unit":"forja-wakeword-train.service",
+                "warning":if false_positive_risk { Some(warning) } else { None }
             })),
             json_output,
         ),
@@ -399,6 +409,72 @@ pub fn train(name: &str, json_output: bool) -> i32 {
         ),
         Err(error) => report(Err(error.to_string()), json_output),
     }
+}
+
+fn high_false_positive_risk(name: &str) -> bool {
+    const COMMON_WORDS: &[&str] = &[
+        "abre",
+        "ajuda",
+        "amigo",
+        "amor",
+        "bom",
+        "bom dia",
+        "casa",
+        "chama",
+        "dia",
+        "ei",
+        "hora",
+        "meu",
+        "mundo",
+        "não",
+        "oi",
+        "olá",
+        "para",
+        "pode",
+        "por favor",
+        "sim",
+        "sol",
+        "tudo",
+        "vai",
+        "vem",
+        "vida",
+    ];
+    let normalized = name.trim().to_lowercase();
+    if COMMON_WORDS.contains(&normalized.as_str())
+        || normalized
+            .split_whitespace()
+            .any(|word| COMMON_WORDS.contains(&word))
+    {
+        return true;
+    }
+    let mut syllables = 0;
+    let mut in_vowel_group = false;
+    for character in normalized.chars() {
+        let vowel = matches!(
+            character,
+            'a' | 'e'
+                | 'i'
+                | 'o'
+                | 'u'
+                | 'y'
+                | 'á'
+                | 'é'
+                | 'í'
+                | 'ó'
+                | 'ú'
+                | 'â'
+                | 'ê'
+                | 'ô'
+                | 'ã'
+                | 'õ'
+                | 'ü'
+        );
+        if vowel && !in_vowel_group {
+            syllables += 1;
+        }
+        in_vowel_group = vowel;
+    }
+    syllables <= 1
 }
 
 fn voice_paths(voice: &str) -> Result<(PathBuf, PathBuf), String> {

@@ -4,6 +4,8 @@
 import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 
 from PySide6.QtCore import QObject, Property, Signal, Slot
@@ -35,17 +37,43 @@ class Vault(QObject):
 
     def __init__(self):
         super().__init__()
-        self._notes = self._load_notes()
+        self._collectors = self._load_collectors()
+        self._notes = self._load_notes(self._is_enabled("notes"))
         self._graph = self._load_graph()
+        self._collector_status = "Coletores do memd"
+
+    def _is_enabled(self, source):
+        return any(item.get("source") == source and item.get("enabled") is True
+                   for item in self._collectors)
 
     @staticmethod
-    def _load_notes():
+    def _load_collectors():
+        binary = shutil.which("forja")
+        if not binary:
+            return []
+        try:
+            result = subprocess.run(
+                [binary, "memory", "collectors", "status", "--json"],
+                check=True, capture_output=True, text=True, timeout=10,
+            )
+            collectors = json.loads(result.stdout)
+            if not isinstance(collectors, list):
+                return []
+            return [item for item in collectors if isinstance(item, dict)]
+        except (OSError, subprocess.SubprocessError, ValueError):
+            return []
+
+    @staticmethod
+    def _load_notes(include_vault_notes):
         notes = []
         if not VAULT.exists():
             return notes
         for path in VAULT.rglob("*.md"):
             try:
-                if any(part.startswith(".") for part in path.relative_to(VAULT).parts):
+                relative = path.relative_to(VAULT)
+                if any(part.startswith(".") for part in relative.parts):
+                    continue
+                if relative.parts and relative.parts[0] == "notes" and not include_vault_notes:
                     continue
                 if path.is_symlink() or not path.is_file() or path.stat().st_size > 2 * 1024 * 1024:
                     continue
@@ -82,6 +110,42 @@ class Vault(QObject):
     @Property("QVariantList", notify=changed)
     def links(self):
         return self._graph["links"]
+
+    @Property("QVariantList", notify=changed)
+    def collectors(self):
+        return self._collectors
+
+    @Property(str, notify=changed)
+    def collectorStatus(self):
+        return self._collector_status
+
+    @Slot(str, bool, result=bool)
+    def setCollector(self, source, enabled):
+        if source not in {"shell", "git", "hero", "windows", "code", "notes"}:
+            self._collector_status = "Origem de coletor inválida."
+            self.changed.emit()
+            return False
+        binary = shutil.which("forja")
+        if not binary:
+            self._collector_status = "Comando forja indisponível nesta sessão."
+            self.changed.emit()
+            return False
+        try:
+            subprocess.run(
+                [binary, "memory", "collectors", "enable" if enabled else "disable",
+                 source, "--json"],
+                check=True, capture_output=True, text=True, timeout=15,
+            )
+            self._collectors = self._load_collectors()
+            if source == "notes":
+                self._notes = self._load_notes(self._is_enabled("notes"))
+            self._collector_status = f"Coletor {source}: {'ativo' if enabled else 'inativo'}."
+            self.changed.emit()
+            return True
+        except (OSError, subprocess.SubprocessError) as error:
+            self._collector_status = f"Falha ao alterar o coletor {source}: {error}"
+            self.changed.emit()
+            return False
 
     @Slot(str, result="QVariantList")
     def search(self, query):

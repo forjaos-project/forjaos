@@ -94,6 +94,12 @@ async fn call_scan_git_repositories() -> Result<String, zbus::Error> {
     proxy.call("ScanGitRepositories", &()).await
 }
 
+async fn call_graph_repository(path: &str) -> Result<String, zbus::Error> {
+    let connection = Connection::session().await?;
+    let proxy = proxy(&connection).await?;
+    proxy.call("GraphRepository", &path).await
+}
+
 fn unavailable(json: bool, error: &zbus::Error) -> i32 {
     if json {
         println!("{}", serde_json::json!({"status":"memd_unavailable"}));
@@ -373,6 +379,63 @@ pub fn purge(json: bool) -> i32 {
             Err(code) => code,
         },
         Err(error) => unavailable(json, &error),
+    }
+}
+
+pub fn graph_repository(path: &str, json: bool) -> i32 {
+    let path = match std::fs::canonicalize(path) {
+        Ok(path) if path.is_dir() => path.to_string_lossy().to_string(),
+        Ok(_) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"status":"error", "error":"path_not_directory"})
+                );
+            } else {
+                eprintln!("forja memory graph: informe o caminho para um repositório Git.");
+            }
+            return 2;
+        }
+        Err(error) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"status":"error", "error":"invalid_repository_path"})
+                );
+            } else {
+                eprintln!("forja memory graph: {error}");
+            }
+            return 2;
+        }
+    };
+    match zbus::block_on(call_graph_repository(&path)) {
+        Ok(raw) => match parse_reply(raw, json) {
+            Ok(value) => {
+                if json {
+                    println!("{value}");
+                } else {
+                    println!(
+                        "Grafo local criado: {} ({} nós, {} relações).",
+                        terminal_safe(value["path"].as_str().unwrap_or("")),
+                        value["nodes"].as_u64().unwrap_or(0),
+                        value["links"].as_u64().unwrap_or(0)
+                    );
+                }
+                0
+            }
+            Err(code) => code,
+        },
+        Err(error) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"status":"error", "error":error.to_string()})
+                );
+            } else {
+                eprintln!("forja memory graph: {error}");
+            }
+            1
+        }
     }
 }
 
