@@ -10,7 +10,7 @@ mod memory;
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
 use clap_complete::{generate, Shell};
 use std::ffi::OsString;
-use std::io;
+use std::io::{self, Write};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum Language {
@@ -131,6 +131,8 @@ enum Command {
     Completions {
         #[arg(value_enum)]
         shell: Shell,
+        #[arg(long)]
+        json: bool,
     },
     /// Gera um relatório sanitizado para diagnóstico
     Report {
@@ -698,21 +700,68 @@ fn main() {
             process.args(["/usr/libexec/forjaos/game_mode.py", operation]);
             if json {
                 process.arg("--json");
-            }
-            match process.status() {
-                Ok(status) => status.code().unwrap_or(1),
-                Err(error) => {
-                    eprintln!("forja game-mode: {error}");
-                    1
+                match process.output() {
+                    Ok(output)
+                        if serde_json::from_slice::<serde_json::Value>(&output.stdout).is_ok() =>
+                    {
+                        let _ = io::stdout().write_all(&output.stdout);
+                        output.status.code().unwrap_or(1)
+                    }
+                    Ok(output) => {
+                        println!(
+                            "{}",
+                            serde_json::json!({
+                                "command":format!("game-mode {operation}"),
+                                "status":"error",
+                                "exit_code":output.status.code().unwrap_or(1)
+                            })
+                        );
+                        output.status.code().unwrap_or(1).max(1)
+                    }
+                    Err(_) => {
+                        println!(
+                            "{}",
+                            serde_json::json!({
+                                "command":format!("game-mode {operation}"),
+                                "status":"error",
+                                "error":"backend_unavailable"
+                            })
+                        );
+                        1
+                    }
+                }
+            } else {
+                match process.status() {
+                    Ok(status) => status.code().unwrap_or(1),
+                    Err(error) => {
+                        eprintln!("forja game-mode: {error}");
+                        1
+                    }
                 }
             }
         }
         Command::Up { json } => dev::compose("up", json),
         Command::Down { json } => dev::compose("down", json),
         Command::Logs { json } => dev::compose("logs", json),
-        Command::Completions { shell } => {
-            generate(shell, &mut Cli::command(), "forja", &mut io::stdout());
-            0
+        Command::Completions { shell, json } => {
+            let mut script = Vec::new();
+            generate(shell, &mut Cli::command(), "forja", &mut script);
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "command":"completions",
+                        "status":"ok",
+                        "shell":format!("{shell:?}").to_ascii_lowercase(),
+                        "script":String::from_utf8_lossy(&script)
+                    })
+                );
+                0
+            } else if io::stdout().write_all(&script).is_ok() {
+                0
+            } else {
+                1
+            }
         }
         Command::Report { json } => doctor::report(json),
         Command::Update { yes, json } => dev::bootc_action("upgrade", yes, json),
@@ -1526,7 +1575,13 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
         .mut_subcommand("down", |action| localized_help(action, lang, "forja down"))
         .mut_subcommand("logs", |action| localized_help(action, lang, "forja logs"))
         .mut_subcommand("completions", |completion| {
-            localized_help(completion, lang, "forja completions")
+            localized_help(completion, lang, "forja completions").mut_arg("json", |arg| {
+                arg.help(if english {
+                    "Output the completion script as JSON"
+                } else {
+                    "Emite o script de completion em JSON"
+                })
+            })
         })
         .mut_subcommand("report", |report| {
             let (about, json_help) = if english {
@@ -1612,6 +1667,31 @@ fn localized_help_tree(command: clap::Command, lang: Language, bin_name: &str) -
 mod tests {
     use super::{localized_command, Cli, Language};
     use clap::CommandFactory;
+
+    fn assert_json_on_leaf(command: &clap::Command, path: &str) {
+        if command.get_subcommands().next().is_some() {
+            for child in command.get_subcommands() {
+                let child_path = if path.is_empty() {
+                    child.get_name().to_string()
+                } else {
+                    format!("{path} {}", child.get_name())
+                };
+                assert_json_on_leaf(child, &child_path);
+            }
+        } else if path != "memory mcp" {
+            assert!(
+                command
+                    .get_arguments()
+                    .any(|argument| argument.get_id() == "json"),
+                "--json ausente em {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_non_protocol_leaf_accepts_json() {
+        assert_json_on_leaf(&Cli::command(), "");
+    }
 
     #[test]
     fn command_tree_is_well_formed_and_includes_f2_002() {
