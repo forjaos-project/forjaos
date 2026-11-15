@@ -1,0 +1,12 @@
+[Unit]
+Description=ForjaOS daily scan of registered Git repositories
+Wants=memd.service
+After=memd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/forja memory git scan --json
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only

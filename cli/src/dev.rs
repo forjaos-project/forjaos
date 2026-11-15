@@ -139,9 +139,6 @@ fn run(program: &str, args: &[&str], json: bool) -> Result<i32, String> {
         let output = command
             .output()
             .map_err(|error| format!("não foi possível executar {program}: {error}"))?;
-        if !output.status.success() && !output.stderr.is_empty() {
-            eprint!("{}", String::from_utf8_lossy(&output.stderr));
-        }
         Ok(output.status.code().unwrap_or(1))
     } else {
         command
@@ -169,7 +166,14 @@ pub fn docker_install(yes: bool, json: bool) -> i32 {
         .output()
         .is_err()
     {
-        eprintln!("forja docker: este fluxo requer um sistema bootc com rpm-ostree.");
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({"package":"docker-ce", "status":"unsupported"})
+            );
+        } else {
+            eprintln!("forja docker: este fluxo requer um sistema bootc com rpm-ostree.");
+        }
         return 1;
     }
     let repo = run(
@@ -178,8 +182,16 @@ pub fn docker_install(yes: bool, json: bool) -> i32 {
         json,
     );
     if !matches!(repo, Ok(0)) {
-        eprintln!("forja docker: não foi possível configurar a fonte oficial do Docker.");
-        return repo.unwrap_or(1);
+        let code = repo.unwrap_or(1);
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({"package":"docker-ce", "status":"error", "stage":"repository", "exit_code":code})
+            );
+        } else {
+            eprintln!("forja docker: não foi possível configurar a fonte oficial do Docker.");
+        }
+        return code;
     }
     let packages = [
         "docker-ce",
@@ -193,8 +205,16 @@ pub fn docker_install(yes: bool, json: bool) -> i32 {
     args.extend(packages);
     let status = run("sudo", &args, json);
     if !matches!(status, Ok(0)) {
-        eprintln!("forja docker: o overlay RPM falhou. O repositório oficial foi mantido para nova tentativa.");
-        return status.unwrap_or(1);
+        let code = status.unwrap_or(1);
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({"package":"docker-ce", "status":"error", "stage":"packages", "exit_code":code})
+            );
+        } else {
+            eprintln!("forja docker: o overlay RPM falhou. O repositório oficial foi mantido para nova tentativa.");
+        }
+        return code;
     }
     let message = "Docker CE instalado. Reinicie e execute `forja docker setup-rootless`; Podman permanece padrão.";
     if json {
@@ -250,8 +270,16 @@ pub fn docker_setup_rootless(json: bool) -> i32 {
         json,
     );
     if !matches!(status, Ok(0)) {
-        eprintln!("forja docker: a configuração rootless foi instalada, mas o serviço do usuário não iniciou.");
-        return status.unwrap_or(1);
+        let code = status.unwrap_or(1);
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({"package":"docker-ce", "status":"error", "stage":"user_service", "exit_code":code})
+            );
+        } else {
+            eprintln!("forja docker: a configuração rootless foi instalada, mas o serviço do usuário não iniciou.");
+        }
+        return code;
     }
     if json {
         println!(
@@ -290,6 +318,136 @@ pub fn ssh_add(json: bool) -> i32 {
         }
     }
     output.status.code().unwrap_or(1)
+}
+
+pub fn compose(action: &str, json: bool) -> i32 {
+    let compose_file = [
+        "compose.yaml",
+        "compose.yml",
+        "docker-compose.yaml",
+        "docker-compose.yml",
+    ]
+    .into_iter()
+    .find(|file| std::path::Path::new(file).is_file());
+    let Some(compose_file) = compose_file else {
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({"command": action, "status": "compose_file_not_found"})
+            );
+        } else {
+            eprintln!("forja {action}: nenhum arquivo Compose encontrado no diretório atual.");
+        }
+        return 2;
+    };
+
+    let mut command = Command::new("podman");
+    command.args(["compose", "-f", compose_file, action]);
+    if action == "up" {
+        command.arg("-d");
+    }
+    if json {
+        let output = match command.output() {
+            Ok(output) => output,
+            Err(_) => {
+                println!(
+                    "{}",
+                    serde_json::json!({"command": action, "status": "podman_unavailable"})
+                );
+                return 1;
+            }
+        };
+        let status = output.status;
+        println!(
+            "{}",
+            serde_json::json!({
+                "command": action,
+                "status": if status.success() { "ok" } else { "error" },
+                "exit_code": status.code().unwrap_or(1)
+            })
+        );
+        status.code().unwrap_or(1)
+    } else {
+        match command.status() {
+            Ok(status) => status.code().unwrap_or(1),
+            Err(error) => {
+                eprintln!("forja {action}: não foi possível iniciar Podman: {error}");
+                1
+            }
+        }
+    }
+}
+
+pub fn bootc_action(action: &str, yes: bool, json: bool) -> i32 {
+    if !yes {
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({"command": action, "status": "confirmation_required"})
+            );
+            return 2;
+        }
+        let context = match action {
+            "upgrade" => "Baixa e prepara uma nova implantação bootc; não reinicia o computador.",
+            "rollback" => "Agenda a implantação anterior para o próximo boot e descarta uma atualização staged, se houver.",
+            _ => return 2,
+        };
+        println!(
+            "Rota: forja {}",
+            if action == "upgrade" {
+                "update"
+            } else {
+                "rollback"
+            }
+        );
+        println!("Contexto: {context}");
+        if !io::stdin().is_terminal() {
+            println!("Ação não iniciada. Use --yes para confirmar explicitamente.");
+            return 2;
+        }
+        print!("Continuar? [s/N] ");
+        let _ = io::stdout().flush();
+        let mut answer = String::new();
+        if !io::stdin().read_line(&mut answer).is_ok_and(|_| {
+            matches!(
+                answer.trim().to_lowercase().as_str(),
+                "s" | "sim" | "y" | "yes"
+            )
+        }) {
+            return 2;
+        }
+    }
+
+    if json {
+        let output = Command::new("sudo")
+            .args(["bootc", action])
+            .stdin(Stdio::inherit())
+            .output();
+        let Ok(output) = output else {
+            println!(
+                "{}",
+                serde_json::json!({"command": action, "status": "error"})
+            );
+            return 1;
+        };
+        println!(
+            "{}",
+            serde_json::json!({
+                "command": action,
+                "status": if output.status.success() { "ok" } else { "error" },
+                "exit_code": output.status.code().unwrap_or(1)
+            })
+        );
+        output.status.code().unwrap_or(1)
+    } else {
+        match Command::new("sudo").args(["bootc", action]).status() {
+            Ok(status) => status.code().unwrap_or(1),
+            Err(error) => {
+                eprintln!("forja {action}: não foi possível executar sudo bootc: {error}");
+                1
+            }
+        }
+    }
 }
 
 #[cfg(test)]

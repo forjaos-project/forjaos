@@ -1,10 +1,16 @@
 //! `forja` — porta de entrada do ForjaOS (ADR-020). Subcomandos entram aqui conforme os itens do TODO.
+mod ai;
 mod dev;
 mod doctor;
 mod install;
+mod keys;
+mod mascot;
+mod memory;
 
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
+use clap_complete::{generate, Shell};
 use std::ffi::OsString;
+use std::io::{self, Write};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum Language {
@@ -29,6 +35,26 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Envia uma pergunta ao HERO local pela sessão D-Bus
+    Ai {
+        #[arg(required_unless_present = "confirm")]
+        query: Option<String>,
+        /// Confirma uma ação pendente pelo identificador emitido pelo HERO
+        #[arg(long, conflicts_with = "query")]
+        confirm: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Busca e mantém notas locais do vault ForjaOS
+    Memory {
+        #[command(subcommand)]
+        action: MemoryAction,
+    },
+    /// Configura nome, voz e treino do mascote HERO
+    Mascot {
+        #[command(subcommand)]
+        action: MascotAction,
+    },
     /// Gerencia chaves de API no KWallet
     Keys {
         #[command(subcommand)]
@@ -59,6 +85,8 @@ enum Command {
         vscode_devcontainers: bool,
         #[arg(long = "api-key")]
         api_keys: Vec<String>,
+        #[arg(long)]
+        json: bool,
     },
     /// Verifica o sistema (kernel, GPU, Docker, Git, IA, serviços, portas) e sai com código ≠ 0 se algo crítico falhar
     Doctor {
@@ -86,14 +114,279 @@ enum Command {
         #[command(subcommand)]
         action: GameModeAction,
     },
+    /// Atalhos para o Compose do projeto atual
+    Up {
+        #[arg(long)]
+        json: bool,
+    },
+    Down {
+        #[arg(long)]
+        json: bool,
+    },
+    Logs {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Gera completions para o shell informado
+    Completions {
+        #[arg(value_enum)]
+        shell: Shell,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Gera um relatório sanitizado para diagnóstico
+    Report {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Baixa e prepara a atualização bootc
+    Update {
+        #[arg(short, long)]
+        yes: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Agenda a implantação anterior para o próximo boot
+    Rollback {
+        #[arg(short, long)]
+        yes: bool,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
 enum KeysAction {
     /// Lê uma chave sem eco e a grava no KWallet
-    Set { provider: String },
+    Set {
+        provider: String,
+        #[arg(long)]
+        json: bool,
+    },
     /// Adiciona chaves SSH ao agente do usuário com prompt KWallet
     SshAdd {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Emite comandos para carregar chaves do KWallet apenas no shell atual
+    Env {
+        #[arg(long, value_enum, default_value = "bash")]
+        shell: KeyShell,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum KeyShell {
+    Bash,
+    Zsh,
+    Fish,
+}
+
+impl KeyShell {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Bash => "bash",
+            Self::Zsh => "zsh",
+            Self::Fish => "fish",
+        }
+    }
+}
+
+#[derive(Subcommand)]
+enum MemoryAction {
+    /// Busca notas do vault local
+    Search {
+        query: String,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Lista notas recentes do vault
+    Timeline {
+        #[arg(long, default_value_t = 1)]
+        days: u32,
+        #[arg(long, default_value_t = 100)]
+        limit: u32,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Reconstrói o índice e o grafo a partir do vault Markdown
+    Rebuild {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Salva uma nota no vault local
+    Remember {
+        note: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Abre o visualizador local do vault
+    Viewer {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Executa o servidor MCP da Memória usando stdio
+    Mcp,
+    /// Configura coletores locais da memória
+    Collectors {
+        #[command(subcommand)]
+        action: CollectorAction,
+    },
+    /// Define retenção em dias; zero mantém os dados indefinidamente
+    Retention {
+        source: String,
+        days: u32,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Remove eventos de coletores além da retenção configurada
+    Purge {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Registra um evento local de shell ou o último commit Git
+    Collect {
+        #[arg(value_enum)]
+        source: CollectorSource,
+        #[arg(long, default_value_t = 0)]
+        exit_code: i32,
+        #[arg(long, default_value_t = 0)]
+        duration_ms: u64,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Instala um hook Git post-commit no repositório atual
+    Hook {
+        #[command(subcommand)]
+        action: MemoryHookAction,
+    },
+    /// Gerencia repositórios incluídos na varredura Git diária
+    Git {
+        #[command(subcommand)]
+        action: MemoryGitAction,
+    },
+    /// Gera localmente o grafo de código de um repositório Git
+    Graph {
+        #[arg(default_value = ".")]
+        path: String,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum MemoryHookAction {
+    /// Instala sem substituir um hook existente
+    Install {
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum MemoryGitAction {
+    /// Registra um repositório para a varredura diária de novos commits
+    Register {
+        #[arg(default_value = ".")]
+        path: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Remove um repositório da varredura diária
+    Unregister {
+        path: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Varre novos commits dos repositórios registrados
+    Scan {
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum CollectorAction {
+    /// Lista estado e disponibilidade dos coletores
+    Status {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Ativa um coletor disponível
+    Enable {
+        source: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Desativa um coletor disponível
+    Disable {
+        source: String,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum CollectorSource {
+    Shell,
+    Git,
+}
+
+impl CollectorSource {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Shell => "shell",
+            Self::Git => "git",
+        }
+    }
+}
+
+#[derive(Subcommand)]
+enum MascotAction {
+    /// Mostra nome e disponibilidade da voz selecionada
+    Status {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Altera o nome exibido pelo mascote
+    Name {
+        name: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Seleciona uma voz Piper já instalada localmente
+    Voice {
+        voice: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Lista e instala vozes Piper pt-BR com licença verificada
+    Voices {
+        #[command(subcommand)]
+        action: VoiceCatalogAction,
+    },
+    /// Inicia treino local de uma wake word personalizada
+    Train {
+        name: String,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum VoiceCatalogAction {
+    /// Lista as vozes pt-BR do catálogo curado
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Baixa e valida uma voz do catálogo curado
+    Download {
+        voice: String,
         #[arg(long)]
         json: bool,
     },
@@ -101,6 +394,13 @@ enum KeysAction {
 
 #[derive(Subcommand)]
 enum InstallPackage {
+    /// Módulo Escudo opcional (disponível na fase 5)
+    Escudo {
+        #[arg(short, long)]
+        yes: bool,
+        #[arg(long)]
+        json: bool,
+    },
     /// Baixa o Unity Hub oficial como AppImage em ~/.local
     Unity {
         /// Confirma a instalação sem interação
@@ -211,29 +511,104 @@ enum GameModeAction {
 fn main() {
     let args = std::env::args_os().collect::<Vec<OsString>>();
     let lang = selected_language(&args);
-    let matches = localized_command(Cli::command(), lang)
+    let command = localized_command(Cli::command(), lang);
+    let matches = localized_help_tree(command, lang, "forja")
         .try_get_matches_from(args)
         .unwrap_or_else(|error| error.exit());
     let cli = Cli::from_arg_matches(&matches).expect("parse CLI arguments");
     let _language = cli.lang;
     let code = match cli.command {
+        Command::Ai {
+            query,
+            confirm,
+            json,
+        } => ai::run(query.as_deref(), confirm.as_deref(), json),
+        Command::Memory { action } => match action {
+            MemoryAction::Search { query, limit, json } => memory::search(&query, limit, json),
+            MemoryAction::Timeline { days, limit, json } => memory::timeline(days, limit, json),
+            MemoryAction::Rebuild { json } => memory::rebuild(json),
+            MemoryAction::Remember { note, json } => memory::remember(&note, json),
+            MemoryAction::Viewer { json } => memory::viewer(json),
+            MemoryAction::Mcp => memory::mcp(),
+            MemoryAction::Collectors { action } => match action {
+                CollectorAction::Status { json } => memory::collectors_status(json),
+                CollectorAction::Enable { source, json } => {
+                    memory::set_collector(&source, true, json)
+                }
+                CollectorAction::Disable { source, json } => {
+                    memory::set_collector(&source, false, json)
+                }
+            },
+            MemoryAction::Retention { source, days, json } => {
+                memory::set_retention(&source, days, json)
+            }
+            MemoryAction::Purge { json } => memory::purge(json),
+            MemoryAction::Collect {
+                source,
+                exit_code,
+                duration_ms,
+                json,
+            } => memory::collect(source.as_str(), exit_code, duration_ms, json),
+            MemoryAction::Hook {
+                action: MemoryHookAction::Install { json },
+            } => memory::install_git_hook(json),
+            MemoryAction::Git { action } => match action {
+                MemoryGitAction::Register { path, json } => {
+                    memory::register_git_repository(&path, json)
+                }
+                MemoryGitAction::Unregister { path, json } => {
+                    memory::unregister_git_repository(&path, json)
+                }
+                MemoryGitAction::Scan { json } => memory::scan_git_repositories(json),
+            },
+            MemoryAction::Graph { path, json } => memory::graph_repository(&path, json),
+        },
+        Command::Mascot { action } => match action {
+            MascotAction::Status { json } => mascot::status(json),
+            MascotAction::Name { name, json } => mascot::set_name(&name, json),
+            MascotAction::Voice { voice, json } => mascot::set_voice(&voice, json),
+            MascotAction::Voices { action } => match action {
+                VoiceCatalogAction::List { json } => mascot::list_voices(json),
+                VoiceCatalogAction::Download { voice, json } => {
+                    mascot::download_voice(&voice, json)
+                }
+            },
+            MascotAction::Train { name, json } => mascot::train(&name, json),
+        },
         Command::Keys {
-            action: KeysAction::Set { provider },
+            action: KeysAction::Set { provider, json },
         } => {
-            match std::process::Command::new("/usr/bin/python3")
+            let result = std::process::Command::new("/usr/bin/python3")
                 .args(["/usr/libexec/forjaos/keys.py", &provider])
-                .status()
-            {
+                .stdout(if json {
+                    std::process::Stdio::null()
+                } else {
+                    std::process::Stdio::inherit()
+                })
+                .status();
+            let code = match result {
                 Ok(status) => status.code().unwrap_or(1),
                 Err(error) => {
-                    eprintln!("forja keys: {error}");
+                    if !json {
+                        eprintln!("forja keys: {error}");
+                    }
                     1
                 }
+            };
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"command":"keys set", "provider":provider, "status": if code == 0 { "ok" } else { "error" }, "exit_code":code})
+                );
             }
+            code
         }
         Command::Keys {
             action: KeysAction::SshAdd { json },
         } => dev::ssh_add(json),
+        Command::Keys {
+            action: KeysAction::Env { shell, json },
+        } => keys::env(shell.as_str(), json),
         Command::Setup {
             profile,
             mascot,
@@ -245,6 +620,7 @@ fn main() {
             devcontainers,
             vscode_devcontainers,
             api_keys,
+            json,
         } => {
             let mut command = std::process::Command::new("/usr/bin/python3");
             command.arg("/usr/libexec/forjaos/setup_profile.py").args([
@@ -275,16 +651,36 @@ fn main() {
             for provider in api_keys {
                 command.args(["--api-key", &provider]);
             }
+            if json {
+                command.stdout(std::process::Stdio::null());
+            }
             match command.status() {
-                Ok(status) => status.code().unwrap_or(1),
+                Ok(status) => {
+                    let code = status.code().unwrap_or(1);
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::json!({"command":"setup", "status": if code == 0 { "ok" } else { "error" }, "exit_code":code})
+                        );
+                    }
+                    code
+                }
                 Err(error) => {
-                    eprintln!("forja setup: {error}");
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::json!({"command":"setup", "status":"error"})
+                        );
+                    } else {
+                        eprintln!("forja setup: {error}");
+                    }
                     1
                 }
             }
         }
         Command::Doctor { json } => doctor::run(json),
         Command::Install { package } => match package {
+            InstallPackage::Escudo { yes, json } => install::escudo(yes, json),
             InstallPackage::Unity { yes, json } => install::unity(yes, json),
             InstallPackage::ClaudeCode { yes, json } => install::claude_code(yes, json),
             InstallPackage::Homebrew { yes, json } => install::homebrew(yes, json),
@@ -312,15 +708,72 @@ fn main() {
             process.args(["/usr/libexec/forjaos/game_mode.py", operation]);
             if json {
                 process.arg("--json");
-            }
-            match process.status() {
-                Ok(status) => status.code().unwrap_or(1),
-                Err(error) => {
-                    eprintln!("forja game-mode: {error}");
-                    1
+                match process.output() {
+                    Ok(output)
+                        if serde_json::from_slice::<serde_json::Value>(&output.stdout).is_ok() =>
+                    {
+                        let _ = io::stdout().write_all(&output.stdout);
+                        output.status.code().unwrap_or(1)
+                    }
+                    Ok(output) => {
+                        println!(
+                            "{}",
+                            serde_json::json!({
+                                "command":format!("game-mode {operation}"),
+                                "status":"error",
+                                "exit_code":output.status.code().unwrap_or(1)
+                            })
+                        );
+                        output.status.code().unwrap_or(1).max(1)
+                    }
+                    Err(_) => {
+                        println!(
+                            "{}",
+                            serde_json::json!({
+                                "command":format!("game-mode {operation}"),
+                                "status":"error",
+                                "error":"backend_unavailable"
+                            })
+                        );
+                        1
+                    }
+                }
+            } else {
+                match process.status() {
+                    Ok(status) => status.code().unwrap_or(1),
+                    Err(error) => {
+                        eprintln!("forja game-mode: {error}");
+                        1
+                    }
                 }
             }
         }
+        Command::Up { json } => dev::compose("up", json),
+        Command::Down { json } => dev::compose("down", json),
+        Command::Logs { json } => dev::compose("logs", json),
+        Command::Completions { shell, json } => {
+            let mut script = Vec::new();
+            generate(shell, &mut Cli::command(), "forja", &mut script);
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "command":"completions",
+                        "status":"ok",
+                        "shell":format!("{shell:?}").to_ascii_lowercase(),
+                        "script":String::from_utf8_lossy(&script)
+                    })
+                );
+                0
+            } else if io::stdout().write_all(&script).is_ok() {
+                0
+            } else {
+                1
+            }
+        }
+        Command::Report { json } => doctor::report(json),
+        Command::Update { yes, json } => dev::bootc_action("upgrade", yes, json),
+        Command::Rollback { yes, json } => dev::bootc_action("rollback", yes, json),
     };
     std::process::exit(code);
 }
@@ -381,6 +834,91 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
 
     if english {
         command = command
+            .mut_subcommand("ai", |ai| {
+                ai.about("Send a question to the local HERO assistant")
+                    .mut_arg("query", |arg| arg.help("Question to send"))
+                    .mut_arg("confirm", |arg| arg.help("Confirm a pending action ID"))
+                    .mut_arg("json", |arg| arg.help("Output JSON"))
+            })
+            .mut_subcommand("memory", |memory| {
+                memory
+                    .about("Search and maintain the local ForjaOS vault")
+                    .mut_subcommand("search", |action| {
+                        action
+                            .about("Search Markdown notes")
+                            .mut_arg("query", |arg| arg.help("Search expression"))
+                            .mut_arg("limit", |arg| arg.help("Maximum results"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("timeline", |action| {
+                        action
+                            .about("List recent notes")
+                            .mut_arg("days", |arg| arg.help("Look-back period in days"))
+                            .mut_arg("limit", |arg| arg.help("Maximum entries"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("rebuild", |action| {
+                        action
+                            .about("Rebuild the index and graph from Markdown")
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("remember", |action| {
+                        action
+                            .about("Save a note in the local vault")
+                            .mut_arg("note", |arg| arg.help("Note text"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("viewer", |action| {
+                        action
+                            .about("Open the local vault viewer")
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("mcp", |action| {
+                        action.about("Run the Memory MCP server over stdio")
+                    })
+            })
+            .mut_subcommand("mascot", |mascot| {
+                mascot
+                    .about("Configure the HERO mascot name and voice")
+                    .mut_subcommand("status", |action| {
+                        action
+                            .about("Show mascot and local model availability")
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("name", |action| {
+                        action
+                            .about("Set the display name")
+                            .mut_arg("name", |arg| arg.help("Mascot name"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("voice", |action| {
+                        action
+                            .about("Select an installed local Piper voice")
+                            .mut_arg("voice", |arg| arg.help("Local voice model ID"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+                    .mut_subcommand("voices", |voices| {
+                        voices
+                            .about("List or download curated Piper voices")
+                            .mut_subcommand("list", |action| {
+                                action
+                                    .about("List curated Brazilian Portuguese voices")
+                                    .mut_arg("json", |arg| arg.help("Output JSON"))
+                            })
+                            .mut_subcommand("download", |action| {
+                                action
+                                    .about("Download and verify a curated voice")
+                                    .mut_arg("voice", |arg| arg.help("Curated voice ID"))
+                                    .mut_arg("json", |arg| arg.help("Output JSON"))
+                            })
+                    })
+                    .mut_subcommand("train", |action| {
+                        action
+                            .about("Train a custom local wake word")
+                            .mut_arg("name", |arg| arg.help("Wake word name"))
+                            .mut_arg("json", |arg| arg.help("Output JSON"))
+                    })
+            })
             .mut_subcommand("keys", |keys| {
                 keys.about("Store API keys in KWallet")
                     .mut_subcommand("set", |set| set.about("Read and store a key without echo"))
@@ -496,23 +1034,518 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                         off.about("Turn off Game Mode until the current game exits")
                     })
                     .mut_subcommand("status", |status| status.about("Show Game Mode state"))
+            })
+            .mut_subcommand("up", |action| {
+                action.about("Start current project services")
+            })
+            .mut_subcommand("down", |action| {
+                action.about("Stop current project services")
+            })
+            .mut_subcommand("logs", |action| action.about("Show current project logs"))
+            .mut_subcommand("completions", |completion| {
+                completion.about("Generate shell completion script")
+            })
+            .mut_subcommand("report", |report| {
+                report
+                    .about("Create a sanitized diagnostic report")
+                    .mut_arg("json", |arg| arg.help("Output JSON only"))
+            })
+            .mut_subcommand("up", |action| {
+                action.mut_arg("json", |arg| arg.help("Output JSON"))
+            })
+            .mut_subcommand("down", |action| {
+                action.mut_arg("json", |arg| arg.help("Output JSON"))
+            })
+            .mut_subcommand("logs", |action| {
+                action.mut_arg("json", |arg| arg.help("Output JSON"))
+            })
+            .mut_subcommand("update", |action| {
+                action
+                    .about("Download and queue a bootc update")
+                    .mut_arg("yes", |arg| arg.help("Confirm without interaction"))
+                    .mut_arg("json", |arg| arg.help("Output JSON"))
+            })
+            .mut_subcommand("rollback", |action| {
+                action
+                    .about("Queue the previous bootc deployment")
+                    .mut_arg("yes", |arg| arg.help("Confirm without interaction"))
+                    .mut_arg("json", |arg| arg.help("Output JSON"))
             });
     }
     command = command
+        .mut_subcommand("ai", |ai| {
+            let (about, query, confirm, json_help) = if english {
+                (
+                    "Send a question to the local HERO assistant",
+                    "Question to send",
+                    "Confirm a pending action",
+                    "Output JSON",
+                )
+            } else {
+                (
+                    "Envia uma pergunta ao assistente local HERO",
+                    "Pergunta para o HERO",
+                    "Confirma uma ação pendente",
+                    "Emite JSON",
+                )
+            };
+            localized_help(
+                ai.about(about)
+                    .mut_arg("query", |arg| arg.help(query))
+                    .mut_arg("confirm", |arg| arg.help(confirm))
+                    .mut_arg("json", |arg| arg.help(json_help)),
+                lang,
+                "forja ai",
+            )
+        })
+        .mut_subcommand("mascot", |mascot| {
+            let (voices_about, voice_list, voice_download, voice_id) = if english {
+                (
+                    "Lists and downloads curated Piper voices",
+                    "List curated Brazilian Portuguese voices",
+                    "Download and verify a curated voice",
+                    "Curated voice ID",
+                )
+            } else {
+                (
+                    "Lista e baixa vozes Piper curadas",
+                    "Lista vozes curadas em português brasileiro",
+                    "Baixa e valida uma voz curada",
+                    "ID da voz curada",
+                )
+            };
+            let (about, status, name, name_arg, voice, voice_arg, train, train_arg, json_help) =
+                if english {
+                    (
+                        "Configure the HERO mascot name and voice",
+                        "Show mascot and local model availability",
+                        "Set the display name",
+                        "Mascot name",
+                        "Select an installed local Piper voice",
+                        "Local voice model ID",
+                        "Train a custom local wake word",
+                        "Wake word name",
+                        "Output JSON",
+                    )
+                } else {
+                    (
+                        "Configura nome e voz do mascote HERO",
+                        "Mostra o mascote e os modelos locais",
+                        "Altera o nome exibido",
+                        "Nome do mascote",
+                        "Seleciona uma voz Piper local instalada",
+                        "ID do modelo de voz local",
+                        "Treina uma wake word personalizada local",
+                        "Nome da wake word",
+                        "Emite JSON",
+                    )
+                };
+            localized_help(
+                mascot
+                    .about(about)
+                    .mut_subcommand("status", |action| {
+                        action
+                            .about(status)
+                            .mut_arg("json", |arg| arg.help(json_help))
+                    })
+                    .mut_subcommand("name", |action| {
+                        action
+                            .about(name)
+                            .mut_arg("name", |arg| arg.help(name_arg))
+                            .mut_arg("json", |arg| arg.help(json_help))
+                    })
+                    .mut_subcommand("voice", |action| {
+                        action
+                            .about(voice)
+                            .mut_arg("voice", |arg| arg.help(voice_arg))
+                            .mut_arg("json", |arg| arg.help(json_help))
+                    })
+                    .mut_subcommand("voices", |voices| {
+                        voices
+                            .about(voices_about)
+                            .mut_subcommand("list", |action| {
+                                action
+                                    .about(voice_list)
+                                    .mut_arg("json", |arg| arg.help(json_help))
+                            })
+                            .mut_subcommand("download", |action| {
+                                action
+                                    .about(voice_download)
+                                    .mut_arg("voice", |arg| arg.help(voice_id))
+                                    .mut_arg("json", |arg| arg.help(json_help))
+                            })
+                    })
+                    .mut_subcommand("train", |action| {
+                        action
+                            .about(train)
+                            .mut_arg("name", |arg| arg.help(train_arg))
+                            .mut_arg("json", |arg| arg.help(json_help))
+                    }),
+                lang,
+                "forja mascot",
+            )
+        })
+        .mut_subcommand("memory", |memory| {
+            let (
+                about,
+                search,
+                query,
+                limit,
+                timeline,
+                days,
+                entries,
+                rebuild,
+                remember,
+                note,
+                viewer,
+                mcp,
+                json_help,
+            ) = if english {
+                (
+                    "Search and maintain the local ForjaOS vault",
+                    "Search Markdown notes",
+                    "Search expression",
+                    "Maximum results",
+                    "List recent notes",
+                    "Look-back period in days",
+                    "Maximum entries",
+                    "Rebuild the index and graph from Markdown",
+                    "Save a note in the local vault",
+                    "Note text",
+                    "Open the local vault viewer",
+                    "Run the Memory MCP server over stdio",
+                    "Output JSON",
+                )
+            } else {
+                (
+                    "Busca e mantém o vault local ForjaOS",
+                    "Pesquisa notas Markdown",
+                    "Texto para pesquisar",
+                    "Máximo de resultados",
+                    "Lista notas recentes",
+                    "Período em dias",
+                    "Máximo de registros",
+                    "Reconstrói o índice e o grafo a partir do vault",
+                    "Salva uma nota no vault local",
+                    "Texto da nota",
+                    "Abre o visualizador local do vault",
+                    "Executa o servidor MCP da Memória por stdio",
+                    "Emite JSON",
+                )
+            };
+            let memory = memory
+                .mut_subcommand("search", |action| {
+                    let action = action
+                        .about(search)
+                        .mut_arg("query", |arg| arg.help(query))
+                        .mut_arg("limit", |arg| arg.help(limit))
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory search")
+                })
+                .mut_subcommand("timeline", |action| {
+                    let action = action
+                        .about(timeline)
+                        .mut_arg("days", |arg| arg.help(days))
+                        .mut_arg("limit", |arg| arg.help(entries))
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory timeline")
+                })
+                .mut_subcommand("rebuild", |action| {
+                    let action = action
+                        .about(rebuild)
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory rebuild")
+                })
+                .mut_subcommand("remember", |action| {
+                    let action = action
+                        .about(remember)
+                        .mut_arg("note", |arg| arg.help(note))
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory remember")
+                })
+                .mut_subcommand("viewer", |action| {
+                    let action = action
+                        .about(viewer)
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory viewer")
+                })
+                .mut_subcommand("mcp", |action| {
+                    localized_help(action.about(mcp), lang, "forja memory mcp")
+                })
+                .mut_subcommand("graph", |action| {
+                    let action = action
+                        .about(if english {
+                            "Build a local code graph for a Git repository"
+                        } else {
+                            "Gera um grafo local de código para um repositório Git"
+                        })
+                        .mut_arg("path", |arg| {
+                            arg.help(if english {
+                                "Path to the repository root"
+                            } else {
+                                "Caminho para a raiz do repositório"
+                            })
+                        })
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory graph")
+                })
+                .mut_subcommand("collectors", |collectors| {
+                    let about = if english {
+                        "Configure local memory collectors"
+                    } else {
+                        "Configura os coletores locais da memória"
+                    };
+                    let collectors = collectors
+                        .mut_subcommand("status", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Show collector status"
+                                } else {
+                                    "Mostra o estado dos coletores"
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory collectors status")
+                        })
+                        .mut_subcommand("enable", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Enable a collector"
+                                } else {
+                                    "Ativa um coletor"
+                                })
+                                .mut_arg("source", |arg| {
+                                    arg.help(if english {
+                                        "Collector source"
+                                    } else {
+                                        "Origem do coletor"
+                                    })
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory collectors enable")
+                        })
+                        .mut_subcommand("disable", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Disable a collector"
+                                } else {
+                                    "Desativa um coletor"
+                                })
+                                .mut_arg("source", |arg| {
+                                    arg.help(if english {
+                                        "Collector source"
+                                    } else {
+                                        "Origem do coletor"
+                                    })
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory collectors disable")
+                        });
+                    localized_help(collectors.about(about), lang, "forja memory collectors")
+                })
+                .mut_subcommand("retention", |action| {
+                    let action = action
+                        .about(if english {
+                            "Set collector retention in days; zero means unlimited"
+                        } else {
+                            "Define retenção do coletor em dias; zero mantém indefinidamente"
+                        })
+                        .mut_arg("source", |arg| {
+                            arg.help(if english {
+                                "Collector source"
+                            } else {
+                                "Origem do coletor"
+                            })
+                        })
+                        .mut_arg("days", |arg| {
+                            arg.help(if english {
+                                "Retention days"
+                            } else {
+                                "Dias de retenção"
+                            })
+                        })
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory retention")
+                })
+                .mut_subcommand("purge", |action| {
+                    let action = action
+                        .about(if english {
+                            "Remove collector events past configured retention"
+                        } else {
+                            "Remove eventos de coletores além da retenção configurada"
+                        })
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory purge")
+                })
+                .mut_subcommand("collect", |action| {
+                    let action = action
+                        .about(if english {
+                            "Record a local shell event or latest Git commit"
+                        } else {
+                            "Registra evento de shell ou o último commit Git"
+                        })
+                        .mut_arg("source", |arg| {
+                            arg.help(if english {
+                                "Event source"
+                            } else {
+                                "Origem do evento"
+                            })
+                        })
+                        .mut_arg("exit_code", |arg| {
+                            arg.help(if english {
+                                "Shell command exit code"
+                            } else {
+                                "Código de saída do comando shell"
+                            })
+                        })
+                        .mut_arg("duration_ms", |arg| {
+                            arg.help(if english {
+                                "Shell command duration in milliseconds"
+                            } else {
+                                "Duração do comando shell em milissegundos"
+                            })
+                        })
+                        .mut_arg("json", |arg| arg.help(json_help));
+                    localized_help(action, lang, "forja memory collect")
+                })
+                .mut_subcommand("hook", |hook| {
+                    let hook = hook
+                        .about(if english {
+                            "Manage repository memory hooks"
+                        } else {
+                            "Gerencia hooks de memória no repositório"
+                        })
+                        .mut_subcommand("install", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Install a post-commit hook without replacing an existing hook"
+                                } else {
+                                    "Instala post-commit sem substituir um hook existente"
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory hook install")
+                        });
+                    localized_help(hook, lang, "forja memory hook")
+                })
+                .mut_subcommand("git", |git| {
+                    let about = if english {
+                        "Manage repositories in the daily Git scan"
+                    } else {
+                        "Gerencia repositórios na varredura Git diária"
+                    };
+                    let git = git
+                        .about(about)
+                        .mut_subcommand("register", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Register a repository; scanning starts from its current HEAD"
+                                } else {
+                                    "Registra um repositório; a varredura começa no HEAD atual"
+                                })
+                                .mut_arg("path", |arg| {
+                                    arg.help(if english {
+                                        "Repository path"
+                                    } else {
+                                        "Caminho do repositório"
+                                    })
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory git register")
+                        })
+                        .mut_subcommand("unregister", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Remove a repository from the daily scan"
+                                } else {
+                                    "Remove um repositório da varredura diária"
+                                })
+                                .mut_arg("path", |arg| {
+                                    arg.help(if english {
+                                        "Repository path"
+                                    } else {
+                                        "Caminho do repositório"
+                                    })
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory git unregister")
+                        })
+                        .mut_subcommand("scan", |action| {
+                            let action = action
+                                .about(if english {
+                                    "Record new commits from registered repositories"
+                                } else {
+                                    "Registra novos commits dos repositórios cadastrados"
+                                })
+                                .mut_arg("json", |arg| arg.help(json_help));
+                            localized_help(action, lang, "forja memory git scan")
+                        });
+                    localized_help(git, lang, "forja memory git")
+                });
+            localized_help(memory.about(about), lang, "forja memory")
+        })
         .mut_subcommand("keys", |keys| {
             let keys = keys
-                .mut_subcommand("set", |set| localized_help(set, lang, "forja keys set"))
+                .mut_subcommand("set", |set| {
+                    let help = if lang == Language::En {
+                        "Output JSON"
+                    } else {
+                        "Emite JSON"
+                    };
+                    localized_help(set, lang, "forja keys set")
+                        .mut_arg("json", |arg| arg.help(help))
+                })
                 .mut_subcommand("ssh-add", |ssh| {
                     localized_help(ssh, lang, "forja keys ssh-add")
+                })
+                .mut_subcommand("env", |env| {
+                    let env = env
+                        .about(if english {
+                            "Print shell commands to load KWallet keys into the current shell"
+                        } else {
+                            "Emite comandos para carregar chaves do KWallet no shell atual"
+                        })
+                        .mut_arg("shell", |arg| {
+                            arg.help(if english {
+                                "Target shell syntax"
+                            } else {
+                                "Sintaxe do shell de destino"
+                            })
+                        })
+                        .mut_arg("json", |arg| {
+                            arg.help(if english {
+                                "Print provider names only; never emit secret values"
+                            } else {
+                                "Emite somente nomes dos provedores, sem valores secretos"
+                            })
+                        });
+                    localized_help(env, lang, "forja keys env")
                 });
             localized_help(keys, lang, "forja keys")
         })
         .mut_subcommand("doctor", |doctor| {
             localized_help(doctor, lang, "forja doctor")
         })
+        .mut_subcommand("setup", |setup| {
+            let help = if lang == Language::En {
+                "Output JSON"
+            } else {
+                "Emite JSON"
+            };
+            localized_help(setup, lang, "forja setup").mut_arg("json", |arg| arg.help(help))
+        })
         .mut_subcommand("install", |install| {
             let install = install
                 .disable_help_subcommand(true)
+                .mut_subcommand("escudo", |escudo| {
+                    localized_help(
+                        escudo.about(if english {
+                            "Optional Escudo module (available in phase 5)"
+                        } else {
+                            "Módulo Escudo opcional (disponível na fase 5)"
+                        }),
+                        lang,
+                        "forja install escudo",
+                    )
+                })
                 .mut_subcommand("unity", |unity| {
                     localized_help(unity, lang, "forja install unity")
                 })
@@ -556,11 +1589,73 @@ fn localized_command(command: clap::Command, lang: Language) -> clap::Command {
                     localized_help(status, lang, "forja game-mode status")
                 });
             localized_help(game, lang, "forja game-mode")
+        })
+        .mut_subcommand("up", |action| localized_help(action, lang, "forja up"))
+        .mut_subcommand("down", |action| localized_help(action, lang, "forja down"))
+        .mut_subcommand("logs", |action| localized_help(action, lang, "forja logs"))
+        .mut_subcommand("completions", |completion| {
+            localized_help(completion, lang, "forja completions").mut_arg("json", |arg| {
+                arg.help(if english {
+                    "Output the completion script as JSON"
+                } else {
+                    "Emite o script de completion em JSON"
+                })
+            })
+        })
+        .mut_subcommand("report", |report| {
+            let (about, json_help) = if english {
+                ("Create a sanitized diagnostic report", "Output JSON only")
+            } else {
+                (
+                    "Gera um relatório de diagnóstico sanitizado",
+                    "Emite somente JSON",
+                )
+            };
+            report
+                .about(about)
+                .mut_arg("json", |arg| arg.help(json_help))
+        })
+        .mut_subcommand("up", |action| {
+            localized_help(action, lang, "forja up").mut_arg("json", |arg| arg.help("Emite JSON"))
+        })
+        .mut_subcommand("down", |action| {
+            localized_help(action, lang, "forja down").mut_arg("json", |arg| arg.help("Emite JSON"))
+        })
+        .mut_subcommand("logs", |action| {
+            localized_help(action, lang, "forja logs").mut_arg("json", |arg| arg.help("Emite JSON"))
+        })
+        .mut_subcommand("update", |action| {
+            let about = if lang == Language::En {
+                "Download and queue a bootc update"
+            } else {
+                "Baixa e prepara a atualização bootc"
+            };
+            localized_help(action.about(about), lang, "forja update")
+                .mut_arg("yes", |arg| arg.help("Confirma sem interação"))
+                .mut_arg("json", |arg| arg.help("Emite JSON"))
+        })
+        .mut_subcommand("rollback", |action| {
+            let about = if lang == Language::En {
+                "Queue the previous bootc deployment"
+            } else {
+                "Agenda a implantação bootc anterior"
+            };
+            localized_help(action.about(about), lang, "forja rollback")
+                .mut_arg("yes", |arg| arg.help("Confirma sem interação"))
+                .mut_arg("json", |arg| arg.help("Emite JSON"))
         });
     localized_help(command, lang, "forja")
 }
 
 fn localized_help(command: clap::Command, lang: Language, bin_name: &str) -> clap::Command {
+    let commands = if lang == Language::En {
+        "Commands"
+    } else {
+        "Comandos"
+    };
+    let command = command
+        .disable_help_subcommand(true)
+        .subcommand_help_heading(commands);
     if lang == Language::En {
         return command;
     }
@@ -571,6 +1666,8 @@ fn localized_help(command: clap::Command, lang: Language, bin_name: &str) -> cla
         .to_string()
         .replace("Usage:", "Uso:")
         .replace("Options:", "Opções:")
+        .replace("Commands:", "Comandos:")
+        .replace("Arguments:", "Argumentos:")
         .replace("<COMMAND>", "<COMANDO>")
         .replace("[OPTIONS]", "[OPÇÕES]")
         .replace("Print help", "Exibe ajuda")
@@ -578,10 +1675,42 @@ fn localized_help(command: clap::Command, lang: Language, bin_name: &str) -> cla
     command.override_help(rendered)
 }
 
+fn localized_help_tree(command: clap::Command, lang: Language, bin_name: &str) -> clap::Command {
+    localized_help(command, lang, bin_name).mut_subcommands(|subcommand| {
+        let child_bin_name = format!("{bin_name} {}", subcommand.get_name());
+        localized_help_tree(subcommand, lang, &child_bin_name)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{localized_command, Cli, Language};
     use clap::CommandFactory;
+
+    fn assert_json_on_leaf(command: &clap::Command, path: &str) {
+        if command.get_subcommands().next().is_some() {
+            for child in command.get_subcommands() {
+                let child_path = if path.is_empty() {
+                    child.get_name().to_string()
+                } else {
+                    format!("{path} {}", child.get_name())
+                };
+                assert_json_on_leaf(child, &child_path);
+            }
+        } else if path != "memory mcp" {
+            assert!(
+                command
+                    .get_arguments()
+                    .any(|argument| argument.get_id() == "json"),
+                "--json ausente em {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_non_protocol_leaf_accepts_json() {
+        assert_json_on_leaf(&Cli::command(), "");
+    }
 
     #[test]
     fn command_tree_is_well_formed_and_includes_f2_002() {

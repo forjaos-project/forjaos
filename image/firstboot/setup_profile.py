@@ -100,6 +100,27 @@ def configure_shell():
         separator = "" if not existing or existing.endswith("\n") else "\n"
         zshrc.write_text(existing + separator + block + "\n", encoding="utf-8")
         os.chmod(zshrc, 0o600)
+        existing += separator + block + "\n"
+    memory_block = "\n".join((
+        "# ForjaOS shell memory collector",
+        "autoload -Uz add-zsh-hook",
+        "_forja_memory_preexec() { _FORJA_MEMORY_COMMAND=$1; _FORJA_MEMORY_START=$SECONDS; }",
+        "_forja_memory_precmd() {",
+        "  local _forja_memory_status=$?",
+        "  if [[ -n ${_FORJA_MEMORY_COMMAND:-} && ${FORJA_MEMORY_COMMAND} != *'forja memory collect'* && ${FORJA_MEMORY_COLLECTOR:-1} == 1 ]]; then",
+        "    local _forja_memory_duration=$(((SECONDS - ${_FORJA_MEMORY_START:-$SECONDS}) * 1000))",
+        "    { print -rn -- \"$_FORJA_MEMORY_COMMAND\" | command forja memory collect shell --exit-code \"$_forja_memory_status\" --duration-ms \"$_forja_memory_duration\" 2>/dev/null; } &!",
+        "  fi",
+        "  _FORJA_MEMORY_COMMAND=''",
+        "  return 0",
+        "}",
+        "add-zsh-hook preexec _forja_memory_preexec",
+        "add-zsh-hook precmd _forja_memory_precmd",
+    ))
+    if "# ForjaOS shell memory collector" not in existing:
+        separator = "" if not existing or existing.endswith("\n") else "\n"
+        zshrc.write_text(existing + separator + memory_block + "\n", encoding="utf-8")
+        os.chmod(zshrc, 0o600)
     profile = Path.home() / ".config/konsolerc"
     profile.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     lines = profile.read_text(encoding="utf-8").splitlines() if profile.exists() else []

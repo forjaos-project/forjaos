@@ -1,0 +1,12 @@
+{
+  "KPlugin": {
+    "Name": "ForjaOS Window Memory",
+    "Description": "Records the active application and window title every 30 seconds",
+    "Id": "forja-memory-window",
+    "Version": "1.0",
+    "License": "Apache-2.0"
+  },
+  "X-Plasma-API": "declarativescript",
+  "X-Plasma-MainScript": "code/main.qml",
+  "KPackageStructure": "KWin/Script"
+}

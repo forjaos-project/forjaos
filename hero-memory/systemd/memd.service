@@ -1,0 +1,22 @@
+[Unit]
+Description=ForjaOS local memory daemon
+After=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.forjaos.Memory
+ExecStart=/usr/libexec/forjaos/memd
+Restart=on-failure
+RestartSec=2
+MemoryMax=300M
+CPUQuota=20%
+IOSchedulingClass=idle
+Nice=15
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/ForjaOS/vault %h/.local/share/hero %h/.config/hero
+
+[Install]
+WantedBy=default.target

@@ -2,11 +2,32 @@ ARG BASE_IMAGE=ghcr.io/ublue-os/bazzite-nvidia-open:stable
 FROM ${BASE_IMAGE} AS branding-builder
 ARG IMAGE_NAME=forjaos-nvidia-open
 # Build-only: grub2-tools-extra supplies grub2-mkfont; this stage is not shipped.
-RUN dnf install -y cargo rust rpm-build jetbrains-mono-fonts grub2-tools-extra && dnf clean all
+RUN dnf install -y cargo rust rpm-build jetbrains-mono-fonts grub2-tools-extra uv python3.14 && dnf clean all
+COPY hero-memory/graphify-runtime/pyproject.toml hero-memory/graphify-runtime/uv.lock /opt/forjaos/graphify-runtime/
+WORKDIR /opt/forjaos/graphify-runtime
+ENV UV_CACHE_DIR=/opt/forjaos/uv-cache
+RUN install -d -m 0700 /var/roothome/.cargo /var/roothome/.cache /opt/forjaos/uv-cache \
+    && uv sync --locked --no-dev --no-install-project --python 3.14
+COPY image/build_files/generate_python_license_inventory.py /tmp/generate_python_license_inventory.py
+RUN /opt/forjaos/graphify-runtime/.venv/bin/python \
+      /tmp/generate_python_license_inventory.py > /tmp/THIRD_PARTY_PYTHON_LICENSES.md
+WORKDIR /
 COPY cli/Cargo.toml cli/Cargo.lock /tmp/forja-cli/
 COPY cli/src/ /tmp/forja-cli/src/
+COPY hero/Cargo.toml hero/Cargo.lock /tmp/herod/
+COPY hero/src/ /tmp/herod/src/
+COPY hero-memory/Cargo.toml hero-memory/Cargo.lock /tmp/memd/
+COPY hero-memory/src/ /tmp/memd/src/
 RUN cargo build --manifest-path /tmp/forja-cli/Cargo.toml --locked --release \
-    && install -D -m 0755 /tmp/forja-cli/target/release/forja /tmp/forja
+    && install -D -m 0755 /tmp/forja-cli/target/release/forja /tmp/forjaos-bin/forja \
+    && install -d -m 0755 /tmp/forja-completions \
+    && /tmp/forjaos-bin/forja completions bash > /tmp/forja-completions/forja.bash \
+    && /tmp/forjaos-bin/forja completions zsh > /tmp/forja-completions/_forja \
+    && /tmp/forjaos-bin/forja completions fish > /tmp/forja-completions/forja.fish \
+    && cargo build --manifest-path /tmp/herod/Cargo.toml --locked --release \
+    && install -D -m 0755 /tmp/herod/target/release/herod /tmp/forjaos-bin/herod \
+    && cargo build --manifest-path /tmp/memd/Cargo.toml --locked --release \
+    && install -D -m 0755 /tmp/memd/target/release/memd /tmp/forjaos-bin/memd
 COPY image/build_files/ /tmp/forjaos-build/
 COPY brand/ /tmp/brand/
 RUN bash /tmp/forjaos-build/build_branding_rpm.sh \
@@ -18,7 +39,8 @@ FROM ${BASE_IMAGE}
 
 ARG IMAGE_NAME=forjaos-nvidia-open
 
-RUN dnf install -y python3-pyside6 python3-dbus libsecret gamescope mangohud bluez && dnf clean all
+RUN dnf install -y python3-pyside6 python3.14 python3-dbus libsecret && dnf clean all \
+    && rpm -q terra-gamescope terra-mangohud terra-bluez
 
 COPY image/build_files/remove.txt /tmp/remove.txt
 COPY image/build_files/apply_package_policy.sh /tmp/apply_package_policy.sh
@@ -33,7 +55,14 @@ RUN bash /tmp/install_dx_tools.sh \
 
 COPY --from=branding-builder /tmp/forjaos-branding.rpm /tmp/forjaos-branding.rpm
 COPY --from=branding-builder /tmp/forjaos-plasma.rpm /tmp/forjaos-plasma.rpm
-COPY --from=branding-builder /tmp/forja /usr/bin/forja
+COPY --from=branding-builder /tmp/forjaos-bin/forja /usr/bin/forja
+COPY --from=branding-builder /tmp/forja-completions/forja.bash /usr/share/bash-completion/completions/forja
+COPY --from=branding-builder /tmp/forja-completions/_forja /usr/share/zsh/site-functions/_forja
+COPY --from=branding-builder /tmp/forja-completions/forja.fish /usr/share/fish/vendor_completions.d/forja.fish
+COPY --from=branding-builder /tmp/forjaos-bin/herod /usr/libexec/forjaos/herod
+COPY --from=branding-builder /tmp/forjaos-bin/memd /usr/libexec/forjaos/memd
+COPY --from=branding-builder /opt/forjaos/graphify-runtime/.venv /opt/forjaos/graphify-runtime/.venv
+COPY --from=branding-builder /tmp/THIRD_PARTY_PYTHON_LICENSES.md /usr/share/licenses/forjaos/THIRD_PARTY_PYTHON_LICENSES.md
 RUN dnf install -y /tmp/forjaos-branding.rpm && dnf clean all && rm /tmp/forjaos-branding.rpm
 RUN dnf install -y /tmp/forjaos-plasma.rpm \
     && dnf remove -y --no-autoremove plasma-lookandfeel-fedora f45-backgrounds-kde \
@@ -62,11 +91,29 @@ COPY image/firstboot/install_chrome.py /usr/libexec/forjaos/install_chrome.py
 COPY image/firstboot/install_godot_templates.py /usr/libexec/forjaos/install_godot_templates.py
 COPY image/firstboot/install_hermes.py /usr/libexec/forjaos/install_hermes.py
 COPY image/firstboot/forjaos-firstboot.service /usr/lib/systemd/user/forjaos-firstboot.service
+COPY hero/systemd/herod.service /usr/lib/systemd/user/herod.service
+COPY hero/systemd/ollama.service /usr/lib/systemd/user/ollama.service
+COPY hero/voice-runtime/launcher.py /usr/share/forjaos/voice-runtime/launcher.py
+COPY hero/voice-runtime/worker.py /usr/share/forjaos/voice-runtime/worker.py
+COPY hero/voice-runtime/playback.py /usr/share/forjaos/voice-runtime/playback.py
+COPY hero/voice-runtime/requirements.txt /usr/share/forjaos/voice-runtime/requirements.txt
+COPY hero/voice-runtime/pyproject.toml /usr/share/forjaos/voice-runtime/pyproject.toml
+COPY hero/voice-runtime/uv.lock /usr/share/forjaos/voice-runtime/uv.lock
+COPY hero-memory/systemd/memd.service /usr/lib/systemd/user/memd.service
+COPY hero-memory/systemd/forja-memory-git-scan.service /usr/lib/systemd/user/forja-memory-git-scan.service
+COPY hero-memory/systemd/forja-memory-git-scan.timer /usr/lib/systemd/user/forja-memory-git-scan.timer
+COPY hero-memory/visualizer/ /usr/share/forjaos/memory-viewer/
+COPY hero-memory/kwin/forja-memory-window/ /usr/share/kwin/scripts/forja-memory-window/
 COPY image/game/game_mode.py /usr/libexec/forjaos/game_mode.py
 COPY image/game/hero-game.target /usr/lib/systemd/user/hero-game.target
 COPY image/game/forjaos-game-session.service /usr/lib/systemd/user/forjaos-game-session.service
 COPY image/game/forjaos-game-watch.service /usr/lib/systemd/user/forjaos-game-watch.service
 RUN mkdir -p /usr/lib/systemd/user/graphical-session.target.wants \
+    && mkdir -p /usr/lib/systemd/user/default.target.wants \
+    && ln -s ../herod.service /usr/lib/systemd/user/default.target.wants/herod.service \
+    && ln -s ../memd.service /usr/lib/systemd/user/default.target.wants/memd.service \
+    && mkdir -p /usr/lib/systemd/user/timers.target.wants \
+    && ln -s ../forja-memory-git-scan.timer /usr/lib/systemd/user/timers.target.wants/forja-memory-git-scan.timer \
     && ln -s ../forjaos-firstboot.service \
       /usr/lib/systemd/user/graphical-session.target.wants/forjaos-firstboot.service \
     && ln -s ../forjaos-game-watch.service \
@@ -83,6 +130,15 @@ RUN install -D -m 0755 /tmp/forjaos-firstboot/setup-dual-boot.sh \
       /usr/lib/systemd/system/multi-user.target.wants/forjaos-setup-dual-boot.service \
     && rm -r /tmp/forjaos-firstboot
 
+RUN ln -s /opt/forjaos/graphify-runtime/.venv/bin/graphify /usr/bin/graphify \
+    && chmod 0755 /usr/share/forjaos/voice-runtime/launcher.py \
+    && ln -s /usr/share/forjaos/voice-runtime/launcher.py /usr/libexec/forjaos/voice-worker \
+    && chmod 0755 /usr/share/forjaos/voice-runtime/playback.py \
+    && ln -s /usr/share/forjaos/voice-runtime/playback.py /usr/libexec/forjaos/hero-speak \
+    && test -x /usr/bin/graphify \
+    && test -x /usr/libexec/forjaos/voice-worker \
+    && test -x /usr/libexec/forjaos/hero-speak
+
 RUN python3 /tmp/configure_image.py \
       --root / \
       --public-key /tmp/forjaos.pub \
@@ -94,4 +150,5 @@ RUN python3 /tmp/configure_image.py \
     && rm /tmp/configure_image.py /tmp/configure_plasma.py /tmp/forjaos.pub /tmp/forjaos-icons/* \
     && rm /tmp/configure_startup.sh /tmp/rebuild_initramfs.sh \
     && rmdir /tmp/forjaos-icons \
-    && bootc container lint
+    && bootc container lint \
+    && python3 /usr/libexec/forjaos/check_image_contract.py

@@ -18,30 +18,30 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 ### Fase 2 — Experiência dev/gamedev
 
-- [x] `F2-002` Experiência dev: Podman rootless, Docker CE rootless opcional, Git via keyring, Distrobox, Dev Containers CLI e VS Code opcional, Homebrew e zsh + Starship (FR-030–FR-035). VS Code e Docker ficam fora da imagem e exigem escolha explícita no primeiro boot.
+- [x] `F2-002` Experiência dev: Podman rootless, Docker CE rootless opcional, Git via keyring, Distrobox, Dev Containers CLI e VS Code opcional, Homebrew, uv e zsh + Starship (FR-030–FR-035). VS Code e Docker ficam fora da imagem e exigem escolha explícita no primeiro boot.
 - [x] `F2-003` Jogos e gamedev: Steam e steam-devices preservados; gamescope, MangoHud e Bluetooth na imagem; perfil gamedev instala Godot com templates, ProtonPlus, Lutris e Heroic; Godot Tools entra no VS Code quando escolhido; Modo Jogo ativa `hero-game.target` para Steam/gamescope, Não perturbe e perfil performance. Integração com HERO/Memória e medição de FPS ficam em F4-004; jogos e controles em hardware ficam para o build final (FR-040, FR-041, FR-043, FR-044).
-- [ ] `F2-004` CLI forja completo: subcomandos, --json, completions, confirmação [s/N] (FR-060, FR-061, FR-062, FR-063)
+- [x] `F2-004` CLI `forja` completo no escopo FR-060–063: subcomandos, `--json`, ajuda pt-BR/en, completions bash/zsh/fish e confirmação `[s/N]`. Contratos e fluxos seguros validados no Windows e em Linux com D-Bus privado e backends simulados; `cargo llvm-cov --all-targets --fail-under-lines 70` passou com 70,42% de linhas. Voz, wake word e treino continuam em F4-002/003; a instalação real do Escudo continua em F5-002.
 - [ ] `F2-005` forja mcp register + Trivy no CI (FR-111, NFR-026)
 
 ### Fase 3 — HERO v0 nativo (texto + sistema)
 
-- [ ] `F3-001` herod: daemon Rust, D-Bus org.forjaos.Hero, máquina de estados, limites de consumo (FR-070, FR-071, FR-078)
-- [ ] `F3-002` Roteador de intenções, provedores por rota, Ollama gerenciado, persona (FR-090, FR-091, FR-092, FR-096)
-- [ ] `F3-003` Policy Engine (tiers) e AuditEvent em journald (FR-100, FR-101, FR-102, FR-103)
+- [ ] `F3-001` herod: daemon Rust, D-Bus org.forjaos.Hero, máquina de estados, limites de consumo (FR-070, FR-071, FR-078). Em andamento: API D-Bus de texto/estado, confirmação de ação de uso único, resumo de ações aprovadas em memd, unit com limites e timeout de 58 s com subprocessos canceláveis. O binário embarcado e a chamada D-Bus foram verificados em contêiner; faltam áudio e validação de consumo em hardware Linux de referência.
+- [ ] `F3-002` Roteador de intenções, provedores por rota, Ollama gerenciado, persona (FR-090, FR-091, FR-092, FR-096). Em andamento: chat local via Ollama, seleção 8B/4B por VRAM/Modo Jogo e keep-alive de cinco minutos; faltam rotas, provedores e persona configuráveis.
+- [ ] `F3-003` Policy Engine (tiers) e AuditEvent em journald (FR-100, FR-101, FR-102, FR-103). Em andamento: tiers livres/alterar/bloqueado, confirmação curta e log sem texto da pergunta; faltam avaliação de rotinas e cobertura por tool.
 - [ ] `F3-004` MCP servers hero-system, hero-desktop, hero-dev (rmcp, stdio) (FR-110, FR-112)
 - [ ] `F3-005` Overlay Central de Comando em modo texto — tela central_de_comando_hero_corrigida (FR-121, FR-085, FR-124, FR-125)
 - [ ] `F3-006` Plasmoid do Guará (texto) e plugin KRunner — tela plasmoid_do_guar (FR-120, FR-122)
-- [ ] `F3-007` Catálogo de ações (10 do G3), rota código, rota saúde-do-sistema (FR-093, FR-094, FR-095)
+- [ ] `F3-007` Catálogo de ações (10 do G3), rota código, rota saúde-do-sistema (FR-093, FR-094, FR-095). Em andamento: Compose up/down/logs, modo jogo, Git status, abrir projeto atual, testes com confirmação, GPU/CPU/RAM/rede, Wi-Fi/Bluetooth/VPN com confirmação, URL, memória, update, rollback e reinício de serviço; faltam apps/serviços adicionais, política por manifesto e validação de catálogo.
 - [ ] `F3-008` Spike Hermes Agent (1 semana) → ADR-025 (FR-097)
 
 ### Fase 4 — Voz + Memória
 
 - [ ] `F4-001` Gatilhos de voz, barge-in, mic kill switch, áudio nunca persiste (FR-072, FR-073, FR-074, FR-075, FR-076, FR-077)
-- [ ] `F4-002` Wake word openWakeWord: 8 modelos embarcados + treino de nome personalizado (FR-080, FR-081, FR-082)
-- [ ] `F4-003` STT faster-whisper, TTS Piper com visemes, mascote animado 60 fps (FR-083, FR-084, FR-123)
+- [ ] `F4-002` Wake word openWakeWord: 8 modelos embarcados + treino de nome personalizado (FR-080, FR-081, FR-082). Interface CLI presente; arquivos fonte baixados em `D:\ForjaOS` e índice privado de 8.571 candidatos negativos pt-BR gerado sem extrair áudio. Modelos e treinador não estão instalados. Fontes livres e pendências de licença dos ONNX compartilhados constam em `hero/wakeword/DATASETS.md`. **Pendência aceita em 15/11/2026:** as gravações autorizadas das oito frases por 20 locutores reais não estarão disponíveis agora; a validação FR-081 e a conclusão do item aguardam essa coleta.
+- [ ] `F4-003` STT faster-whisper, TTS Piper com visemes, mascote animado 60 fps (FR-083, FR-084, FR-123). CLI lista e baixa duas vozes pt-BR CC0 com revisão/hash fixados. Worker local STT/TTS em pipes, com dependências e modelo small fixados por SHA-256, TTS em blocos e visemas derivados de alinhamentos; build e testes sintéticos na imagem Linux passaram. O caminho para `pw-cat` e o cancelamento do `SpeechHandle` passaram com consumidor sintético; faltam teste com servidor PipeWire real, ligação ao `herod`, captura pelo nó PipeWire HERO, API D-Bus de interrupção, wizard de voz, animação e metas de latência em hardware Linux de referência.
 - [ ] `F4-004` Modo Jogo completo e medição de impacto em FPS (FR-043, NFR-008)
-- [ ] `F4-005` memd: vault, coletores, índice SQLite FTS5 + sqlite-vec, graph.json, retenção (FR-130, FR-131, FR-132, FR-133, FR-134, FR-137)
-- [ ] `F4-006` Visualizador de memória (timeline + grafo) e MCP hero-memory — telas visualizador_* (FR-135, FR-136)
+- [ ] `F4-005` memd: vault, coletores, índice SQLite FTS5 + sqlite-vec, graph.json, retenção (FR-130, FR-131, FR-132, FR-133, FR-134, FR-137). Em andamento: eventos shell/HERO, Git por hook e varredura diária, janelas KWin opt-in, notas em `vault/notes/`, tipos de nó e arestas de coocorrência em janelas de 15 min, Graphify local sob demanda e embarcado com dependências travadas, merge de nós/arestas Graphify no grafo geral e toggles dos coletores. Reconstrução sintética de 10 mil notas em contêiner: 58,5 s, SQLite íntegro; faltam medição de CPU ociosa por 1 h e validação em hardware Linux de referência.
+- [ ] `F4-006` Visualizador de memória (timeline + grafo) e MCP hero-memory — telas visualizador_* (FR-135, FR-136). Em andamento: visualizador QML com timeline, grafo de força calculado em WorkerScript, busca, zoom/pan, filtros por tipo/data (incluindo código) e toggle dos coletores; MCP stdio oferece search/timeline/related/remember/forget. Em contêiner Linux offscreen, 10 mil nós/30 mil relações receberam layout em 5,4 s; ainda faltam medição de abertura, 60 fps/consumo no Linux de referência e registro nos clientes.
 
 ### Fase 5 — Release 1.0
 

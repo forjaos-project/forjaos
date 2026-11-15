@@ -5,7 +5,7 @@ set -euo pipefail
 # https://github.com/ublue-os/bazzite-dx/blob/main/build_files/20-install-apps.sh
 # The desktop base already supplies the login manager, gaming stack and Podman.
 packages=(
-  android-tools bcc bpftop bpftrace ccache flatpak-builder git-credential-libsecret git-subtree gh ksshaskpass
+  android-tools bcc bpftop bpftrace ccache flatpak-builder git-credential-libsecret git-subtree gh ksshaskpass uv
   google-noto-sans-fonts nicstat numactl podman-machine podman-tui
   python3-ramalama restic rclone sysprof tiptop usbmuxd waypipe zsh
   rocm-hip rocm-opencl rocm-clinfo rocm-smi
@@ -18,7 +18,10 @@ dnf install -y --setopt=install_weak_deps=False "${packages[@]}"
 # proprietary/EULA license. The complete RPM inventory is exported by the
 # existing THIRD_PARTY_LICENSES generator in the image pipeline.
 for package in "${packages[@]}"; do
-  license=$(rpm -q --qf '%{LICENSE}' "$package")
+  if ! license=$(rpm -q --whatprovides --qf '%{LICENSE}\n' "$package" 2>&1); then
+    echo "DX RPM license query failed: $package ($license)" >&2
+    exit 1
+  fi
   if [[ -z "$license" || "$license" =~ [Pp]roprietary|EULA|Commercial|Redistributable ]]; then
     echo "DX RPM license requires review: $package ($license)" >&2
     exit 1
