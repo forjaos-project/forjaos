@@ -184,12 +184,13 @@ impl StorePaths {
                     "INSERT INTO notes(id, path, modified_at) VALUES (?1, ?2, ?3)",
                     params![id, relative, modified_at],
                 )
-                .and_then(|_| {
-                    transaction.execute(
-                        "INSERT INTO note_search(id, path, title, content) VALUES (?1, ?2, ?3, ?4)",
-                        params![id, relative, title, safe_text],
-                    )
-                })
+                .map_err(|error| error.to_string())?;
+            let note_rowid = transaction.last_insert_rowid();
+            transaction
+                .execute(
+                    "INSERT INTO note_search(id, path, title, content) VALUES (?1, ?2, ?3, ?4)",
+                    params![id, relative, title, safe_text],
+                )
                 .map_err(|error| error.to_string())?;
             if has_embeddings {
                 let serialized =
@@ -197,7 +198,7 @@ impl StorePaths {
                 transaction
                     .execute(
                         "INSERT INTO note_vectors(note_rowid, embedding) VALUES (?1, ?2)",
-                        params![transaction.last_insert_rowid(), serialized],
+                        params![note_rowid, serialized],
                     )
                     .map_err(|error| error.to_string())?;
             }
