@@ -59,7 +59,7 @@ Options:
 - `forja memory remember "<note>" [--json]`
 - `forja memory rebuild [--json]`
 - `forja memory viewer [--json]` opens the local QML viewer.
-- `forja memory graph [path] [--json]` builds a code graph with local Graphify analysis; Graphify must be installed and the `code` collector enabled.
+- `forja memory graph [path] [--json]` builds a code graph with local Graphify analysis; the official `graphifyy` package must be installed with uv and the `code` collector enabled.
 - `forja memory mcp` starts the stdio MCP transport for registration in a compatible client.
 - `forja memory collectors status|enable <source>|disable <source>` lists or changes `shell`, `git`, `hero`, `windows`, `code`, and `notes`. `windows`, `code`, and `notes` are disabled by default. The `windows` collector records only the active window's application and title every 30 seconds, without window contents or screenshots. `notes` indexes Markdown under `vault/notes/`; `code` only builds a graph when `forja memory graph` runs, requires Graphify to be installed, and does not send code to remote models.
 - `forja memory retention <source> <days>` sets retention; `0` means unlimited. `forja memory purge` applies the configured retention.

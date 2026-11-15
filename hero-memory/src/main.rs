@@ -276,7 +276,9 @@ impl StorePaths {
             return Err("coletor não disponível nesta versão".into());
         }
         if source == "code" && enabled && !command_available("graphify") {
-            return Err("Graphify não está instalado no sistema".into());
+            return Err(
+                "Graphify não está instalado; instale o pacote oficial `graphifyy` com uv".into(),
+            );
         }
         self.initialize()?;
         {
@@ -307,7 +309,9 @@ impl StorePaths {
             );
         }
         if !command_available("graphify") {
-            return Err("Graphify não está instalado no sistema".into());
+            return Err(
+                "Graphify não está instalado; instale o pacote oficial `graphifyy` com uv".into(),
+            );
         }
 
         let root = Path::new(path)
@@ -332,14 +336,13 @@ impl StorePaths {
         fs::create_dir_all(&output_root).map_err(|error| error.to_string())?;
         restrict_directory(&self.vault.join("graph/code"))?;
         restrict_directory(&output_root)?;
+        let graphify = command_path("graphify").ok_or_else(|| {
+            "Graphify não está instalado; use `uv tool install graphifyy`".to_string()
+        })?;
         let output = Command::new("timeout")
-            .args([
-                "--signal=TERM",
-                "--kill-after=15s",
-                "1800s",
-                "graphify",
-                "extract",
-            ])
+            .args(["--signal=TERM", "--kill-after=15s", "1800s"])
+            .arg(graphify)
+            .arg("extract")
             .arg(&root)
             .args(["--code-only", "--no-viz", "--out"])
             .arg(&output_root)
@@ -1207,13 +1210,29 @@ fn restrict_tree(path: &Path) -> Result<(), String> {
 }
 
 fn collector_available(source: &str) -> bool {
-    AVAILABLE_COLLECTORS.contains(&source) && (source != "code" || command_available("graphify"))
+    AVAILABLE_COLLECTORS.contains(&source)
+        && (source != "code" || command_path("graphify").is_some())
 }
 
 fn command_available(command: &str) -> bool {
-    std::env::var_os("PATH").is_some_and(|paths| {
-        std::env::split_paths(&paths).any(|directory| {
-            let candidate = directory.join(command);
+    command_path(command).is_some()
+}
+
+fn command_path(command: &str) -> Option<PathBuf> {
+    let mut directories = Vec::new();
+    if let Some(path) = std::env::var_os("PATH") {
+        directories.extend(std::env::split_paths(&path));
+    }
+    if let Some(path) = std::env::var_os("UV_TOOL_BIN_DIR") {
+        directories.push(PathBuf::from(path));
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        directories.push(PathBuf::from(home).join(".local/bin"));
+    }
+    directories
+        .into_iter()
+        .map(|directory| directory.join(command))
+        .find(|candidate| {
             let Ok(metadata) = fs::metadata(candidate) else {
                 return false;
             };
@@ -1230,7 +1249,6 @@ fn command_available(command: &str) -> bool {
                 true
             }
         })
-    })
 }
 
 fn ollama_tags(client: &reqwest::blocking::Client) -> Option<OllamaTags> {

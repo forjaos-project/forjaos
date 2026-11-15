@@ -32,9 +32,10 @@ Comandos disponíveis pela CLI incluem `search`, `timeline`, `remember`,
 `rebuild`, `viewer`, `collectors`, `retention`, `purge`, `graph <repo>` e
 `git register|unregister|scan`. `forja memory graph <repo>` exige o coletor
 `code` ativo e chama o executável Graphify com `--code-only --no-viz`, sem
-envio do código a um modelo remoto. O coletor só aparece como disponível se
-`graphify` estiver instalado. O resultado fica isolado em `vault/graph/code/`
-e não é mesclado ao grafo de notas.
+envio do código a um modelo remoto. O coletor só aparece como disponível se o
+pacote oficial [`graphifyy`](https://github.com/Graphify-Labs/graphify) estiver
+instalado no usuário com uv. O resultado fica isolado em `vault/graph/code/` e
+não é mesclado ao grafo de notas.
 
 Os coletores shell e HERO são automáticos. O Git oferece hook post-commit e
 varredura diária somente nos repositórios cadastrados com `forja memory git
