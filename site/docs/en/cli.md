@@ -55,7 +55,11 @@ Options:
 
 ## `forja ai`
 
-`forja ai "<question>" [--json]` sends the question and current directory to HERO over the session D-Bus. Conversation uses local Ollama with Qwen3 8B or 4B based on free VRAM and Game Mode. `alter` actions show the route/context and prompt `[y/N]`; `blocked` actions are refused. In JSON mode, a pending confirmation returns an ID that can be approved with `forja ai --confirm <id>`.
+`forja ai "<question>" [--json]` sends the question to HERO over the session D-Bus. Rules and local Qwen3 4B select a route; if the classifier is unavailable, HERO uses the local `conversa-de-voz` route. Ollama uses Qwen3 8B or 4B based on free VRAM and Game Mode. `alter` actions show the route/context and prompt `[y/N]`; `blocked` actions are refused. In JSON mode, a pending confirmation returns an ID that can be approved with `forja ai --confirm <id>`.
+
+Providers and models can be set in `~/.config/hero/routes.toml`. The `conversa-de-voz` and `sistema` routes accept only Ollama. Other routes accept `ollama`, `anthropic`, `openai`, `openrouter`, and `nous`; cloud providers require `model` and the matching key in KWallet (`forja keys set <provider>`). The daemon never switches providers automatically.
+
+The name and editable instructions are stored in `~/.config/hero/persona.toml`. The fixed safety block takes precedence over editable instructions; the ten most recent exchanges stay in memory only. The D-Bus API accepts `SnapshotDoApp`; the CLI sends `{}` when it has no window data.
 
 ## `forja memory`
 
