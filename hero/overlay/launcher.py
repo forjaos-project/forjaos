@@ -42,6 +42,7 @@ DEFAULTS = {
     "vpnName": "",
     "gameMode": "indisponível",
     "firewall": "indisponível",
+    "securityServices": [],
     "dnd": "indisponível",
     "cpu": "—",
     "ram": "—",
@@ -89,6 +90,11 @@ def _command_result(args: list[str], timeout: float = 1.0) -> tuple[bool, str]:
     except (OSError, subprocess.TimeoutExpired):
         return False, ""
     return result.returncode == 0, result.stdout.strip()
+
+
+def _service_state(name: str) -> str:
+    _, state = _command_result(["systemctl", "is-active", name])
+    return "ativo" if state == "active" else "inativo" if state in {"inactive", "failed"} else "indisponível"
 
 
 def _network_counters() -> tuple[int, int]:
@@ -165,6 +171,16 @@ class SnapshotWorker(QRunnable):
         snapshot["gameMode"] = "ativo" if game == "active" else "desligado" if game in {"inactive", "failed"} else "indisponível"
         firewall = _command(["firewall-cmd", "--state"])
         snapshot["firewall"] = "ativo" if firewall == "running" else "inativo" if firewall else "indisponível"
+        services = [
+            {"name": "firewalld", "status": snapshot["firewall"]},
+            {"name": "auditd", "status": _service_state("auditd.service")},
+            {"name": "journald", "status": _service_state("systemd-journald.service")},
+        ]
+        for package, service in (("crowdsec", "crowdsec.service"), ("suricata", "suricata.service")):
+            installed, _ = _command_result(["rpm", "-q", package])
+            if installed:
+                services.append({"name": package, "status": _service_state(service)})
+        snapshot["securityServices"] = services
 
         gpu = _command([
             "nvidia-smi", "--query-gpu=utilization.gpu,memory.used,memory.total",
@@ -330,6 +346,10 @@ class HeroBackend(QObject):
     def firewall(self) -> str:
         return self._values["firewall"]
 
+    @Property("QVariantList", notify=changed)
+    def securityServices(self) -> list:
+        return self._values["securityServices"]
+
     @Property(str, notify=changed)
     def dnd(self) -> str:
         return self._values["dnd"]
@@ -446,6 +466,11 @@ class HeroBackend(QObject):
             }
             for key, mapping in translations.items():
                 self._values[key] = mapping.get(self._values[key], self._values[key])
+            service_labels = {"ativo": "on", "inativo": "off", "indisponível": "unavailable"}
+            self._values["securityServices"] = [
+                {"name": item["name"], "status": service_labels.get(item["status"], item["status"])}
+                for item in self._values["securityServices"]
+            ]
         self.changed.emit()
 
     @Slot(str)

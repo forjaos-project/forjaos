@@ -117,10 +117,13 @@ Window {
                     anchors.margins: 14
                     spacing: 14
                     Image {
+                        id: assistantMascot
                         source: hero.busy ? "mascot/guara-thinking.svg" : "mascot/guara-idle.svg"
                         sourceSize.width: 66
                         sourceSize.height: 78
                         fillMode: Image.PreserveAspectFit
+                        scale: hero.busy ? 1.05 : 1
+                        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.InOutQuad } }
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
@@ -263,7 +266,7 @@ Window {
                             Layout.fillWidth: true
                             title: qsTr("Segurança e logs")
                             accent: "#10b981"
-                            lines: [qsTr("Firewall  ·  ") + hero.firewall].concat(hero.audit.length ? hero.audit.map(item => item.tool + "  ·  " + item.decision) : [qsTr("Auditoria  ·  sem eventos recentes")])
+                            lines: hero.securityServices.map(item => item.name + "  ·  " + item.status).concat(hero.audit.length ? hero.audit.map(item => item.tool + "  ·  " + item.decision) : [qsTr("Auditoria  ·  sem eventos recentes")])
                             action: qsTr("Consultar auditoria")
                             prompt: "Mostre os eventos recentes de auditoria, sem exibir prompts."
                         }
