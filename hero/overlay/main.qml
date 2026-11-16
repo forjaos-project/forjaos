@@ -32,7 +32,6 @@ Window {
 
     Rectangle {
         anchors.fill: parent
-        anchors.margins: 16
         radius: 16
         color: "#0f131d"
         border.color: "#3b494c"
@@ -153,67 +152,15 @@ Window {
                 }
             }
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-                Repeater {
-                    model: [
-                        {label: "CPU", value: hero.cpu, progress: parseInt(hero.cpu) >= 0 ? parseInt(hero.cpu) : -1, accent: "#00e5ff"},
-                        {label: "RAM", value: hero.ram, progress: hero.ramPercent, accent: "#38bdf8"},
-                        {label: "GPU", value: hero.gpu, progress: parseInt(hero.gpu) >= 0 ? parseInt(hero.gpu) : -1, accent: "#8b5cf6"},
-                        {label: "VRAM", value: hero.vram, progress: hero.vramPercent, accent: "#f97316"}
-                    ]
-                    delegate: Rectangle {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 62
-                        radius: 12
-                        color: "#171b26"
-                        border.color: "#3b494c"
-                        Column {
-                            anchors.centerIn: parent
-                            spacing: 5
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: modelData.label
-                                color: "#94a3b8"
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: 9
-                            }
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: modelData.value
-                                color: "#dfe2f0"
-                                font.family: "Plus Jakarta Sans"
-                                font.pixelSize: 14
-                                font.weight: Font.DemiBold
-                            }
-                            Rectangle {
-                                width: 44
-                                height: 4
-                                radius: 2
-                                color: "#1e2433"
-                                Rectangle {
-                                    width: parent.width * Math.max(0, Math.min(100, modelData.progress)) / 100
-                                    height: parent.height
-                                    radius: 2
-                                    color: modelData.accent
-                                    visible: modelData.progress >= 0
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             ScrollView {
+                id: statusScroll
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
                 ColumnLayout {
-                    width: parent.width
+                    width: statusScroll.availableWidth
                     spacing: 10
 
                     GridLayout {
@@ -241,6 +188,59 @@ Window {
                         }
                     }
 
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Repeater {
+                            model: [
+                                {label: "CPU", value: hero.cpu, progress: parseInt(hero.cpu) >= 0 ? parseInt(hero.cpu) : -1, accent: "#00e5ff"},
+                                {label: "RAM", value: hero.ram, progress: hero.ramPercent, accent: "#38bdf8"},
+                                {label: "GPU", value: hero.gpu, progress: parseInt(hero.gpu) >= 0 ? parseInt(hero.gpu) : -1, accent: "#8b5cf6"},
+                                {label: "VRAM", value: hero.vram, progress: hero.vramPercent, accent: "#f97316"}
+                            ]
+                            delegate: Rectangle {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 62
+                                radius: 12
+                                color: "#171b26"
+                                border.color: "#3b494c"
+                                Column {
+                                    anchors.centerIn: parent
+                                    spacing: 5
+                                    Text {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: modelData.label
+                                        color: "#94a3b8"
+                                        font.family: "JetBrains Mono"
+                                        font.pixelSize: 9
+                                    }
+                                    Text {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: modelData.value
+                                        color: "#dfe2f0"
+                                        font.family: "Plus Jakarta Sans"
+                                        font.pixelSize: 14
+                                        font.weight: Font.DemiBold
+                                    }
+                                    Rectangle {
+                                        width: 44
+                                        height: 4
+                                        radius: 2
+                                        color: "#1e2433"
+                                        Rectangle {
+                                            width: parent.width * Math.max(0, Math.min(100, modelData.progress)) / 100
+                                            height: parent.height
+                                            radius: 2
+                                            color: modelData.accent
+                                            visible: modelData.progress >= 0
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     GridLayout {
                         Layout.fillWidth: true
                         columns: 2
@@ -262,22 +262,22 @@ Window {
                             action: qsTr("Ver modelos instalados")
                             prompt: "Liste os modelos locais instalados."
                         }
-                        StatusCard {
-                            Layout.fillWidth: true
-                            title: qsTr("Segurança e logs")
-                            accent: "#10b981"
-                            lines: hero.securityServices.map(item => item.name + "  ·  " + item.status).concat(hero.audit.length ? hero.audit.map(item => item.tool + "  ·  " + item.decision) : [qsTr("Auditoria  ·  sem eventos recentes")])
-                            action: qsTr("Consultar auditoria")
-                            prompt: "Mostre os eventos recentes de auditoria, sem exibir prompts."
-                        }
-                        StatusCard {
-                            Layout.fillWidth: true
-                            title: qsTr("Rede")
-                            accent: "#00e5ff"
-                            lines: [qsTr("Recebido  ·  ") + hero.rxRate, qsTr("Enviado  ·  ") + hero.txRate, qsTr("Latência  ·  ") + hero.latency, qsTr("LAN  ·  ") + hero.lan]
-                            action: qsTr("Abrir configurações de rede")
-                            prompt: "Abra as configurações de rede do sistema."
-                        }
+                    }
+                    StatusCard {
+                        Layout.fillWidth: true
+                        title: qsTr("Segurança e logs")
+                        accent: "#10b981"
+                        lines: hero.securityServices.map(item => item.name + "  ·  " + item.status).concat(hero.audit.length ? hero.audit.map(item => item.tool + "  ·  " + item.decision) : [qsTr("Auditoria  ·  sem eventos recentes")])
+                        action: qsTr("Consultar auditoria")
+                        prompt: "Mostre os eventos recentes de auditoria, sem exibir prompts."
+                    }
+                    StatusCard {
+                        Layout.fillWidth: true
+                        title: qsTr("Rede")
+                        accent: "#00e5ff"
+                        lines: [qsTr("Recebido  ·  ") + hero.rxRate, qsTr("Enviado  ·  ") + hero.txRate, qsTr("Latência  ·  ") + hero.latency, qsTr("LAN  ·  ") + hero.lan]
+                        action: qsTr("Abrir configurações de rede")
+                        prompt: "Abra as configurações de rede do sistema."
                     }
                 }
             }

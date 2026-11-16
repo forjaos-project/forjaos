@@ -17,13 +17,14 @@ from PySide6.QtCore import (
     QObject,
     Property,
     QRunnable,
+    SIGNAL,
     QThreadPool,
     QTimer,
     QUrl,
     Signal,
     Slot,
 )
-from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusPendingCallWatcher, QDBusPendingReply
+from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusPendingCallWatcher
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtCore import QTranslator
 from PySide6.QtQml import QQmlApplicationEngine
@@ -132,7 +133,7 @@ class SnapshotWorker(QRunnable):
         self.signals = SnapshotSignals()
 
     def run(self) -> None:
-        snapshot = dict(DEFAULTS)
+        snapshot = {**DEFAULTS, "audit": []}
         snapshot["cpuCounters"] = _cpu_counters()
         snapshot["networkCounters"] = _network_counters()
 
@@ -246,21 +247,8 @@ class HeroBackend(QObject):
         self._pool = QThreadPool.globalInstance()
         self._bus = QDBusConnection.sessionBus()
         self._hero = QDBusInterface(BUS_NAME, OBJECT_PATH, INTERFACE, self._bus, self)
-        self._notifications = QDBusInterface(
-            "org.freedesktop.Notifications",
-            "/org/freedesktop/Notifications",
-            "org.freedesktop.Notifications",
-            self._bus,
-            self,
-        )
+        self._notifications: QDBusInterface | None = None
         self._notification_ids: dict[int, str] = {}
-        self._bus.connect(
-            "org.freedesktop.Notifications",
-            "/org/freedesktop/Notifications",
-            "org.freedesktop.Notifications",
-            "ActionInvoked",
-            self._notification_action,
-        )
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setInterval(2000)
         self._refresh_timer.timeout.connect(self.refresh)
@@ -286,8 +274,9 @@ class HeroBackend(QObject):
         if not path:
             return "desligado"
         try:
-            with socket.create_connection(str(path), timeout=0.15) as connection:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(0.15)
+                connection.connect(str(path))
                 data = connection.recv(256).decode("utf-8", errors="replace").splitlines()[0]
             state = str(json.loads(data).get("state", "indisponível"))
             if self._english:
@@ -496,13 +485,15 @@ class HeroBackend(QObject):
         watcher.finished.connect(lambda finished: self._handle_reply(finished, query, False))
 
     def _handle_reply(self, watcher: QDBusPendingCallWatcher, query: str, confirmed: bool) -> None:
-        reply = QDBusPendingReply(watcher)
-        if reply.isError():
+        failed = watcher.isError()
+        arguments = watcher.reply().arguments() if not failed else []
+        watcher.deleteLater()
+        if failed:
             result = {"status": "error", "answer": QCoreApplication.translate("main", "Não foi possível conversar com o serviço HERO.")}
         else:
             try:
-                result = json.loads(str(reply.argumentAt(0)))
-            except (ValueError, TypeError):
+                result = json.loads(str(arguments[0]))
+            except (ValueError, TypeError, IndexError):
                 result = {"status": "error", "answer": QCoreApplication.translate("main", "O serviço HERO retornou uma resposta inválida.")}
         status = str(result.get("status", "error"))
         tool = str(result.get("tool", ""))[:80]
@@ -536,6 +527,22 @@ class HeroBackend(QObject):
         watcher.finished.connect(lambda finished: self._handle_reply(finished, "", True))
 
     def _notify_confirmation(self, answer: str, tool: str, tier: str) -> None:
+        if self._notifications is None:
+            bus_interface = self._bus.interface()
+            if bus_interface is None or not bus_interface.isServiceRegistered(
+                "org.freedesktop.Notifications"
+            ).value():
+                return
+            self._notifications = QDBusInterface(
+                "org.freedesktop.Notifications",
+                "/org/freedesktop/Notifications",
+                "org.freedesktop.Notifications",
+                self._bus,
+                self,
+            )
+            self._notifications.connect(
+                SIGNAL("ActionInvoked(uint,QString)"), self._notification_action
+            )
         if not self._notifications.isValid():
             return
         summary = (
@@ -559,9 +566,11 @@ class HeroBackend(QObject):
         )
 
         def remember_id(finished: QDBusPendingCallWatcher) -> None:
-            reply = QDBusPendingReply(finished)
-            if not reply.isError() and self._pending_id:
-                self._notification_ids[int(reply.argumentAt(0))] = self._pending_id
+            failed = finished.isError()
+            arguments = finished.reply().arguments() if not failed else []
+            finished.deleteLater()
+            if arguments and self._pending_id:
+                self._notification_ids[int(arguments[0])] = self._pending_id
 
         watcher.finished.connect(remember_id)
 
@@ -572,6 +581,8 @@ class HeroBackend(QObject):
             self.confirmAction(action == "approve")
 
     def _close_notifications(self, pending_id: str) -> None:
+        if self._notifications is None:
+            return
         for notification_id, mapped_id in list(self._notification_ids.items()):
             if mapped_id == pending_id:
                 self._notifications.asyncCall("CloseNotification", notification_id)
