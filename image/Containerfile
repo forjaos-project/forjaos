@@ -2,7 +2,7 @@ ARG BASE_IMAGE=ghcr.io/ublue-os/bazzite-nvidia-open:stable
 FROM ${BASE_IMAGE} AS branding-builder
 ARG IMAGE_NAME=forjaos-nvidia-open
 # Build-only: grub2-tools-extra supplies grub2-mkfont; this stage is not shipped.
-RUN dnf install -y cargo rust rpm-build jetbrains-mono-fonts grub2-tools-extra qt6-linguist qt6-qtdeclarative-devel uv python3.14 && dnf clean all
+RUN dnf install -y cargo rust rpm-build jetbrains-mono-fonts grub2-tools-extra qt6-linguist qt6-qtdeclarative-devel qt6-qtbase-devel kf6-krunner-devel extra-cmake-modules cmake uv python3.14 && dnf clean all
 COPY hero-memory/graphify-runtime/pyproject.toml hero-memory/graphify-runtime/uv.lock /opt/forjaos/graphify-runtime/
 WORKDIR /opt/forjaos/graphify-runtime
 ENV UV_CACHE_DIR=/opt/forjaos/uv-cache
@@ -40,12 +40,20 @@ RUN cargo build --manifest-path /tmp/forja-cli/Cargo.toml --locked --release \
     && install -D -m 0755 /tmp/hero-mcp/target/release/hero-system /tmp/forjaos-bin/hero-system \
     && install -D -m 0755 /tmp/hero-mcp/target/release/hero-desktop /tmp/forjaos-bin/hero-desktop \
     && install -D -m 0755 /tmp/hero-mcp/target/release/hero-dev /tmp/forjaos-bin/hero-dev
+COPY hero/krunner/ /tmp/hero-kde/krunner/
+COPY hero/kde/CMakeLists.txt /tmp/hero-kde/CMakeLists.txt
+COPY hero/plasmoid/ /tmp/hero-kde/plasmoid/
+RUN dnf install -y kf6-ki18n-devel && dnf clean all
+RUN cmake -S /tmp/hero-kde -B /tmp/hero-kde-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+    && cmake --build /tmp/hero-kde-build --parallel \
+    && qmllint-qt6 -I /usr/lib64/qt6/qml -I /tmp/hero-kde-build/plasmoid-plugin /tmp/hero-kde/plasmoid/contents/ui/main.qml \
+    && DESTDIR=/tmp/forjaos-kde-root cmake --install /tmp/hero-kde-build
 COPY image/build_files/ /tmp/forjaos-build/
 COPY brand/ /tmp/brand/
 RUN bash /tmp/forjaos-build/build_branding_rpm.sh \
       /tmp/forjaos-build /tmp/brand/logo/png /tmp/forjaos-branding.rpm "${IMAGE_NAME}"
 RUN bash /tmp/forjaos-build/build_plasma_rpm.sh \
-      /tmp/forjaos-build /tmp/brand /tmp/forjaos-plasma.rpm
+      /tmp/forjaos-build /tmp/brand /tmp/hero-kde /tmp/forjaos-kde-root /tmp/forjaos-plasma.rpm
 
 FROM ${BASE_IMAGE}
 

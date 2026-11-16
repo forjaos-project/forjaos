@@ -1,0 +1,18 @@
+{
+  "KPlugin": {
+    "Authors": [
+      {
+        "Email": "forjaos@users.noreply.github.com",
+        "Name": "ForjaOS"
+      }
+    ],
+    "Description": "Envia perguntas e comandos de texto ao HERO local",
+    "EnabledByDefault": true,
+    "Icon": "assistant",
+    "License": "Apache-2.0",
+    "Name": "HERO",
+    "Version": "0.1",
+    "Website": "https://github.com/forjaos-project/forjaos"
+  },
+  "X-Plasma-Runner-Unique-Results": true
+}

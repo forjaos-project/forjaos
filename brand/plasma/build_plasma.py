@@ -151,6 +151,7 @@ top.addWidget("org.kde.plasma.panelspacer");
 top.addWidget("org.kde.plasma.digitalclock");
 top.addWidget("org.kde.plasma.panelspacer");
 top.addWidget("org.kde.plasma.systemtray");
+top.addWidget("org.forjaos.hero");
 
 var dock = new Panel;
 dock.location = "bottom";

@@ -1,0 +1,15 @@
+{
+  "KPlugin": {
+    "Authors": [{ "Email": "forjaos@users.noreply.github.com", "Name": "ForjaOS" }],
+    "Category": "Utilities",
+    "Description": "Acesse o HERO no painel do Plasma",
+    "EnabledByDefault": true,
+    "Icon": "assistant",
+    "Id": "org.forjaos.hero",
+    "License": "Apache-2.0",
+    "Name": "HERO · Guará",
+    "Version": "0.1"
+  },
+  "KPackageStructure": "Plasma/Applet",
+  "X-Plasma-API-Minimum-Version": "6.0"
+}

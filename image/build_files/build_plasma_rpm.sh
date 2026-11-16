@@ -1,19 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 3 ]]; then
-  printf 'usage: %s BUILD_FILES BRAND_ROOT OUTPUT_RPM\n' "$0" >&2
+if [[ $# -ne 5 ]]; then
+  printf 'usage: %s BUILD_FILES BRAND_ROOT HERO_ROOT KDE_INSTALL_ROOT OUTPUT_RPM\n' "$0" >&2
   exit 2
 fi
 
 build_files=$1
 brand_root=$2
-output_rpm=$3
+hero_root=$3
+kde_install_root=$4
+output_rpm=$5
 base_look_evr=$(rpm -q --qf '%{VERSION}-%{RELEASE}' plasma-lookandfeel-fedora)
 base_wallpaper_evr=$(rpm -q --qf '%{VERSION}-%{RELEASE}' f45-backgrounds-kde)
 workdir=$(mktemp -d)
 mkdir -p "$workdir/SOURCES" "$workdir/RPMS"
 cp -a "$brand_root/plasma" "$workdir/SOURCES/"
+mkdir -p "$workdir/SOURCES/hero"
+cp -a "$hero_root/plasmoid" "$workdir/SOURCES/hero/"
+find "$workdir/SOURCES/hero/plasmoid" -type f -exec chmod 0644 {} +
+mkdir -p "$workdir/SOURCES/mascot"
+cp "$brand_root/mascot/guara-"*.svg "$workdir/SOURCES/mascot/"
+cp -a "$kde_install_root/usr/lib64/qt6/qml/org" "$workdir/SOURCES/hero/qml-org"
+cp -a "$kde_install_root/usr/lib64/plugins/kf6/krunner" "$workdir/SOURCES/hero/"
 find "$workdir/SOURCES/plasma" -type f -exec chmod 0644 {} +
 mkdir -p "$workdir/SOURCES/wallpapers" "$workdir/SOURCES/fonts" \
   "$workdir/SOURCES/shortcuts" "$workdir/SOURCES/licenses"
