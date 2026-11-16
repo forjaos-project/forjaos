@@ -27,3 +27,11 @@ model = "openrouter/auto-code"
 ```
 
 Os outros provedores aceitos são `ollama`, `anthropic`, `openai` e `nous`. Provedores cloud precisam de `model` e da chave correspondente salva por `forja keys set <provedor>`. A configuração usa endpoints oficiais fixos; o usuário não pode apontar o daemon para um host arbitrário.
+
+## Overlay Central de Comando
+
+`overlay/launcher.py` abre `overlay/main.qml` com `Meta+Space`, via `brand/shortcuts/org.forjaos.hero.desktop`. A janela fecha com `Esc`, clique fora ou segundo acionamento do atalho; o processo do overlay termina ao fechar. O histórico de conversa fica somente na memória do processo.
+
+O campo de texto chama `AskText` pelo barramento D-Bus e encaminha o locale como `pt-BR` ou `en-US`; o daemon usa esse valor apenas para selecionar o idioma de resposta. A interface usa o catálogo Qt Linguist em `overlay/i18n/hero-overlay_en.ts`, compilado no build da imagem. Toda ação continua sujeita ao Policy Engine. Quando o daemon retorna `confirmation_required`, a pessoa pode aprovar ou recusar na janela ou na notificação `org.freedesktop.Notifications`.
+
+As métricas de CPU, RAM e rede vêm de `/proc`; estado de rede, Bluetooth, Modo Jogo e firewall é consultado localmente a cada 2 s sem varredura de LAN. O tile de VPN mostra o perfil ativo e permite solicitar sua desconexão pelo Policy Engine. O estado de Não perturbe é lido da propriedade D-Bus `org.freedesktop.Notifications.Inhibited`; a alteração permanece nos controles do Plasma. Containers vêm de `podman ps`/`docker ps`, modelos de `ollama list` e auditoria de eventos locais do journald sem texto do pedido. Latência aparece como “sem teste ativo” e a LAN como “varredura desativada” até existir uma fonte autorizada para esses dados. O firewall não é alterável pelo HERO.

@@ -10,7 +10,7 @@ Requires:       jetbrains-mono-fonts
 
 %description
 Project-owned Plasma dark/light theme, first-login layout, 4K wallpapers,
-Plus Jakarta Sans UI font, global shortcuts (terminal, files), Plymouth and GRUB
+Plus Jakarta Sans UI font, global shortcuts (terminal, files, HERO), Plymouth and GRUB
 themes, and the Konsole profile. Exact compatibility
 capabilities preserve the inherited KDE dependency graph during replacement.
 
@@ -56,6 +56,7 @@ install -Dm0644 %{_sourcedir}/licenses/OFL.txt %{buildroot}/usr/share/licenses/f
 /usr/share/fonts/plus-jakarta-sans/
 /usr/share/kglobalaccel/org.forjaos.terminal.desktop
 /usr/share/kglobalaccel/org.forjaos.files.desktop
+/usr/share/kglobalaccel/org.forjaos.hero.desktop
 /usr/share/plymouth/themes/forjaos-dark
 /usr/share/plymouth/themes/forjaos-light
 /usr/share/grub/themes/forja-dark

@@ -9,6 +9,7 @@ Sistema operacional open source baseado em Linux (Fedora Atomic via Universal Bl
 - Sem plano em arquivo, review, claim ou ADR. Registre uma decisão só se ela for difícil de lembrar depois, em uma linha no commit.
 - PR só quando o remoto exigir: abra apenas depois de finalizar a implementação e marcar o item `[x]` no `TODO.md`. PR em rascunho é proibida.
 - Entrega só está concluída após a PR ser mesclada na `main` e a issue correspondente estar fechada. Se o item não tiver issue, crie uma antes da PR. Não apresente trabalho parcial como tarefa concluída.
+- Depois de mesclar a PR e fechar a issue, remova a imagem/instância Docker e o cache de build criados exclusivamente para o item, após salvar qualquer artefato exigido para entrega. Remova por referência/ID específicos; não use limpeza global nem toque em imagens base, containers, volumes ou caches compartilhados.
 - Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a ISO final. Testes e validação em hardware ficam para o build final.
 
 ## Proteções (as únicas regras)

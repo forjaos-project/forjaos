@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ForjaOS HERO
+Name[pt_BR]=HERO do ForjaOS
+Comment=Open the HERO command center
+Comment[pt_BR]=Abrir a Central de Comando do HERO
+Exec=/usr/libexec/forjaos/hero-overlay
+TryExec=/usr/libexec/forjaos/hero-overlay
+Icon=applications-system
+NoDisplay=true
+X-KDE-Shortcuts=Meta+Space

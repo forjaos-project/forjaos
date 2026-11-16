@@ -18,6 +18,8 @@ const FIXED_PERSONA: &str = "Responda em português brasileiro com frases curtas
 #[serde(deny_unknown_fields)]
 pub struct SnapshotDoApp {
     #[serde(default)]
+    pub language: Option<String>,
+    #[serde(default)]
     pub application: Option<String>,
     #[serde(default)]
     pub window_title: Option<String>,
@@ -250,7 +252,15 @@ fn persona_prompt(persona: &Persona, route: &str, snapshot: &SnapshotDoApp) -> S
         prompt.push_str(&safe_snapshot_value(title));
     }
     prompt.push_str("\nRegras fixas de segurança e formato: ");
-    prompt.push_str(FIXED_PERSONA);
+    let fixed_persona = match snapshot.language.as_deref() {
+        Some("en-US") => concat!(
+            "Reply in US English using short, clear sentences. ",
+            "State the current route when asked. Never claim an action was executed unless the local catalog reports success. ",
+            "System actions may only run through the local catalog and Policy Engine; confirm before any action that changes the system."
+        ),
+        _ => FIXED_PERSONA,
+    };
+    prompt.push_str(fixed_persona);
     prompt
 }
 
