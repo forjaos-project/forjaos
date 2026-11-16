@@ -313,7 +313,7 @@ push/cron ─► GitHub Actions
 | --- | --- |
 | `hero-system` | `services.list/status` (livre), `services.restart` (alterar), `journal.query` (livre), `firewall.status` (livre), `firewall.toggle_zone` (bloqueado), `gpu.status`, `cpu.status`, `mem.status`, `disk.status`, `thermal.status` (livre), `network.status` (livre), `wifi.toggle`, `bluetooth.toggle`, `vpn.toggle` (alterar), `system.update` (alterar), `system.rollback` (alterar), `ollama.models`, `ollama.load/unload` (alterar), `packages.install` (alterar), `power.profile` (alterar), `game_mode.toggle` (alterar) |
 | `hero-desktop` | `windows.list`, `windows.focus` (livre), `notify.send` (livre), `dnd.toggle` (alterar), `media.play/pause/next` (livre), `clipboard.read` (alterar), `clipboard.write` (livre), `screenshot.take` (alterar, com indicador), `apps.launch` (livre), `url.open` (livre) |
-| `hero-dev` | `projects.list` (livre, pastas conhecidas), `project.open` (livre), `compose.up/down/logs` (alterar/alterar/livre), `containers.list/logs` (livre), `git.status/log/diff` (livre), `git.branch.create` (alterar), `git.commit` (alterar), `tests.run` (alterar), `terminal.spawn_agent` (alterar: claude-code, codex, hermes) |
+| `hero-dev` | `projects.list` (livre, pastas conhecidas), `project.open` (alterar), `compose.up/down/logs` (alterar/alterar/livre), `containers.list/logs` (livre), `git.status/log/diff` (livre), `git.branch.create` (alterar), `git.commit` (alterar), `tests.run` (alterar), `terminal.spawn_agent` (bloqueado: o servidor MCP não inicia agentes autônomos) |
 | `hero-memory` | `memory.search`, `memory.timeline`, `memory.related` (livre), `memory.remember` (livre), `memory.forget` (alterar) |
 
 | ID | Requisito | DoD |

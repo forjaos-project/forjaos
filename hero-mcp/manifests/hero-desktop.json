@@ -1,0 +1,173 @@
+{
+  "server": "hero-desktop",
+  "transport": "stdio",
+  "tools": [
+    {
+      "name": "windows.list",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "windows.focus",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "window_id": {
+            "type": "string",
+            "maxLength": 16
+          }
+        },
+        "required": [
+          "window_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "notify.send",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "title",
+          "body"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "dnd.toggle",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "media.play",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "media.pause",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "media.next",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "clipboard.read",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "clipboard.write",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 16000
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "screenshot.take",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\\.png$"
+          }
+        },
+        "required": [
+          "filename"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "apps.launch",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "desktop_id": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "desktop_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "url.open",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^https?://\\S+$"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "outputSchema": {
+    "type": "string"
+  }
+}

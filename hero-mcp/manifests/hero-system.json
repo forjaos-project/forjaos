@@ -1,0 +1,299 @@
+{
+  "server": "hero-system",
+  "transport": "stdio",
+  "tools": [
+    {
+      "name": "services.list",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "services.status",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "service"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "services.restart",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "service"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "journal.query",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lines": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "format": "uint8"
+          }
+        },
+        "required": [
+          "lines"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "firewall.status",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "firewall.toggle_zone",
+      "tier": "bloqueado",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "gpu.status",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "cpu.status",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "mem.status",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "disk.status",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "thermal.status",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "network.status",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "wifi.toggle",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "bluetooth.toggle",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "vpn.toggle",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "enabled"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "system.update",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "system.rollback",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "ollama.models",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "ollama.load",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ollama.unload",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "packages.install",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "package": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "package"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "power.profile",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "type": "string",
+            "enum": [
+              "power-saver",
+              "balanced",
+              "performance"
+            ]
+          }
+        },
+        "required": [
+          "profile"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_mode.toggle",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "outputSchema": {
+    "type": "string"
+  }
+}

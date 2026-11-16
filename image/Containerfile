@@ -16,8 +16,12 @@ COPY cli/Cargo.toml cli/Cargo.lock /tmp/forja-cli/
 COPY cli/src/ /tmp/forja-cli/src/
 COPY hero/Cargo.toml hero/Cargo.lock /tmp/herod/
 COPY hero/src/ /tmp/herod/src/
+COPY hero/tool-policy.toml /tmp/herod/tool-policy.toml
 COPY hero-memory/Cargo.toml hero-memory/Cargo.lock /tmp/memd/
 COPY hero-memory/src/ /tmp/memd/src/
+COPY hero-mcp/Cargo.toml hero-mcp/Cargo.lock /tmp/hero-mcp/
+COPY hero-mcp/src/ /tmp/hero-mcp/src/
+COPY hero-mcp/manifests/ /tmp/forjaos-mcp-manifests/
 RUN cargo build --manifest-path /tmp/forja-cli/Cargo.toml --locked --release \
     && install -D -m 0755 /tmp/forja-cli/target/release/forja /tmp/forjaos-bin/forja \
     && install -d -m 0755 /tmp/forja-completions \
@@ -27,7 +31,11 @@ RUN cargo build --manifest-path /tmp/forja-cli/Cargo.toml --locked --release \
     && cargo build --manifest-path /tmp/herod/Cargo.toml --locked --release \
     && install -D -m 0755 /tmp/herod/target/release/herod /tmp/forjaos-bin/herod \
     && cargo build --manifest-path /tmp/memd/Cargo.toml --locked --release \
-    && install -D -m 0755 /tmp/memd/target/release/memd /tmp/forjaos-bin/memd
+    && install -D -m 0755 /tmp/memd/target/release/memd /tmp/forjaos-bin/memd \
+    && cargo build --manifest-path /tmp/hero-mcp/Cargo.toml --locked --release --bins \
+    && install -D -m 0755 /tmp/hero-mcp/target/release/hero-system /tmp/forjaos-bin/hero-system \
+    && install -D -m 0755 /tmp/hero-mcp/target/release/hero-desktop /tmp/forjaos-bin/hero-desktop \
+    && install -D -m 0755 /tmp/hero-mcp/target/release/hero-dev /tmp/forjaos-bin/hero-dev
 COPY image/build_files/ /tmp/forjaos-build/
 COPY brand/ /tmp/brand/
 RUN bash /tmp/forjaos-build/build_branding_rpm.sh \
@@ -61,6 +69,10 @@ COPY --from=branding-builder /tmp/forja-completions/_forja /usr/share/zsh/site-f
 COPY --from=branding-builder /tmp/forja-completions/forja.fish /usr/share/fish/vendor_completions.d/forja.fish
 COPY --from=branding-builder /tmp/forjaos-bin/herod /usr/libexec/forjaos/herod
 COPY --from=branding-builder /tmp/forjaos-bin/memd /usr/libexec/forjaos/memd
+COPY --from=branding-builder /tmp/forjaos-bin/hero-system /usr/libexec/forjaos/hero-system
+COPY --from=branding-builder /tmp/forjaos-bin/hero-desktop /usr/libexec/forjaos/hero-desktop
+COPY --from=branding-builder /tmp/forjaos-bin/hero-dev /usr/libexec/forjaos/hero-dev
+COPY --from=branding-builder /tmp/forjaos-mcp-manifests/ /usr/share/forjaos/mcp-manifests/
 COPY --from=branding-builder /opt/forjaos/graphify-runtime/.venv /opt/forjaos/graphify-runtime/.venv
 COPY --from=branding-builder /tmp/THIRD_PARTY_PYTHON_LICENSES.md /usr/share/licenses/forjaos/THIRD_PARTY_PYTHON_LICENSES.md
 RUN dnf install -y /tmp/forjaos-branding.rpm && dnf clean all && rm /tmp/forjaos-branding.rpm

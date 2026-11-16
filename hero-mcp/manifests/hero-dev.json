@@ -1,0 +1,309 @@
+{
+  "server": "hero-dev",
+  "transport": "stdio",
+  "projectScope": "~/.config/hero/projects.toml; ~/proj, ~/dev, ~/code",
+  "tools": [
+    {
+      "name": "projects.list",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "project.open",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "compose.up",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "backend": {
+            "type": "string",
+            "enum": [
+              "podman",
+              "docker"
+            ]
+          }
+        },
+        "required": [
+          "project",
+          "backend"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "compose.down",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "backend": {
+            "type": "string",
+            "enum": [
+              "podman",
+              "docker"
+            ]
+          }
+        },
+        "required": [
+          "project",
+          "backend"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "compose.logs",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "backend": {
+            "type": "string",
+            "enum": [
+              "podman",
+              "docker"
+            ]
+          }
+        },
+        "required": [
+          "project",
+          "backend"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "containers.list",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "backend": {
+            "type": "string",
+            "enum": [
+              "podman",
+              "docker"
+            ]
+          }
+        },
+        "required": [
+          "project",
+          "backend"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "containers.logs",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "container": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "backend": {
+            "type": "string",
+            "enum": [
+              "podman",
+              "docker"
+            ]
+          }
+        },
+        "required": [
+          "project",
+          "container",
+          "backend"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "git.status",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "git.log",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "git.diff",
+      "tier": "livre",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "git.branch.create",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "branch": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "project",
+          "branch"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "git.commit",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "project",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "tests.run",
+      "tier": "alterar",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "terminal.spawn_agent",
+      "tier": "bloqueado",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "agent": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "codex",
+              "hermes"
+            ]
+          },
+          "task": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "project",
+          "agent",
+          "task"
+        ],
+        "additionalProperties": false
+      },
+      "blocked": true
+    }
+  ],
+  "outputSchema": {
+    "type": "string"
+  }
+}
