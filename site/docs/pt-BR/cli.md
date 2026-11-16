@@ -40,6 +40,8 @@ Opções:
 
 - `forja mcp register [--json]` registra servidores MCP instalados em Claude Code, Codex CLI e Hermes Agent. O comando preserva entradas já configuradas; servidores e clientes ausentes são informados.
 
+Os servidores locais `hero-system`, `hero-desktop` e `hero-dev` usam stdio e não abrem portas. `hero-dev` aceita somente projetos conhecidos; consulte [os servidores MCP do HERO](../../../hero-mcp/README.md) para catálogo, tiers e formato de cadastro.
+
 ## `forja doctor`
 
 ```text
