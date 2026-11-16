@@ -2,7 +2,7 @@ ARG BASE_IMAGE=ghcr.io/ublue-os/bazzite-nvidia-open:stable
 FROM ${BASE_IMAGE} AS branding-builder
 ARG IMAGE_NAME=forjaos-nvidia-open
 # Build-only: grub2-tools-extra supplies grub2-mkfont; this stage is not shipped.
-RUN dnf install -y cargo rust rpm-build jetbrains-mono-fonts grub2-tools-extra uv python3.14 && dnf clean all
+RUN dnf install -y cargo rust rpm-build jetbrains-mono-fonts grub2-tools-extra qt6-linguist qt6-qtdeclarative-devel uv python3.14 && dnf clean all
 COPY hero-memory/graphify-runtime/pyproject.toml hero-memory/graphify-runtime/uv.lock /opt/forjaos/graphify-runtime/
 WORKDIR /opt/forjaos/graphify-runtime
 ENV UV_CACHE_DIR=/opt/forjaos/uv-cache
@@ -22,6 +22,10 @@ COPY hero-memory/src/ /tmp/memd/src/
 COPY hero-mcp/Cargo.toml hero-mcp/Cargo.lock /tmp/hero-mcp/
 COPY hero-mcp/src/ /tmp/hero-mcp/src/
 COPY hero-mcp/manifests/ /tmp/forjaos-mcp-manifests/
+COPY hero/overlay/ /tmp/hero-overlay/
+RUN qmllint-qt6 /tmp/hero-overlay/main.qml \
+    && lupdate-qt6 /tmp/hero-overlay/main.qml /tmp/hero-overlay/launcher.py -ts /tmp/hero-overlay/i18n/hero-overlay_en.ts \
+    && lrelease-qt6 -fail-on-unfinished /tmp/hero-overlay/i18n/hero-overlay_en.ts -qm /tmp/hero-overlay_en.qm
 RUN cargo build --manifest-path /tmp/forja-cli/Cargo.toml --locked --release \
     && install -D -m 0755 /tmp/forja-cli/target/release/forja /tmp/forjaos-bin/forja \
     && install -d -m 0755 /tmp/forja-completions \
@@ -73,6 +77,9 @@ COPY --from=branding-builder /tmp/forjaos-bin/hero-system /usr/libexec/forjaos/h
 COPY --from=branding-builder /tmp/forjaos-bin/hero-desktop /usr/libexec/forjaos/hero-desktop
 COPY --from=branding-builder /tmp/forjaos-bin/hero-dev /usr/libexec/forjaos/hero-dev
 COPY --from=branding-builder /tmp/forjaos-mcp-manifests/ /usr/share/forjaos/mcp-manifests/
+COPY hero/overlay/ /usr/share/forjaos/hero-overlay/
+COPY brand/mascot/guara-idle.svg brand/mascot/guara-thinking.svg /usr/share/forjaos/hero-overlay/mascot/
+COPY --from=branding-builder /tmp/hero-overlay_en.qm /usr/share/forjaos/hero-overlay/i18n/hero-overlay_en.qm
 COPY --from=branding-builder /opt/forjaos/graphify-runtime/.venv /opt/forjaos/graphify-runtime/.venv
 COPY --from=branding-builder /tmp/THIRD_PARTY_PYTHON_LICENSES.md /usr/share/licenses/forjaos/THIRD_PARTY_PYTHON_LICENSES.md
 RUN dnf install -y /tmp/forjaos-branding.rpm && dnf clean all && rm /tmp/forjaos-branding.rpm
@@ -143,11 +150,14 @@ RUN install -D -m 0755 /tmp/forjaos-firstboot/setup-dual-boot.sh \
     && rm -r /tmp/forjaos-firstboot
 
 RUN ln -s /opt/forjaos/graphify-runtime/.venv/bin/graphify /usr/bin/graphify \
+    && chmod 0755 /usr/share/forjaos/hero-overlay/launcher.py \
+    && ln -s /usr/share/forjaos/hero-overlay/launcher.py /usr/libexec/forjaos/hero-overlay \
     && chmod 0755 /usr/share/forjaos/voice-runtime/launcher.py \
     && ln -s /usr/share/forjaos/voice-runtime/launcher.py /usr/libexec/forjaos/voice-worker \
     && chmod 0755 /usr/share/forjaos/voice-runtime/playback.py \
     && ln -s /usr/share/forjaos/voice-runtime/playback.py /usr/libexec/forjaos/hero-speak \
     && test -x /usr/bin/graphify \
+    && test -x /usr/libexec/forjaos/hero-overlay \
     && test -x /usr/libexec/forjaos/voice-worker \
     && test -x /usr/libexec/forjaos/hero-speak
 

@@ -26,7 +26,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 ### Fase 3 — HERO v0 nativo (texto + sistema)
 
 - [x] `F3-004` MCP servers `hero-system`, `hero-desktop`, `hero-dev` (rmcp, stdio): 49 entradas, 48 ferramentas operacionais, schemas/tier conferidos com `mcp-inspector`; build da imagem e presença dos executáveis/manifests confirmados. `hero-dev` usa projetos cadastrados ou detectados nas raízes previstas. `terminal.spawn_agent` está no catálogo como bloqueada e não inicia agente autônomo (FR-110, FR-112).
-- [ ] `F3-005` Overlay Central de Comando em modo texto — tela central_de_comando_hero_corrigida (FR-121, FR-085, FR-124, FR-125)
+- [ ] `F3-005` Overlay Central de Comando em modo texto — tela central_de_comando_hero_corrigida (FR-121, FR-085, FR-124, FR-125). Em andamento: UI QML, métricas, chat D-Bus com seleção de idioma, confirmação inline/notificação, catálogo en-US e atalho Super+Espaço; tiles exibem estado real de VPN e Não perturbe, e a VPN ativa pode ser desconectada pelo Policy Engine. Faltam rebuild da versão atual, animação/logs reais e aceitação visual.
 - [ ] `F3-006` Plasmoid do Guará (texto) e plugin KRunner — tela plasmoid_do_guar (FR-120, FR-122)
 - [ ] `F3-007` Catálogo de ações (10 do G3), rota código, rota saúde-do-sistema (FR-093, FR-094, FR-095). Em andamento: Compose up/down/logs, modo jogo, Git status, abrir projeto atual, testes com confirmação, GPU/CPU/RAM/rede, Wi-Fi/Bluetooth/VPN com confirmação, URL, memória, update, rollback e reinício de serviço; faltam apps/serviços adicionais, política por manifesto e validação de catálogo.
 - [ ] `F3-008` Spike Hermes Agent (1 semana) → ADR-025 (FR-097)
