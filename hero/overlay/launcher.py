@@ -219,7 +219,11 @@ class SnapshotWorker(QRunnable):
             except (ValueError, TypeError):
                 continue
 
-        self.signals.finished.emit(snapshot)
+        try:
+            self.signals.finished.emit(snapshot)
+        except RuntimeError:
+            # The overlay may close while a background probe is still running.
+            pass
 
 
 class HeroBackend(QObject):
@@ -475,11 +479,9 @@ class HeroBackend(QObject):
         self._pending_id = ""
         self.changed.emit()
         self.messageAdded.emit(query, "", "", "", "pensando", True)
-        call = self._hero.asyncCall(
+        call = self._hero.asyncCallWithArgumentList(
             "AskText",
-            query,
-            str(Path.home()),
-            json.dumps({"language": self._language}),
+            [query, str(Path.home()), json.dumps({"language": self._language})],
         )
         watcher = QDBusPendingCallWatcher(call, self)
         watcher.finished.connect(lambda finished: self._handle_reply(finished, query, False))
@@ -522,7 +524,7 @@ class HeroBackend(QObject):
         self._busy = True
         self.changed.emit()
         watcher = QDBusPendingCallWatcher(
-            self._hero.asyncCall("ConfirmAction", pending_id, approved), self
+            self._hero.asyncCallWithArgumentList("ConfirmAction", [pending_id, approved]), self
         )
         watcher.finished.connect(lambda finished: self._handle_reply(finished, "", True))
 
@@ -551,16 +553,18 @@ class HeroBackend(QObject):
             else f"{answer[:220]}\nFerramenta: {tool} · tier {tier}"
         )
         watcher = QDBusPendingCallWatcher(
-            self._notifications.asyncCall(
+            self._notifications.asyncCallWithArgumentList(
                 "Notify",
-                "ForjaOS HERO",
-                0,
-                "dialog-question",
-                "Confirmation required" if self._english else "Confirmação necessária",
-                summary,
-                ["approve", "Confirm" if self._english else "Confirmar", "deny", "Decline" if self._english else "Recusar"],
-                {},
-                120000,
+                [
+                    "ForjaOS HERO",
+                    0,
+                    "dialog-question",
+                    "Confirmation required" if self._english else "Confirmação necessária",
+                    summary,
+                    ["approve", "Confirm" if self._english else "Confirmar", "deny", "Decline" if self._english else "Recusar"],
+                    {},
+                    120000,
+                ],
             ),
             self,
         )
@@ -585,7 +589,7 @@ class HeroBackend(QObject):
             return
         for notification_id, mapped_id in list(self._notification_ids.items()):
             if mapped_id == pending_id:
-                self._notifications.asyncCall("CloseNotification", notification_id)
+                self._notifications.asyncCallWithArgumentList("CloseNotification", [notification_id])
                 self._notification_ids.pop(notification_id, None)
 
     @Slot()
@@ -594,7 +598,7 @@ class HeroBackend(QObject):
         self._refresh_timer.stop()
         if self._pending_id and self._hero.isValid():
             self._close_notifications(self._pending_id)
-            self._hero.asyncCall("ConfirmAction", self._pending_id, False)
+            self._hero.asyncCallWithArgumentList("ConfirmAction", [self._pending_id, False])
             self._pending_id = ""
 
 
