@@ -39,7 +39,7 @@ pub fn set_instructions(instructions: &str) -> Result<String, &'static str> {
     let path = config_path()?;
     super::routes::write_private_atomic(&path, serialized.as_bytes())
         .map_err(|_| "persona_unavailable")?;
-    Ok(serde_json::to_string(&persona).map_err(|_| "persona_unavailable")?)
+    serde_json::to_string(&persona).map_err(|_| "persona_unavailable")
 }
 
 fn config_path() -> Result<PathBuf, &'static str> {

@@ -1,18 +1,17 @@
 Name:           forjaos-plasma
 Version:        0.1
 Release:        1%{?dist}
-Summary:        ForjaOS Plasma desktop theme, fonts, and wallpapers
+Summary:        ForjaOS Plasma desktop theme, HERO widget, and KRunner plugin
 License:        Apache-2.0 AND CC-BY-SA-4.0 AND OFL-1.1
-BuildArch:      noarch
 Provides:       plasma-lookandfeel-fedora = %{base_look_evr}
 Provides:       f45-backgrounds-kde = %{base_wallpaper_evr}
 Requires:       jetbrains-mono-fonts
 
 %description
-Project-owned Plasma dark/light theme, first-login layout, 4K wallpapers,
-Plus Jakarta Sans UI font, global shortcuts (terminal, files, HERO), Plymouth and GRUB
-themes, and the Konsole profile. Exact compatibility
-capabilities preserve the inherited KDE dependency graph during replacement.
+Project-owned Plasma themes and first-login layout, the HERO Guará plasmoid
+and KRunner plugin, 4K wallpapers, Plus Jakarta Sans UI font, global shortcuts,
+Plymouth and GRUB themes, and the Konsole profile. Exact compatibility capabilities
+preserve the inherited KDE dependency graph during replacement.
 
 %prep
 
@@ -21,6 +20,14 @@ capabilities preserve the inherited KDE dependency graph during replacement.
 %install
 mkdir -p %{buildroot}/usr/share/plasma/look-and-feel
 cp -a %{_sourcedir}/plasma/look-and-feel/org.forjaos.desktop %{buildroot}/usr/share/plasma/look-and-feel/
+install -d %{buildroot}/usr/share/plasma/plasmoids/org.forjaos.hero/contents
+cp -a %{_sourcedir}/hero/plasmoid/metadata.json %{buildroot}/usr/share/plasma/plasmoids/org.forjaos.hero/
+cp -a %{_sourcedir}/hero/plasmoid/contents/. %{buildroot}/usr/share/plasma/plasmoids/org.forjaos.hero/contents/
+install -d %{buildroot}/usr/share/plasma/plasmoids/org.forjaos.hero/contents/images
+install -m 0644 %{_sourcedir}/mascot/guara-*.svg %{buildroot}/usr/share/plasma/plasmoids/org.forjaos.hero/contents/images/
+install -Dm0755 %{_sourcedir}/hero/qml-org/forjaos/hero/libhero_applet_plugin.so %{buildroot}/usr/lib64/qt6/qml/org/forjaos/hero/libhero_applet_plugin.so
+install -Dm0644 %{_sourcedir}/hero/qml-org/forjaos/hero/qmldir %{buildroot}/usr/lib64/qt6/qml/org/forjaos/hero/qmldir
+install -Dm0755 %{_sourcedir}/hero/krunner/krunner_forjaos_hero.so %{buildroot}/usr/lib64/plugins/kf6/krunner/krunner_forjaos_hero.so
 mkdir -p %{buildroot}/usr/share/plasma/desktoptheme
 cp -a %{_sourcedir}/plasma/desktoptheme/forja-dark %{buildroot}/usr/share/plasma/desktoptheme/
 cp -a %{_sourcedir}/plasma/desktoptheme/forja-light %{buildroot}/usr/share/plasma/desktoptheme/
@@ -48,6 +55,10 @@ install -Dm0644 %{_sourcedir}/licenses/OFL.txt %{buildroot}/usr/share/licenses/f
 %license /usr/share/licenses/forjaos-plasma/LICENSES.md
 %license /usr/share/licenses/forjaos-plasma/OFL.txt
 /usr/share/plasma/look-and-feel/org.forjaos.desktop
+/usr/share/plasma/plasmoids/org.forjaos.hero
+/usr/lib64/qt6/qml/org/forjaos/hero/libhero_applet_plugin.so
+/usr/lib64/qt6/qml/org/forjaos/hero/qmldir
+/usr/lib64/plugins/kf6/krunner/krunner_forjaos_hero.so
 /usr/share/plasma/desktoptheme/forja-dark
 /usr/share/plasma/desktoptheme/forja-light
 /usr/share/color-schemes/ForjaDark.colors

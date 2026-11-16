@@ -4,7 +4,7 @@
 | --- | --- |
 | Slug | `forjaos_plasmoid_do_guar_kde_plasma_6` |
 | Protótipo | `docs/telas/forjaos_plasmoid_do_guar_kde_plasma_6/code.html` (sha256 `62976ac0e58b`) · `screen.png` |
-| Requisitos | FR-120, FR-123, FR-054, FR-071, FR-076 |
+| Requisitos | FR-120, FR-122, FR-123, FR-054, FR-071, FR-076 |
 | Tema | dark (Cybernetic Forge) |
 | Tecnologia-alvo | Plasmoid QML (`org.forjaos.hero`) para o painel do Plasma 6 + popup; menu de contexto nativo |
 | Pasta do monorepo | hero/plasmoid |
@@ -40,7 +40,16 @@ Ocorrências encontradas no `code.html` por `grep`; a coluna "Na implementação
 
 ## Ícones
 
-Protótipo usa Material Symbols; produto usa Breeze recolorido pelos tokens ou SVG próprio em `brand/icons/` (DESIGN-RULES §5).
+| Uso | Ícone Breeze |
+| --- | --- |
+| HERO / Guará | SVG próprio `brand/mascot/guara-*.svg` |
+| Abrir Central de Comando | `window-new` |
+| Mutar microfone | `audio-input-microphone-muted` |
+| Abrir visualizador de memória | `view-list-details` |
+| Ativar Modo Jogo | `applications-games` |
+| Desligar HERO | `process-stop` |
+
+O protótipo usa Material Symbols; o produto usa Breeze recolorido pelos tokens ou SVG próprio em `brand/icons/` (DESIGN-RULES §5).
 
 Sem ícones Material no protótipo. Ícones necessários na implementação vêm de Breeze ou `brand/icons/` e devem ser listados aqui antes do gate *plan*.
 
@@ -49,6 +58,7 @@ Sem ícones Material no protótipo. Ícones necessários na implementação vêm
 - [ ] 60 fps na animação sem rasterização por frame (FR-123)
 - [ ] Indicador permanente de microfone + AuditEvent ao mutar (FR-076)
 - [ ] Estados seguem sinal D-Bus `StateChanged` (FR-071)
+- [ ] KRunner aceita `h <pergunta>` e encaminha a consulta ao `AskText` do HERO (FR-122)
 - [ ] Popup ≤ 384 px; fecha ao perder foco
 - [ ] Lip-sync por `VisemeEvent[]` (FR-084)
 - [ ] Sem Fira Code
