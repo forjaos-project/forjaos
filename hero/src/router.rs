@@ -118,3 +118,30 @@ fn rule_route(query: &str) -> Option<&'static str> {
 fn contains_any(text: &str, phrases: &[&str]) -> bool {
     phrases.iter().any(|phrase| text.contains(phrase))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::rule_route;
+
+    #[test]
+    fn rule_route_covers_each_local_intent_and_fallback() {
+        let cases = [
+            ("o que fiz ontem na memória?", Some("memória")),
+            ("temperatura da GPU", Some("saúde-do-sistema")),
+            ("desligar o wi-fi", Some("sistema")),
+            ("corrija este bug em Rust", Some("código")),
+            ("pesquise fontes sobre bootc", Some("pesquisa")),
+            ("escreva uma história curta", Some("criação")),
+            ("olá, como vai?", None),
+        ];
+        for (query, expected) in cases {
+            assert_eq!(rule_route(query), expected, "consulta: {query}");
+        }
+    }
+
+    #[test]
+    fn rule_route_ignores_case_and_surrounding_whitespace() {
+        assert_eq!(rule_route("  STATUS DA CPU  "), Some("saúde-do-sistema"));
+        assert_eq!(rule_route("  "), None);
+    }
+}

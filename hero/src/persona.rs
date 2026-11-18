@@ -46,3 +46,38 @@ fn config_path() -> Result<PathBuf, &'static str> {
     let home = std::env::var_os("HOME").ok_or("home_unavailable")?;
     Ok(PathBuf::from(home).join(".config/hero/persona.toml"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{load, set_instructions};
+    use crate::test_support::TestHome;
+
+    #[test]
+    fn rejects_oversized_and_control_character_instructions() {
+        assert_eq!(
+            set_instructions(&"x".repeat(4001)),
+            Err("invalid_persona_instructions")
+        );
+        assert_eq!(
+            set_instructions("linha\u{7}inválida"),
+            Err("invalid_persona_instructions")
+        );
+    }
+
+    #[test]
+    fn persona_instructions_are_trimmed_persisted_and_clearable() {
+        let _home = TestHome::new();
+        assert_eq!(load().instructions, None);
+        let saved: serde_json::Value =
+            serde_json::from_str(&set_instructions("  Seja objetivo.  ").expect("save persona"))
+                .expect("persona JSON");
+        assert_eq!(saved["instructions"], "Seja objetivo.");
+        assert_eq!(load().instructions.as_deref(), Some("Seja objetivo."));
+
+        let cleared: serde_json::Value =
+            serde_json::from_str(&set_instructions(" \n ").expect("clear persona"))
+                .expect("cleared persona JSON");
+        assert!(cleared.get("instructions").is_none());
+        assert_eq!(load().instructions, None);
+    }
+}
