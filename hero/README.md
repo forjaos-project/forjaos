@@ -16,7 +16,15 @@ O daemon de sessão `herod` publica `org.forjaos.Hero` no barramento D-Bus do us
 - Histórico das dez trocas mais recentes fica apenas em memória e desaparece ao encerrar `herod`. Chaves de provedores cloud são lidas do KWallet via Secret Service; não há fallback automático entre provedores.
 - Método `ConfirmAction(s, b) -> s`: consome um identificador aleatório de confirmação, válido por 120 segundos e para uma única ação. A aprovação é aplicada pelo HERO e gera `AuditEvent` JSON no journald (`SYSLOG_IDENTIFIER=hero-audit`) com timestamp, gatilho, rota, ferramenta, tier, decisão e duração, sem áudio nem texto da pergunta.
 
-Estados aceitos: `desligado`, `ocioso`, `escutando`, `gravando`, `transcrevendo`, `pensando`, `falando`, `erro`. A transição inicia em `ocioso`. A unit `herod.service` limita o daemon a 400 MiB, 50% de CPU e prioridade `Nice=5`; Ollama roda fora do cgroup do daemon. O turno de texto tem limite de 58 segundos, erros do provedor são sanitizados e não há fallback automático. Subprocessos de ação são cancelados com até 55 segundos. A integração de áudio e wake word pertence à Fase 4.
+## Catálogo, delegação e diagnóstico
+
+`hero/tool-policy.toml` espelha os tiers dos três manifestos MCP. O verificador `python3 scripts/check_hero_catalog.py` exige que as 49 ferramentas tenham schema e tier válido, e rejeita tier local abaixo do MCP. Os aliases exclusivos do `herod` também são declarados nesse arquivo.
+
+A rota `código` reconhece pedidos explícitos para Claude Code, Codex CLI ou Hermes. Depois da confirmação, inicia o CLI no Konsole, usando um projeto Git cadastrado em `~/.config/hero/projects.toml` ou detectado sob `~/proj`, `~/dev` ou `~/code`. Quando há mais de um projeto, o nome citado no pedido ou no título da janela precisa resolver a seleção; sem seleção inequívoca, nada é executado. O diretório é o `cwd` do CLI. Codex inicia com `workspace-write` e aprovações `on-request`; Claude Code e Hermes mantêm a política configurada pelo usuário, sem uma camada adicional de sandbox do HERO. A saída segue ao vivo no terminal e por um FIFO temporário para o HERO devolver o código de saída e as últimas linhas. O FIFO não armazena os dados e é removido ao encerrar. A execução tem limite de 10 minutos. A ferramenta MCP `terminal.spawn_agent` continua bloqueada; essa delegação passa pelo Policy Engine do HERO e exige confirmação.
+
+A rota `saúde-do-sistema` consulta erros do journald das últimas 24 horas, GPU, carga da CPU, memória, estado da rede, firewall, auditd, portas TCP em escuta, espaço em disco e sensores térmicos. Cada fonte indisponível aparece como indisponível, sem ser convertida em um valor normal.
+
+Estados aceitos: `desligado`, `ocioso`, `escutando`, `gravando`, `transcrevendo`, `pensando`, `falando`, `erro`. A transição inicia em `ocioso`. A unit `herod.service` limita o daemon a 400 MiB, 50% de CPU e prioridade `Nice=5`; Ollama roda fora do cgroup do daemon. O turno de conversa tem limite de 58 segundos e subprocessos comuns de ação, até 55 segundos. A delegação de código tem limite de 10 minutos. Erros do provedor são sanitizados e não há fallback automático. A integração de áudio e wake word pertence à Fase 4.
 
 Exemplo de rota cloud opt-in:
 

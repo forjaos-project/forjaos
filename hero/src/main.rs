@@ -7,6 +7,8 @@ mod router;
 mod routes;
 #[cfg(unix)]
 mod socket;
+#[cfg(test)]
+mod test_support;
 
 use policy::{Classification, Proposal, Tier};
 use serde_json::json;
@@ -155,16 +157,22 @@ impl Hero {
                 return json!({"status":"invalid_snapshot","answer":"Contexto do aplicativo inválido."}).to_string()
             }
         };
+        let resolved_project =
+            policy::resolve_project_context(cwd, query, snapshot.window_title.as_deref());
+        let effective_cwd = resolved_project
+            .as_ref()
+            .map(|path| path.to_string_lossy().into_owned())
+            .unwrap_or_else(|| cwd.to_string());
         self.pending
             .retain(|_, pending| pending.expires_at > Instant::now());
         if self.state != State::Idle {
             return ai::busy();
         }
         let _ = self.transition_to("pensando", &emitter).await;
-        let result = match policy::classify(query, cwd) {
+        let result = match policy::classify(query, &effective_cwd) {
             Classification::Conversation => {
                 let route = router::classify(query).await;
-                let context = snapshot_context(route, cwd, &snapshot);
+                let context = snapshot_context(route, &effective_cwd, &snapshot);
                 let history = self.history.iter().cloned().collect::<Vec<_>>();
                 let response = ai::ask(query, route, &context, &snapshot, &history).await;
                 if let Ok(value) = serde_json::from_str::<serde_json::Value>(&response) {
@@ -480,4 +488,140 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(unix))]
     std::future::pending::<()>().await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(unix)]
+    use super::confirmation_id;
+    use super::{snapshot_context, Hero, PendingAction, State};
+    use crate::ai::SnapshotDoApp;
+    use std::collections::{HashMap, VecDeque};
+    use tokio::sync::watch;
+
+    #[test]
+    fn state_names_round_trip_and_unknown_values_are_rejected() {
+        for (state, name) in [
+            (State::Off, "desligado"),
+            (State::Idle, "ocioso"),
+            (State::Listening, "escutando"),
+            (State::Recording, "gravando"),
+            (State::Transcribing, "transcrevendo"),
+            (State::Thinking, "pensando"),
+            (State::Speaking, "falando"),
+            (State::Error, "erro"),
+        ] {
+            assert_eq!(state.as_str(), name);
+            assert_eq!(State::parse(name), Some(state));
+        }
+        assert_eq!(State::parse("unknown"), None);
+    }
+
+    #[test]
+    fn state_machine_accepts_only_declared_transitions() {
+        let states = [
+            State::Off,
+            State::Idle,
+            State::Listening,
+            State::Recording,
+            State::Transcribing,
+            State::Thinking,
+            State::Speaking,
+            State::Error,
+        ];
+        let allowed = [
+            (State::Off, State::Idle),
+            (State::Idle, State::Off),
+            (State::Idle, State::Listening),
+            (State::Idle, State::Thinking),
+            (State::Idle, State::Error),
+            (State::Listening, State::Off),
+            (State::Listening, State::Idle),
+            (State::Listening, State::Recording),
+            (State::Listening, State::Error),
+            (State::Recording, State::Off),
+            (State::Recording, State::Idle),
+            (State::Recording, State::Transcribing),
+            (State::Recording, State::Error),
+            (State::Transcribing, State::Off),
+            (State::Transcribing, State::Idle),
+            (State::Transcribing, State::Thinking),
+            (State::Transcribing, State::Error),
+            (State::Thinking, State::Off),
+            (State::Thinking, State::Idle),
+            (State::Thinking, State::Speaking),
+            (State::Thinking, State::Error),
+            (State::Speaking, State::Off),
+            (State::Speaking, State::Idle),
+            (State::Speaking, State::Listening),
+            (State::Speaking, State::Error),
+            (State::Error, State::Off),
+            (State::Error, State::Idle),
+        ];
+        for from in states {
+            for to in states {
+                assert_eq!(
+                    from.can_transition_to(to),
+                    allowed.contains(&(from, to)),
+                    "transição {} -> {}",
+                    from.as_str(),
+                    to.as_str()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn snapshot_context_is_sanitized_and_limited_to_relevant_routes() {
+        let empty = SnapshotDoApp::default();
+        assert_eq!(
+            snapshot_context("sistema", "/home/rodri/game-api", &empty),
+            "nenhum contexto adicional"
+        );
+        let snapshot = SnapshotDoApp {
+            application: Some("Konsole\nnoise".into()),
+            window_title: Some("issue\u{7} #92".into()),
+            ..SnapshotDoApp::default()
+        };
+        assert_eq!(
+            snapshot_context("código", "/home/rodri/game-api", &snapshot),
+            "aplicativo: Konsolenoise; janela: issue #92; projeto atual: game-api"
+        );
+        assert_eq!(
+            snapshot_context("criação", "/home/rodri/game-api", &SnapshotDoApp::default()),
+            "projeto atual: game-api"
+        );
+        let long = SnapshotDoApp {
+            application: Some("x".repeat(150)),
+            ..SnapshotDoApp::default()
+        };
+        assert_eq!(
+            snapshot_context("sistema", ".", &long).chars().count(),
+            "aplicativo: ".chars().count() + 100
+        );
+    }
+
+    #[test]
+    fn hero_properties_and_invalid_setters_are_safe() {
+        let (state_tx, _) = watch::channel(State::Idle.as_str());
+        let mut hero = Hero {
+            state: State::Idle,
+            state_tx,
+            pending: HashMap::<String, PendingAction>::new(),
+            history: VecDeque::new(),
+        };
+        assert_eq!(hero.state(), "ocioso");
+        assert!(hero.set_route_provider("unknown", "ollama", "").is_err());
+        assert!(hero.set_persona_instructions("inválido\u{7}").is_err());
+        assert!(hero.set_tool_tier("unknown.tool", "livre").is_err());
+        assert!(hero.save_routine("invalid id", "[]", "livre").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn confirmation_ids_are_192_bit_hex_tokens() {
+        let id = confirmation_id().expect("/dev/urandom available");
+        assert_eq!(id.len(), 48);
+        assert!(id.chars().all(|character| character.is_ascii_hexdigit()));
+    }
 }

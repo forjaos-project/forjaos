@@ -200,3 +200,127 @@ pub fn write_private_atomic(path: &Path, content: &[u8]) -> io::Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_choice, validate_route, write_private_atomic, Provider, RouteProvider};
+    use crate::test_support::TestHome;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_path(name: &str) -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("hero-{name}-{}-{stamp}", std::process::id()))
+    }
+
+    #[test]
+    fn providers_have_stable_config_names_and_cloud_flags() {
+        for (name, provider, cloud) in [
+            ("ollama", Provider::Ollama, false),
+            ("anthropic", Provider::Anthropic, true),
+            ("openai", Provider::OpenAi, true),
+            ("openrouter", Provider::OpenRouter, true),
+            ("nous", Provider::Nous, true),
+        ] {
+            assert_eq!(Provider::parse(name), Some(provider));
+            assert_eq!(provider.as_str(), name);
+            assert_eq!(provider.is_cloud(), cloud);
+        }
+        assert_eq!(Provider::parse("unknown"), None);
+    }
+
+    #[test]
+    fn providers_are_restricted_by_route_and_cloud_model() {
+        assert_eq!(validate_route("sistema"), Ok(()));
+        assert_eq!(validate_route("unsupported"), Err("route_not_supported"));
+        assert_eq!(
+            validate_choice(
+                "conversa-de-voz",
+                &RouteProvider {
+                    provider: Provider::OpenAi,
+                    model: Some("gpt-test".into()),
+                }
+            ),
+            Err("cloud_provider_forbidden_on_local_route")
+        );
+        assert_eq!(
+            validate_choice(
+                "pesquisa",
+                &RouteProvider {
+                    provider: Provider::Anthropic,
+                    model: None,
+                }
+            ),
+            Err("provider_model_required")
+        );
+        assert_eq!(
+            validate_choice(
+                "pesquisa",
+                &RouteProvider {
+                    provider: Provider::OpenRouter,
+                    model: Some("bad model".into()),
+                }
+            ),
+            Err("invalid_model_id")
+        );
+        assert_eq!(
+            validate_choice("sistema", &RouteProvider::default()),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn private_atomic_writer_creates_and_replaces_a_file() {
+        let dir = unique_path("atomic");
+        let path = dir.join("config.toml");
+        write_private_atomic(&path, b"first=true").expect("write initial config");
+        write_private_atomic(&path, b"first=false").expect("replace config");
+        assert_eq!(fs::read(&path).expect("read config"), b"first=false");
+        fs::remove_dir_all(dir).expect("remove test directory");
+    }
+
+    #[test]
+    fn route_configuration_defaults_and_updates_are_persisted() {
+        let _home = TestHome::new();
+        assert_eq!(
+            super::provider_for("pesquisa").unwrap().provider,
+            Provider::Ollama
+        );
+        let updated = super::set_provider("pesquisa", "openai", "gpt-test")
+            .expect("set cloud provider on research route");
+        let routes: serde_json::Value = serde_json::from_str(&updated).expect("routes JSON");
+        assert_eq!(routes["pesquisa"]["provider"], "openai");
+        assert_eq!(routes["pesquisa"]["model"], "gpt-test");
+        assert_eq!(
+            super::provider_for("pesquisa").unwrap().provider,
+            Provider::OpenAi
+        );
+        assert_eq!(
+            super::set_provider("sistema", "openai", "gpt-test"),
+            Err("cloud_provider_forbidden_on_local_route")
+        );
+        assert_eq!(
+            super::set_provider("pesquisa", "openai", "bad model"),
+            Err("invalid_model_id")
+        );
+        assert!(super::list_json().is_ok());
+    }
+
+    #[test]
+    fn malformed_route_configuration_is_rejected() {
+        let home = TestHome::new();
+        let config_dir = home.root().join(".config/hero");
+        fs::create_dir_all(&config_dir).expect("create route config directory");
+        fs::write(config_dir.join("routes.toml"), "invalid = [\n")
+            .expect("write invalid route config");
+        assert_eq!(
+            super::provider_for("pesquisa").unwrap_err(),
+            "route_config_invalid"
+        );
+        assert_eq!(super::list_json(), Err("route_config_invalid"));
+    }
+}
