@@ -8,6 +8,8 @@ pub struct Persona {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub voice: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub instructions: Option<String>,
 }
 
@@ -79,5 +81,20 @@ mod tests {
                 .expect("cleared persona JSON");
         assert!(cleared.get("instructions").is_none());
         assert_eq!(load().instructions, None);
+    }
+
+    #[test]
+    fn instructions_preserve_cli_selected_voice() {
+        let home = TestHome::new();
+        let path = home.root().join(".config/hero/persona.toml");
+        std::fs::create_dir_all(path.parent().expect("config dir")).expect("create config");
+        std::fs::write(&path, "name = \"Guará\"\nvoice = \"pt_BR-cadu-medium\"\n")
+            .expect("CLI persona");
+        assert_eq!(load().voice.as_deref(), Some("pt_BR-cadu-medium"));
+        set_instructions("Seja objetivo.").expect("save instructions");
+        let persona = load();
+        assert_eq!(persona.name.as_deref(), Some("Guará"));
+        assert_eq!(persona.voice.as_deref(), Some("pt_BR-cadu-medium"));
+        assert_eq!(persona.instructions.as_deref(), Some("Seja objetivo."));
     }
 }

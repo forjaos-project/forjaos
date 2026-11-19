@@ -770,6 +770,7 @@ mod tests {
     fn prompts_sanitize_window_metadata_and_follow_selected_language() {
         let persona = Persona {
             name: Some("Guará Dev".into()),
+            voice: None,
             instructions: Some("  Seja conciso.  ".into()),
         };
         let snapshot = SnapshotDoApp {

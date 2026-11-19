@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Launch the text-only HERO command overlay."""
+"""Launch the HERO command overlay in an unlocked Plasma session."""
 
 from __future__ import annotations
 
@@ -22,9 +22,10 @@ from PySide6.QtCore import (
     QTimer,
     QUrl,
     Signal,
+    SLOT,
     Slot,
 )
-from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusPendingCallWatcher
+from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage, QDBusPendingCallWatcher, QDBusVariant
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtCore import QTranslator
 from PySide6.QtQml import QQmlApplicationEngine
@@ -35,6 +36,9 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 BUS_NAME = "org.forjaos.Hero"
 OBJECT_PATH = "/org/forjaos/Hero"
 INTERFACE = "org.forjaos.Hero"
+TRIGGER_INTERFACE = "org.forjaos.Hero.Trigger"
+SCREEN_SAVER = "org.freedesktop.ScreenSaver"
+SCREEN_SAVER_PATH = "/ScreenSaver"
 DEFAULTS = {
     "heroState": "indisponível",
     "wifi": "indisponível",
@@ -230,6 +234,10 @@ class HeroBackend(QObject):
     changed = Signal()
     messageAdded = Signal(str, str, str, str, str, bool)
     requestFinished = Signal()
+    voiceTranscribed = Signal(str)
+    voiceAnswer = Signal(str)
+    voiceIgnored = Signal(str)
+    voiceError = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
@@ -245,12 +253,20 @@ class HeroBackend(QObject):
         self._last_network: tuple[int, int] | None = None
         self._last_sample = 0.0
         self._busy = False
+        self._ptt_starting = False
+        self._ptt_recording = False
+        self._ptt_stop_requested = False
         self._pending_id = ""
         self._request_started = 0.0
         self._closed = False
         self._pool = QThreadPool.globalInstance()
         self._bus = QDBusConnection.sessionBus()
         self._hero = QDBusInterface(BUS_NAME, OBJECT_PATH, INTERFACE, self._bus, self)
+        self._trigger = QDBusInterface(BUS_NAME, OBJECT_PATH, TRIGGER_INTERFACE, self._bus, self)
+        self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceTranscribed", "s", self, SLOT("_on_voice_transcribed(QString)"))
+        self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceAnswer", "s", self, SLOT("_on_voice_answer(QString)"))
+        self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceIgnored", "s", self, SLOT("_on_voice_ignored(QString)"))
+        self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceFailed", "s", self, SLOT("_on_voice_failed(QString)"))
         self._notifications: QDBusInterface | None = None
         self._notification_ids: dict[int, str] = {}
         self._refresh_timer = QTimer(self)
@@ -402,6 +418,89 @@ class HeroBackend(QObject):
     @Property(bool, notify=changed)
     def busy(self) -> bool:
         return self._busy
+
+    @Property(bool, notify=changed)
+    def microphoneEnabled(self) -> bool:
+        return self._hero.isValid() and bool(self._hero.property("MicrophoneEnabled"))
+
+    @Slot()
+    def toggleMicrophone(self) -> None:
+        if not self._hero.isValid():
+            return
+        properties = QDBusInterface(BUS_NAME, OBJECT_PATH, "org.freedesktop.DBus.Properties", self._bus, self)
+        call = properties.asyncCallWithArgumentList(
+            "Set", [INTERFACE, "MicrophoneEnabled", QDBusVariant(not self.microphoneEnabled)]
+        )
+        watcher = QDBusPendingCallWatcher(call, self)
+        watcher.finished.connect(lambda finished: (self.changed.emit(), finished.deleteLater()))
+
+    @Slot()
+    def startPushToTalk(self) -> None:
+        if self._busy or self._ptt_starting or self._ptt_recording:
+            return
+        state = self.heroState
+        if state not in {"ocioso", "idle", "falando", "speaking"}:
+            self.voiceIgnored.emit(state)
+            return
+        if not self.microphoneEnabled:
+            return
+        self._ptt_starting = True
+        self._ptt_stop_requested = False
+        watcher = QDBusPendingCallWatcher(self._trigger.asyncCall("StartPushToTalk"), self)
+        watcher.finished.connect(self._push_to_talk_started)
+
+    def _push_to_talk_started(self, watcher: QDBusPendingCallWatcher) -> None:
+        self._ptt_starting = False
+        try:
+            reply = json.loads(str(watcher.reply().arguments()[0])) if not watcher.isError() else {}
+        except (ValueError, TypeError, IndexError):
+            reply = {}
+        watcher.deleteLater()
+        if reply.get("status") != "recording":
+            self._ptt_stop_requested = False
+            if reply.get("status") != "busy":
+                self.voiceError.emit(QCoreApplication.translate("main", "Não foi possível iniciar a gravação local."))
+            return
+        self._ptt_recording = True
+        if self._ptt_stop_requested:
+            self.stopPushToTalk()
+
+    @Slot()
+    def stopPushToTalk(self) -> None:
+        if self._ptt_starting:
+            self._ptt_stop_requested = True
+            return
+        if not self._ptt_recording:
+            return
+        self._ptt_recording = False
+        self._ptt_stop_requested = False
+        watcher = QDBusPendingCallWatcher(self._trigger.asyncCall("StopPushToTalk"), self)
+        watcher.finished.connect(self._push_to_talk_stopped)
+
+    def _push_to_talk_stopped(self, watcher: QDBusPendingCallWatcher) -> None:
+        try:
+            reply = json.loads(str(watcher.reply().arguments()[0])) if not watcher.isError() else {}
+        except (ValueError, TypeError, IndexError):
+            reply = {}
+        watcher.deleteLater()
+        if reply.get("status") != "transcribing":
+            self.voiceError.emit(QCoreApplication.translate("main", "Não foi possível transcrever a gravação local."))
+
+    @Slot(str)
+    def _on_voice_transcribed(self, text: str) -> None:
+        self.voiceTranscribed.emit(text)
+
+    @Slot(str)
+    def _on_voice_answer(self, answer: str) -> None:
+        self.voiceAnswer.emit(answer)
+
+    @Slot(str)
+    def _on_voice_ignored(self, state: str) -> None:
+        self.voiceIgnored.emit(state)
+
+    @Slot(str)
+    def _on_voice_failed(self, _reason: str) -> None:
+        self.voiceError.emit(QCoreApplication.translate("main", "Não foi possível concluir o turno de voz local."))
 
     @Property(str, notify=changed)
     def pendingId(self) -> str:
@@ -602,6 +701,25 @@ class HeroBackend(QObject):
             self._pending_id = ""
 
 
+def _session_unlocked(bus: QDBusConnection) -> bool:
+    saver = QDBusInterface(SCREEN_SAVER, SCREEN_SAVER_PATH, SCREEN_SAVER, bus)
+    if not bus.isConnected() or not saver.isValid():
+        return False
+    reply = saver.call("GetActive")
+    return reply.type() != QDBusMessage.MessageType.ErrorMessage and reply.arguments() == [False]
+
+
+class LockWatcher(QObject):
+    def __init__(self, root: QObject) -> None:
+        super().__init__()
+        self.root = root
+
+    @Slot(bool)
+    def active_changed(self, active: bool) -> None:
+        if active:
+            self.root.close()
+
+
 def _toggle_existing() -> bool:
     name = "forjaos-hero-overlay"
     client = QLocalSocket()
@@ -616,9 +734,12 @@ def _toggle_existing() -> bool:
 
 
 def main() -> int:
+    app = QApplication(sys.argv)
+    bus = QDBusConnection.sessionBus()
+    if not _session_unlocked(bus):
+        return 0
     if _toggle_existing():
         return 0
-    app = QApplication(sys.argv)
     app.setApplicationName("ForjaOS HERO")
     root_dir = Path("/usr/share/forjaos/hero-overlay")
     if not root_dir.exists():
@@ -633,6 +754,13 @@ def main() -> int:
     if not engine.rootObjects():
         return 1
     root = engine.rootObjects()[0]
+    lock_watcher = LockWatcher(root)
+    if not bus.connect(SCREEN_SAVER, SCREEN_SAVER_PATH, SCREEN_SAVER, "ActiveChanged", "b", lock_watcher, SLOT("active_changed(bool)")):
+        root.close()
+        return 1
+    if not _session_unlocked(bus):
+        root.close()
+        return 0
     server = QLocalServer(app)
     if not server.listen("forjaos-hero-overlay"):
         return 1
@@ -644,6 +772,10 @@ def main() -> int:
 
     server.newConnection.connect(handle_connection)
     root.closing.connect(lambda _: backend.closeOverlay())
+    if not _session_unlocked(bus):
+        root.close()
+        return 0
+    root.show()
     return app.exec()
 
 

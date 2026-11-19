@@ -11,6 +11,7 @@ export TEST_DIGEST="sha256:$(printf 'a%.0s' {1..64})"
 export TEST_PUBLIC_KEY="$REPO/cosign.pub"
 export GH_TOKEN=synthetic-token GITHUB_ACTOR=synthetic-actor SIGNING_SECRET=synthetic-key GITHUB_RUN_ID=123
 export LICENSE_REPORT_DIR="$TMP/reports"
+export TRIVY_REPORT_DIR="$TMP/trivy"
 
 cat > "$TMP/bin/podman" <<'FAKE_PODMAN'
 #!/usr/bin/env bash
@@ -60,6 +61,19 @@ case "$1" in
     ;;
 esac
 FAKE_SKOPEO
+
+cat > "$TMP/bin/trivy" <<'FAKE_TRIVY'
+#!/usr/bin/env bash
+printf 'trivy %s\n' "$*" >> "$TEST_LOG"
+while (($#)); do
+  if [[ "$1" == --output ]]; then
+    printf '{"Results":[]}\n' > "$2"
+    exit 0
+  fi
+  shift
+done
+exit 1
+FAKE_TRIVY
 chmod +x "$TMP/bin/"*
 
 assert_order() {
@@ -75,7 +89,7 @@ for variant in forjaos-nvidia-open forjaos; do
   : > "$TEST_LOG"
   bash "$REPO/.github/scripts/daily-image.sh" "$variant"
   if [[ "$variant" == forjaos-nvidia-open ]]; then base=bazzite-nvidia-open; else base=bazzite; fi
-  grep -qF -- "--build-arg BASE_IMAGE=ghcr.io/ublue-os/$base:stable" "$TEST_LOG" || {
+  grep -qF -- "--build-arg BASE_IMAGE=ghcr.io/ublue-os/$base@$TEST_DIGEST" "$TEST_LOG" || {
     echo "FAIL: wrong base for $variant" >&2; exit 1;
   }
   grep -qF -- "--build-arg IMAGE_NAME=$variant" "$TEST_LOG"
@@ -87,6 +101,7 @@ for variant in forjaos-nvidia-open forjaos; do
   assert_order 'os-release' '--rootfs /'
   assert_order '--rootfs /' 'podman push'
   assert_order 'podman push' 'cosign sign'
+  assert_order 'trivy image' 'cosign sign'
   assert_order 'cosign sign' 'cosign verify'
   assert_order 'cosign verify' 'skopeo copy'
   grep -qF -- 'cosign sign --yes --new-bundle-format=false --use-signing-config=false --registry-referrers-mode=legacy' "$TEST_LOG" || {

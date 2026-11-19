@@ -11,7 +11,7 @@ Window {
     height: hero.overlayHeight
     x: hero.overlayX
     y: hero.overlayY
-    visible: true
+    visible: false
     color: "transparent"
     flags: Qt.Popup | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
     title: qsTr("ForjaOS — Central de Comando")
@@ -22,7 +22,9 @@ Window {
         else if (receivedActivation && visible) close()
     }
     onClosing: hero.closeOverlay()
-    Component.onCompleted: promptInput.forceActiveFocus()
+    onVisibleChanged: {
+        if (visible) promptInput.forceActiveFocus()
+    }
 
     Shortcut {
         sequence: "Esc"
@@ -86,6 +88,22 @@ Window {
                         color: (hero.heroState === "ocioso" || hero.heroState === "idle") ? "#10b981" : "#94a3b8"
                         font.family: "JetBrains Mono"
                         font.pixelSize: 10
+                    }
+                }
+                ToolButton {
+                    id: microphoneButton
+                    text: hero.microphoneEnabled ? qsTr("Desligar microfone") : qsTr("Ligar microfone")
+                    icon.name: "audio-input-microphone"
+                    Accessible.name: text
+                    ToolTip.text: text
+                    ToolTip.visible: hovered || activeFocus
+                    onClicked: hero.toggleMicrophone()
+                    contentItem: Text {
+                        text: "●"
+                        color: hero.microphoneEnabled ? "#10b981" : "#f43f5e"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 20
                     }
                 }
 
@@ -350,6 +368,17 @@ Window {
                             Keys.onReturnPressed: sendPrompt()
                         }
                         Button {
+                            id: pushToTalkButton
+                            text: qsTr("Segure para falar")
+                            enabled: hero.microphoneEnabled && !hero.busy && hero.pendingId.length === 0
+                            onPressed: hero.startPushToTalk()
+                            onReleased: hero.stopPushToTalk()
+                            onCanceled: hero.stopPushToTalk()
+                            Accessible.name: text
+                            ToolTip.text: qsTr("A fala inicia uma conversa local com o HERO")
+                            ToolTip.visible: hovered || activeFocus
+                        }
+                        Button {
                             id: sendButton
                             text: hero.busy ? "…" : qsTr("Enviar")
                             enabled: !hero.busy && hero.pendingId.length === 0 && promptInput.text.trim().length > 0
@@ -407,6 +436,28 @@ Window {
 
     Connections {
         target: hero
+        function onVoiceTranscribed(text) {
+            messages.append({question: text, answer: "", tool: "", tier: "", status: "pensando", pending: true})
+            conversation.positionViewAtEnd()
+        }
+        function onVoiceAnswer(answer) {
+            if (messages.count > 0 && messages.get(messages.count - 1).pending) {
+                messages.setProperty(messages.count - 1, "answer", answer)
+                messages.setProperty(messages.count - 1, "pending", false)
+                messages.setProperty(messages.count - 1, "status", "ok")
+            } else {
+                messages.append({question: qsTr("Voz"), answer: answer, tool: "", tier: "", status: "ok", pending: false})
+            }
+            conversation.positionViewAtEnd()
+        }
+        function onVoiceError(message) {
+            messages.append({question: qsTr("Áudio"), answer: message, tool: "", tier: "", status: "erro", pending: false})
+            conversation.positionViewAtEnd()
+        }
+        function onVoiceIgnored() {
+            messages.append({question: qsTr("Voz"), answer: qsTr("Gatilho ignorado: HERO ocupado."), tool: "", tier: "", status: "erro", pending: false})
+            conversation.positionViewAtEnd()
+        }
         function onMessageAdded(question, answer, tool, tier, status, pending) {
             if (pending) {
                 messages.append({question: question, answer: answer, tool: tool, tier: tier, status: status, pending: true})

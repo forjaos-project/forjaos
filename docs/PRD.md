@@ -91,7 +91,7 @@ Instalador próprio, loja de apps própria, COSMIC como desktop, spin tiling com
 | ADR-009 | Equipe e sustentação | Solo, 100 % comunitário, sem versão paga | — |
 | ADR-010 | STT | faster-whisper, modelo small, pt-BR fixo, processo filho sob demanda | whisper.cpp (herdado do jarvisOS: custo do runtime Python assumido pela qualidade) |
 | ADR-011 | TTS | Piper; vozes pt-BR com licença verificada uma a uma | ElevenLabs/Gemini TTS (cloud, fere "local primeiro") |
-| ADR-012 | Wake word | openWakeWord (Apache-2.0) em ONNX Runtime, CPU; **modelos treinados pelo projeto** com áudio sintético do Piper | Porcupine (free tier encerrado em 2026-06-30, exige AccessKey online); modelos prontos do openWakeWord (CC BY-NC-SA, não comercial) |
+| ADR-012 | Wake word | WeKws (Apache-2.0) em ONNX Runtime, CPU; **modelos treinados pelo projeto** com áudio sintético do Piper e dados negativos permissivos, sem pesos upstream | Porcupine (exige AccessKey online); openWakeWord (licença dos extratores ONNX compartilhados não esclarecida e modelos prontos CC BY-NC-SA) |
 | ADR-013 | LLM da rota de voz | Qwen3 8B Q4 via Ollama, só local; Qwen3 4B Q4 em GPU de 8 GB com jogo aberto; sem fallback cloud | Fallback cloud na fala (fere privacidade e o invariante) |
 | ADR-014 | Invariante de ação | Conversa por voz não executa ação sem passar pelo Policy Engine; tiers por tool; `AuditEvent` em journald | Allowlist simples sem tiers |
 | ADR-015 | Microfone | Um único dono: HERO é um nó PipeWire; wake word e push-to-talk são consumidores | Captura por API direta (lição "capturar ≠ capturarPcm") |
@@ -278,7 +278,7 @@ push/cron ─► GitHub Actions
 
 | ID | Requisito | DoD |
 | --- | --- | --- |
-| FR-080 | Wake word via openWakeWord (ONNX Runtime, CPU); frame de 80 ms; sensibilidade ajustável com teste ao vivo no overlay | Latência wake → `escutando` ≤ 300 ms; falso positivo ≤ 1 por 8 h de áudio ambiente de referência |
+| FR-080 | Wake word via WeKws com modelo próprio (ONNX Runtime, CPU); frame de 80 ms; sensibilidade ajustável com teste ao vivo no overlay | Latência wake → `escutando` ≤ 300 ms; falso positivo ≤ 1 por 8 h de áudio ambiente de referência |
 | FR-081 | 8 modelos de wake word embarcados (lista FR-021), treinados pelo projeto com áudio sintético Piper (várias vozes, ruído, reverb) e validados com 20 locutores reais gravados pela comunidade | Dataset e script de treino em `hero/wakeword/`; métricas por modelo publicadas |
 | FR-082 | Nome personalizado: `forja mascot train "<nome>"` gera dataset sintético e treina em GPU local (20–60 min) ou CPU (2–4 h) em segundo plano; Guará ativo até o modelo pronto; nomes de 1 sílaba ou da lista de palavras comuns pt-BR recebem aviso de falso positivo | Treino completa na máquina de referência; modelo ativa sem reiniciar `herod` |
 | FR-083 | STT: faster-whisper small pt-BR, processo filho (Python via `uv`, runtime baixado no 1º uso com SHA-256 pinado), carregado após wake word, descarregado após 5 min ocioso | Fim da fala → texto ≤ 1 s para enunciado de 5 s na máquina de referência |
@@ -562,7 +562,7 @@ Estimativa com uma pessoa a 15–20 h/semana. Fases 3 e 4 são o caminho crític
 - NVIDIA open GPU kernel modules — https://github.com/NVIDIA/open-gpu-kernel-modules
 - KDE Plasma 6 / Kirigami / Plasma widgets — https://develop.kde.org
 - PipeWire — https://pipewire.org · pipewire-rs — https://gitlab.freedesktop.org/pipewire/pipewire-rs
-- openWakeWord — https://github.com/dscripka/openWakeWord
+- WeKws — https://github.com/wenet-e2e/wekws
 - faster-whisper — https://github.com/SYSTRAN/faster-whisper · Piper — https://github.com/rhasspy/piper
 - Ollama — https://ollama.com · Qwen3 — https://github.com/QwenLM/Qwen3
 - Hermes Agent — https://github.com/nousresearch/hermes-agent

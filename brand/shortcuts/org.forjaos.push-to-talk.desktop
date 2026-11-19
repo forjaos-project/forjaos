@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ForjaOS HERO Push-to-talk
+Name[pt_BR]=Falar com o HERO
+Comment=Toggle local speech capture
+Comment[pt_BR]=Iniciar ou terminar a captura local de voz
+Exec=/usr/libexec/forjaos/hero-ptt-toggle
+TryExec=/usr/libexec/forjaos/hero-ptt-toggle
+Icon=audio-input-microphone
+NoDisplay=true
+X-KDE-Shortcuts=Meta+Shift+M

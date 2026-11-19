@@ -59,7 +59,16 @@ def index(archive_path: Path, output_dir: Path) -> dict:
                     if not clip.endswith(".mp3") or "/" in clip or "\\" in clip or not client:
                         counts[split + "_invalid"] += 1
                         continue
-                    writer.writerow((split, client, ARCHIVE_ROOT + "clips/" + clip))
+                    clip_path = ARCHIVE_ROOT + "clips/" + clip
+                    try:
+                        clip_member = archive.getmember(clip_path)
+                    except KeyError:
+                        counts[split + "_missing_clips"] += 1
+                        continue
+                    if not clip_member.isfile():
+                        counts[split + "_nonregular_clips"] += 1
+                        continue
+                    writer.writerow((split, client, clip_path))
                     speakers[split].add(client)
                     counts[split + "_selected"] += 1
 
@@ -73,7 +82,11 @@ def index(archive_path: Path, output_dir: Path) -> dict:
         "counts": dict(counts),
         "speakers_per_split": {split: len(speakers[split]) for split in SPLITS},
         "speaker_overlap": overlaps,
-        "clips_verified_in_archive": False,
+        "clips_verified_in_archive": not any(
+            counts[split + suffix]
+            for split in SPLITS
+            for suffix in ("_missing_clips", "_nonregular_clips")
+        ),
         "fr081_20_speaker_validation": "pending; these clips do not replace authorized phrase recordings",
     }
     (output_dir / "common-voice-pt-br-negative-summary.json").write_text(
@@ -92,7 +105,7 @@ def main() -> int:
     except (OSError, ValueError, KeyError, tarfile.TarError, csv.Error) as error:
         parser.exit(1, f"Common Voice: {error}\n")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
-    return 0 if not any(summary["speaker_overlap"].values()) else 2
+    return 0 if summary["clips_verified_in_archive"] and not any(summary["speaker_overlap"].values()) else 2
 
 
 if __name__ == "__main__":

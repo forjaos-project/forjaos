@@ -28,7 +28,19 @@ o faster-whisper 1.2.1 é MIT. Vozes possuem licenças próprias, e o catálogo
 worker TTS e envia os blocos PCM ao `pw-cat` em modo raw. Emite no stdout os
 visemas com deslocamento por bloco. `SIGTERM`/`SIGINT` interrompem os dois
 processos; o teste sintético de cancelamento não exige dispositivo de áudio.
+O `pw-cat` envia a fala ao sink `forjaos.hero.aec.sink`; o daemon captura da
+fonte filtrada `forjaos.hero.aec.source`. O daemon não inicia a captura sem a
+fonte AEC e confere o link antes de aceitar o primeiro quadro; o supervisor
+não inicia a reprodução sem o sink AEC e confere o link do player antes de
+enviar PCM e entre blocos. A imagem carrega
+o módulo de cancelamento de eco do PipeWire com prioridade baixa para seus
+nós virtuais.
 
-Ainda falta conectar a reprodução ao `herod` e ao QML, implementar a captura
-PipeWire pelo nó HERO, a API D-Bus de interrupção e medir a latência no Linux
-de referência.
+O `herod` usa o `voice-worker stt-server` após a captura de PTT pelo PipeWire,
+classifica o texto no Policy Engine, processa conversas na rota local
+`conversa-de-voz` e aciona `hero-speak` com a voz selecionada em `persona.toml`.
+Ações de tier `alterar` exigem uma confirmação falada em novo PTT; delegação de
+código longa exige modo texto. O PTT durante a reprodução envia SIGTERM
+ao supervisor, que encerra Piper e PipeWire. O overlay mostra transcrição e
+resposta; o atalho global de PTT mostra a resposta em notificação. Ainda faltam
+wake word, supressão do próprio TTS, visemas no QML e medição no Linux de referência.

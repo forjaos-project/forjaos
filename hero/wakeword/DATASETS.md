@@ -25,8 +25,11 @@ nomes de ativação. Na cópia de 27.0 de 15/11/2026, foram 6.111 candidatos de
 treino, 1.484 de desenvolvimento e 976 de teste, sem locutores repetidos
 entre as divisões. O manifesto privado está em
 `D:\ForjaOS\datasets\wakeword\derived\`; ele não extrai áudio nem substitui
-as gravações autorizadas de FR-081. A presença de cada MP3 no arquivo ainda
-precisa ser conferida antes de treinar.
+as gravações autorizadas de FR-081. Em 19/11/2026, uma nova execução em
+`derived\verified-2026-11-19\` conferiu que os 8.571 caminhos apontam para
+entradas MP3 regulares no tar, sem extração; o manifesto gerado foi idêntico
+ao anterior. Isso verifica presença no arquivo, não integridade da decodificação,
+licença de cada gravação ou cobertura das frases por 20 locutores reais.
 
 | Uso | Fonte | Licença e limite |
 | --- | --- | --- |
@@ -51,12 +54,71 @@ relativo ao manifesto. Uma linha corresponde a uma gravação. Execute
 conferir formato e cobertura de 20 códigos distintos por frase. O script não
 atesta que a voz seja humana nem que haja consentimento; essa revisão é manual.
 
-**Bloqueio de licença:** os [modelos pré-treinados do openWakeWord](https://github.com/dscripka/openWakeWord#license)
+**Motivo da troca de motor:** os [modelos pré-treinados do openWakeWord](https://github.com/dscripka/openWakeWord#license)
 e as [features negativas prontas](https://huggingface.co/datasets/davidscripka/openwakeword_features)
 estão sob CC BY-NC-SA 4.0. A licença dos dois ONNX compartilhados de extração
 (`melspectrogram.onnx` e `embedding_model.onnx`) segue sem esclarecimento
 explícito do mantenedor na [questão upstream #338](https://github.com/dscripka/openWakeWord/issues/338).
+Em 19/11/2026, as [questões #348](https://github.com/dscripka/openWakeWord/issues/348)
+e [#357](https://github.com/dscripka/openWakeWord/issues/357) também estavam
+abertas, sem uma licença separada declarada para esses artefatos. A descrição
+da arquitetura no README menciona Apache 2.0 para o modelo do Google que
+inspirou o extrator, mas não substitui a licença dos arquivos ONNX distribuídos.
 Treinar apenas os oito classificadores não resolve essa dúvida. Antes de
 embarcar o runtime, é necessária procedência e licença permissiva verificáveis
 para os dois modelos compartilhados, ou uma implementação independente com
 pesos de origem permissiva comprovada.
+
+## Avaliação de alternativas em 18/11/2026
+
+- `openWakeWord` permanece na versão publicada 0.6.0 (fevereiro de 2024).
+  O [README upstream](https://github.com/dscripka/openWakeWord#license) distingue
+  código Apache-2.0 de modelos pré-treinados CC BY-NC-SA 4.0, mas não esclarece
+  a licença dos arquivos compartilhados; a [questão #338](https://github.com/dscripka/openWakeWord/issues/338)
+  continua aberta. A afirmação de que o embedding foi reimplementado a partir
+  de um modelo Google Apache-2.0 não basta para atribuir licença aos arquivos
+  ONNX distribuídos.
+- `sherpa-onnx` oferece keyword spotting configurável, mas os
+  [modelos KWS publicados](https://k2-fsa.github.io/sherpa/onnx/kws/index.html)
+  são para inglês e chinês. Eles não comprovam detecção das oito frases pt-BR.
+- [WeKws](https://github.com/wenet-e2e/wekws) é Apache-2.0 e tem treino a
+  partir de dados próprios e exportação ONNX. Uma prova local em Python 3.14,
+  PyTorch 2.11 e ONNX Runtime, usando MDTC inicializado sem pesos externos,
+  exportou 35.073 parâmetros para 277.279 bytes. A saída de 100 quadros teve
+  diferença absoluta máxima de 3,58e-7 entre PyTorch e ONNX Runtime. O
+  exportador atual produziu opset 18 apesar do pedido de opset 13; a
+  compatibilidade desse formato com a imagem Linux ainda deve ser conferida.
+  Essa prova verifica apenas exportação e inferência de pesos aleatórios: não
+  verifica português, acurácia, falso positivo, consumo nem latência.
+
+Em 19/11/2026, Rodrigo aprovou WeKws como substituto de openWakeWord em
+ADR-012/FR-080. O código fonte Apache-2.0 foi fixado localmente no commit
+`6a45aeb994dd81c0969ff877a5a7c46d60ed0c86`; nenhum peso pré-treinado
+do upstream será incorporado. A troca resolve o bloqueio dos ONNX
+compartilhados de openWakeWord, mas não equivale a um modelo pt-BR validado.
+Continuam necessários treino com dados de procedência verificada, métricas
+FR-080/081 e as 20 gravações reais por frase.
+
+`worker.py` agora faz inferência WeKws em quadros PCM de 80 ms recebidos por
+stdin. `features.py` fornece a mesma extração log-mel determinística ao treino
+e à inferência; o ONNX deve ter `input`, `cache`, `output`, `r_cache` e metadados
+`cache_dim`/`cache_len`/`feature_type=forja-logmel-v1`. O runtime mínimo fixa NumPy e ONNX Runtime em
+`runtime/uv.lock`. A prova com pesos aleatórios exportados pelo WeKws oficial
+teve diferença máxima de `5,96e-8` entre os escores PyTorch e ONNX Runtime
+em três blocos de streaming. Isso verifica contrato e continuidade do cache,
+não português, acurácia, falso positivo, consumo nem latência. O `Containerfile`
+copia o worker e o `herod` assina o fluxo PCM compartilhado. A imagem local foi
+construída e o worker executou um ONNX de prova no Linux. O [ensaio sintético
+AEC](../../docs/evidence/f4-001/wekws-aec-synthetic-2026-11-19.md) não detectou
+o Piper isolado em duas execuções e detectou outra fala sintética simultânea.
+O classificador de prova tem falsos positivos e não é distribuído. Nenhum
+classificador é embarcado antes da avaliação exigida.
+
+Em 19/11/2026, a [questão #338](https://github.com/dscripka/openWakeWord/issues/338)
+continuava aberta sem resposta do mantenedor sobre a licença dos ONNX
+compartilhados. As [questões #348](https://github.com/dscripka/openWakeWord/issues/348)
+e [#357](https://github.com/dscripka/openWakeWord/issues/357) reiteravam a
+mesma dúvida. O [README upstream](https://github.com/dscripka/openWakeWord/blob/main/README.md#license)
+continuava distinguindo código Apache-2.0 de modelos pré-treinados CC BY-NC-SA
+4.0 sem classificar expressamente esses dois artefatos. WeKws elimina a
+dependência desses ONNX; os modelos próprios ainda aguardam a validação FR-081.

@@ -14,10 +14,21 @@ struct AuditEvent<'a> {
 }
 
 pub fn record(route: &str, tool: &str, tier: &str, decision: &str, duration_ms: u128) {
+    record_trigger("text", route, tool, tier, decision, duration_ms);
+}
+
+pub fn record_trigger(
+    trigger: &'static str,
+    route: &str,
+    tool: &str,
+    tier: &str,
+    decision: &str,
+    duration_ms: u128,
+) {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
-    if let Ok(payload) = event_json(route, tool, tier, decision, duration_ms, timestamp) {
+    if let Ok(payload) = event_json(trigger, route, tool, tier, decision, duration_ms, timestamp) {
         let _ = Command::new("logger")
             .args(["-t", "hero-audit", "--", &payload])
             .status();
@@ -25,6 +36,7 @@ pub fn record(route: &str, tool: &str, tier: &str, decision: &str, duration_ms: 
 }
 
 fn event_json(
+    trigger: &'static str,
     route: &str,
     tool: &str,
     tier: &str,
@@ -34,7 +46,7 @@ fn event_json(
 ) -> Result<String, serde_json::Error> {
     let event = AuditEvent {
         timestamp,
-        trigger: "text",
+        trigger,
         route,
         tool,
         tier,
@@ -50,8 +62,16 @@ mod tests {
 
     #[test]
     fn audit_event_has_decision_metadata_and_no_query_field() {
-        let json = event_json("código", "code.delegate", "alterar", "executado", 42, 123)
-            .expect("serialize event");
+        let json = event_json(
+            "text",
+            "código",
+            "code.delegate",
+            "alterar",
+            "executado",
+            42,
+            123,
+        )
+        .expect("serialize event");
         let event: serde_json::Value = serde_json::from_str(&json).expect("event JSON");
         assert_eq!(event["timestamp"], 123);
         assert_eq!(event["trigger"], "text");

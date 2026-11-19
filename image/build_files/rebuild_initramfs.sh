@@ -5,6 +5,9 @@ set -euo pipefail
 logo=/usr/share/pixmaps/system-logo-white.png
 [[ -s "$logo" ]] || { echo "missing ForjaOS boot logo: $logo" >&2; exit 1; }
 
+# Atomic images can point /root at an unpopulated /var/roothome.
+mkdir -p "$(realpath /root)"
+
 found=0
 for kernel_dir in /usr/lib/modules/*; do
     [[ -d "$kernel_dir" && -f "$kernel_dir/vmlinuz" ]] || continue

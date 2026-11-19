@@ -38,7 +38,7 @@ PlasmoidItem {
     }
 
     toolTipMainText: qsTr("HERO · Guará")
-    toolTipSubText: qsTr("Estado: %1").arg(hero.state)
+    toolTipSubText: qsTr("Estado: %1 · microfone: %2").arg(hero.state).arg(hero.microphoneEnabled ? qsTr("ligado") : qsTr("desligado"))
 
     compactRepresentation: Item {
         implicitWidth: 32
@@ -65,6 +65,14 @@ PlasmoidItem {
                 NumberAnimation { to: 1.04; duration: 900; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }
             }
+        }
+        Kirigami.Icon {
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            width: 13
+            height: 13
+            source: "audio-input-microphone"
+            color: hero.microphoneEnabled ? "#10b981" : "#f43f5e"
         }
         MouseArea {
             anchors.fill: parent
@@ -217,6 +225,7 @@ PlasmoidItem {
 
     Plasmoid.contextualActions: [
         PlasmaCore.Action { text: qsTr("Abrir Central de Comando"); icon.name: "window-new"; onTriggered: hero.openOverlay() },
+        PlasmaCore.Action { text: hero.microphoneEnabled ? qsTr("Desligar microfone") : qsTr("Ligar microfone"); icon.name: "audio-input-microphone"; onTriggered: hero.toggleMicrophone() },
         PlasmaCore.Action { text: qsTr("Ativar Modo Texto"); icon.name: "edit-text"; onTriggered: plasmoid.expanded = true },
         PlasmaCore.Action { text: qsTr("Ativar Modo Jogo"); icon.name: "applications-games"; onTriggered: hero.askText(qsTr("Ative modo jogo")) }
     ]
