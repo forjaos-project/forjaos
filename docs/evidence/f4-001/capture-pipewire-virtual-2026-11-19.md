@@ -36,6 +36,14 @@ daemon, ainda não havia PCM e o PTT retornou `pipewire_capture_unavailable`;
 o teste bem-sucedido esperou o gerenciador concluir a ligação. Esse
 resultado não demonstra uma latência de inicialização garantida.
 
+Em uma terceira execução, o `herod` e seu filho `pw-cat` foram iniciados
+**antes** do WirePlumber. O gerenciador foi iniciado dois segundos depois.
+Sem reiniciar `herod` ou `pw-cat`, a fonte virtual foi ligada ao nó do HERO;
+após oito segundos de observação, o PTT retornou `recording`, o estado
+passou a `gravando` e o kill switch encerrou o filho. A ordem invertida
+mostrou recuperação do stream nesse cenário, mas não mede o tempo mínimo
+de recuperação nem garante o mesmo resultado no Plasma real.
+
 A repetição completa sob `strace -ff -s 0 -y -e
 trace=openat,openat2,creat,write,pwrite64` acompanhou os processos da
 sessão. O `pw-cat` filho fez 21 escritas de PCM no pipe de stdout, uma em
