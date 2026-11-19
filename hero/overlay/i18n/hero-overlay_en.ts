@@ -36,8 +36,10 @@
     <message><source>Guará  ·  </source><translation>Guará  ·  </translation></message>
     <message><source>Pergunte ou solicite uma ação…</source><translation>Ask a question or request an action…</translation></message>
     <message><source>Segure para falar</source><translation>Hold to speak</translation></message>
-    <message><source>A fala será transcrita no campo para revisão antes do envio</source><translation>Speech will be transcribed into the field for review before sending</translation></message>
+    <message><source>A fala inicia uma conversa local com o HERO</source><translation>Speech starts a local conversation with HERO</translation></message>
     <message><source>Áudio</source><translation>Audio</translation></message>
+    <message><source>Voz</source><translation>Voice</translation></message>
+    <message><source>Gatilho ignorado: HERO ocupado.</source><translation>Trigger ignored: HERO is busy.</translation></message>
     <message><source>Enviar</source><translation>Send</translation></message>
     <message><source>Ação requer confirmação explícita</source><translation>This action requires your confirmation</translation></message>
     <message><source>Recusar</source><translation>Decline</translation></message>
@@ -60,5 +62,6 @@
     <message><source>Não houve resposta.</source><translation>No response was returned.</translation></message>
     <message><source>Não foi possível iniciar a gravação local.</source><translation>Could not start local recording.</translation></message>
     <message><source>Não foi possível transcrever a gravação local.</source><translation>Could not transcribe the local recording.</translation></message>
+    <message><source>Não foi possível concluir o turno de voz local.</source><translation>Could not complete the local voice turn.</translation></message>
   </context>
 </TS>

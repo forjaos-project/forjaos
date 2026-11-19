@@ -12,6 +12,88 @@ use tokio::sync::oneshot;
 const MAX_AUDIO_BYTES: usize = 16_000 * 2 * 30;
 const CAPTURE_SECONDS: u64 = 30;
 
+pub fn selected_piper_model() -> Result<PathBuf, &'static str> {
+    let voice = crate::persona::load().voice.ok_or("voice_not_selected")?;
+    if voice.is_empty()
+        || voice.len() > 96
+        || !voice
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+    {
+        return Err("invalid_voice_id");
+    }
+    let home = std::env::var_os("HOME").ok_or("home_unavailable")?;
+    let model = PathBuf::from(home)
+        .join(".local/share/hero/voices")
+        .join(format!("{voice}.onnx"));
+    let config = model.with_file_name(format!("{voice}.onnx.json"));
+    if !regular_file(&model) || !regular_file(&config) {
+        return Err("voice_model_unavailable");
+    }
+    Ok(model)
+}
+
+fn regular_file(path: &std::path::Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
+}
+
+pub async fn speak(text: &str, cancel: oneshot::Receiver<()>) -> Result<(), &'static str> {
+    let model = selected_piper_model()?;
+    let mut command = Command::new("/usr/libexec/forjaos/hero-speak");
+    command.args(["--model", model.to_str().ok_or("invalid_voice_path")?]);
+    speak_with_command(text, cancel, command).await
+}
+
+async fn speak_with_command(
+    text: &str,
+    mut cancel: oneshot::Receiver<()>,
+    mut command: Command,
+) -> Result<(), &'static str> {
+    if text.trim().is_empty() || text.chars().count() > 4000 {
+        return Err("invalid_speech_text");
+    }
+    let mut process = command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|_| "local_tts_unavailable")?;
+    let Some(mut input) = process.stdin.take() else {
+        return Err("local_tts_unavailable");
+    };
+    input
+        .write_all(text.as_bytes())
+        .await
+        .map_err(|_| "local_tts_failed")?;
+    input.shutdown().await.map_err(|_| "local_tts_failed")?;
+    drop(input);
+    let result = tokio::select! {
+        status = process.wait() => status.map_err(|_| "local_tts_failed").and_then(|status| {
+            if status.success() { Ok(()) } else { Err("local_tts_failed") }
+        }),
+        _ = &mut cancel => Err("speech_cancelled"),
+        () = tokio::time::sleep(Duration::from_secs(60)) => Err("speech_timeout"),
+    };
+    if process.try_wait().is_ok_and(|status| status.is_none()) {
+        #[cfg(unix)]
+        if let Some(pid) = process.id() {
+            // hero-speak handles SIGTERM and terminates its Piper and PipeWire children.
+            unsafe { libc::kill(pid as i32, libc::SIGTERM) };
+        }
+        #[cfg(not(unix))]
+        let _ = process.start_kill();
+        if tokio::time::timeout(Duration::from_secs(2), process.wait())
+            .await
+            .is_err()
+        {
+            let _ = process.start_kill();
+            let _ = process.wait().await;
+        }
+    }
+    result
+}
+
 enum CaptureCommand {
     Finish,
     Cancel,
@@ -191,13 +273,13 @@ pub fn set_microphone_enabled(enabled: bool) -> Result<(), &'static str> {
 #[cfg(test)]
 mod tests {
     use super::{
-        microphone_enabled, set_microphone_enabled, transcribe_with_command, Capture,
-        MAX_AUDIO_BYTES,
+        microphone_enabled, selected_piper_model, set_microphone_enabled, speak_with_command,
+        transcribe_with_command, Capture, MAX_AUDIO_BYTES,
     };
     use crate::test_support::TestHome;
     use std::fs;
     use std::time::Duration;
-    use tokio::process::Command;
+    use tokio::{process::Command, sync::oneshot};
 
     fn python_command(script: &str) -> Command {
         let mut command = Command::new(if cfg!(windows) { "python" } else { "python3" });
@@ -268,6 +350,49 @@ mod tests {
         assert_eq!(
             transcribe_with_command(&[0, 1], command).await,
             Err("local_stt_failed")
+        );
+    }
+
+    #[test]
+    fn selected_piper_voice_uses_cli_config_and_requires_regular_files() {
+        let home = TestHome::new();
+        let config = home.root().join(".config/hero/persona.toml");
+        fs::create_dir_all(config.parent().expect("config dir")).expect("create config dir");
+        fs::write(&config, "voice = \"pt_BR-cadu-medium\"\n").expect("select voice");
+        assert_eq!(selected_piper_model(), Err("voice_model_unavailable"));
+        let model = home
+            .root()
+            .join(".local/share/hero/voices/pt_BR-cadu-medium.onnx");
+        fs::create_dir_all(model.parent().expect("voice dir")).expect("create voice dir");
+        fs::write(&model, b"model").expect("write model");
+        fs::write(model.with_file_name("pt_BR-cadu-medium.onnx.json"), b"{}")
+            .expect("write config");
+        assert_eq!(selected_piper_model(), Ok(model));
+        fs::write(config, "voice = \"../outside\"\n").expect("invalid voice");
+        assert_eq!(selected_piper_model(), Err("invalid_voice_id"));
+    }
+
+    #[tokio::test]
+    async fn speech_process_receives_text_and_can_be_cancelled() {
+        let command =
+            python_command("import sys; sys.exit(0 if sys.stdin.read() == 'resposta' else 2)");
+        let (_cancel, receiver) = oneshot::channel();
+        assert_eq!(
+            speak_with_command("resposta", receiver, command).await,
+            Ok(())
+        );
+
+        let command = python_command("import sys,time; sys.stdin.read(); time.sleep(5)");
+        let (cancel, receiver) = oneshot::channel();
+        let task = tokio::spawn(async move { speak_with_command("pare", receiver, command).await });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        cancel.send(()).expect("cancel speech");
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(3), task)
+                .await
+                .expect("speech stops")
+                .expect("speech task"),
+            Err("speech_cancelled")
         );
     }
 }

@@ -232,6 +232,8 @@ class HeroBackend(QObject):
     messageAdded = Signal(str, str, str, str, str, bool)
     requestFinished = Signal()
     voiceTranscribed = Signal(str)
+    voiceAnswer = Signal(str)
+    voiceIgnored = Signal(str)
     voiceError = Signal(str)
 
     def __init__(self) -> None:
@@ -258,6 +260,8 @@ class HeroBackend(QObject):
         self._bus = QDBusConnection.sessionBus()
         self._hero = QDBusInterface(BUS_NAME, OBJECT_PATH, INTERFACE, self._bus, self)
         self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceTranscribed", "s", self, SLOT("_on_voice_transcribed(QString)"))
+        self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceAnswer", "s", self, SLOT("_on_voice_answer(QString)"))
+        self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceIgnored", "s", self, SLOT("_on_voice_ignored(QString)"))
         self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceFailed", "s", self, SLOT("_on_voice_failed(QString)"))
         self._notifications: QDBusInterface | None = None
         self._notification_ids: dict[int, str] = {}
@@ -444,7 +448,8 @@ class HeroBackend(QObject):
         watcher.deleteLater()
         if reply.get("status") != "recording":
             self._ptt_stop_requested = False
-            self.voiceError.emit(QCoreApplication.translate("main", "Não foi possível iniciar a gravação local."))
+            if reply.get("status") != "busy":
+                self.voiceError.emit(QCoreApplication.translate("main", "Não foi possível iniciar a gravação local."))
             return
         self._ptt_recording = True
         if self._ptt_stop_requested:
@@ -476,8 +481,16 @@ class HeroBackend(QObject):
         self.voiceTranscribed.emit(text)
 
     @Slot(str)
+    def _on_voice_answer(self, answer: str) -> None:
+        self.voiceAnswer.emit(answer)
+
+    @Slot(str)
+    def _on_voice_ignored(self, state: str) -> None:
+        self.voiceIgnored.emit(state)
+
+    @Slot(str)
     def _on_voice_failed(self, _reason: str) -> None:
-        self.voiceError.emit(QCoreApplication.translate("main", "Não foi possível transcrever a gravação local."))
+        self.voiceError.emit(QCoreApplication.translate("main", "Não foi possível concluir o turno de voz local."))
 
     @Property(str, notify=changed)
     def pendingId(self) -> str:

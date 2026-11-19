@@ -15,7 +15,7 @@ MAX_TEXT_CHARS = 4000
 MAX_LINE_CHARS = 16 * 1024 * 1024
 MAX_CHUNK_BYTES = 12 * 1024 * 1024
 VOICE_WORKER = "/usr/libexec/forjaos/voice-worker"
-PIPEWIRE_PLAYER = "/usr/sbin/pw-cat"
+PIPEWIRE_PLAYER = "/usr/bin/pw-cat"
 
 
 class SpeechHandle:

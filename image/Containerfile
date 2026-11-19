@@ -59,8 +59,8 @@ FROM ${BASE_IMAGE}
 
 ARG IMAGE_NAME=forjaos-nvidia-open
 
-RUN dnf install -y python3-pyside6 python3.14 python3-dbus libsecret && dnf clean all \
-    && rpm -q terra-gamescope terra-mangohud terra-bluez
+RUN dnf install -y python3-pyside6 python3.14 python3-dbus libsecret pipewire-utils && dnf clean all \
+    && rpm -q terra-gamescope terra-mangohud terra-bluez pipewire-utils
 
 COPY image/build_files/remove.txt /tmp/remove.txt
 COPY image/build_files/apply_package_policy.sh /tmp/apply_package_policy.sh

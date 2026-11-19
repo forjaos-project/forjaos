@@ -17,13 +17,13 @@ class VoiceResult(QObject):
     def __init__(self) -> None:
         super().__init__()
         self.loop = QEventLoop()
-        self.text = ""
+        self.answer = ""
         self.failed = False
         self.done = False
 
     @Slot(str)
-    def transcribed(self, text: str) -> None:
-        self.text = text
+    def answered(self, answer: str) -> None:
+        self.answer = answer
         self.done = True
         self.loop.quit()
 
@@ -51,8 +51,10 @@ def main() -> int:
         return 1
 
     result = VoiceResult()
-    bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceTranscribed", "s", result, SLOT("transcribed(QString)"))
-    bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceFailed", "s", result, SLOT("failed_result(QString)"))
+    connected_answer = bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceAnswer", "s", result, SLOT("answered(QString)"))
+    connected_failure = bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceFailed", "s", result, SLOT("failed_result(QString)"))
+    if not connected_answer or not connected_failure:
+        return 1
     reply = hero.call("TogglePushToTalk")
     if reply.type() == QDBusMessage.MessageType.ErrorMessage:
         return 1
@@ -69,10 +71,10 @@ def main() -> int:
     if not result.done:
         QTimer.singleShot(65_000, result.loop.quit)
         result.loop.exec()
-    if result.text:
-        notify(bus, result.text[:4000])
+    if result.answer:
+        notify(bus, result.answer[:4000])
         return 0
-    notify(bus, "Não foi possível transcrever a gravação local.")
+    notify(bus, "Não foi possível concluir o turno de voz local.")
     return 1
 
 

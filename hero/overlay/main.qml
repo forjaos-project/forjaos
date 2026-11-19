@@ -373,7 +373,7 @@ Window {
                             onReleased: hero.stopPushToTalk()
                             onCanceled: hero.stopPushToTalk()
                             Accessible.name: text
-                            ToolTip.text: qsTr("A fala será transcrita no campo para revisão antes do envio")
+                            ToolTip.text: qsTr("A fala inicia uma conversa local com o HERO")
                             ToolTip.visible: hovered || activeFocus
                         }
                         Button {
@@ -435,11 +435,25 @@ Window {
     Connections {
         target: hero
         function onVoiceTranscribed(text) {
-            promptInput.text = text
-            promptInput.forceActiveFocus()
+            messages.append({question: text, answer: "", tool: "", tier: "", status: "pensando", pending: true})
+            conversation.positionViewAtEnd()
+        }
+        function onVoiceAnswer(answer) {
+            if (messages.count > 0 && messages.get(messages.count - 1).pending) {
+                messages.setProperty(messages.count - 1, "answer", answer)
+                messages.setProperty(messages.count - 1, "pending", false)
+                messages.setProperty(messages.count - 1, "status", "ok")
+            } else {
+                messages.append({question: qsTr("Voz"), answer: answer, tool: "", tier: "", status: "ok", pending: false})
+            }
+            conversation.positionViewAtEnd()
         }
         function onVoiceError(message) {
             messages.append({question: qsTr("Áudio"), answer: message, tool: "", tier: "", status: "erro", pending: false})
+            conversation.positionViewAtEnd()
+        }
+        function onVoiceIgnored() {
+            messages.append({question: qsTr("Voz"), answer: qsTr("Gatilho ignorado: HERO ocupado."), tool: "", tier: "", status: "erro", pending: false})
             conversation.positionViewAtEnd()
         }
         function onMessageAdded(question, answer, tool, tier, status, pending) {
