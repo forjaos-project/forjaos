@@ -38,7 +38,8 @@ void HeroService::toggleMicrophone()
                               QStringLiteral("org.freedesktop.DBus.Properties"), QDBusConnection::sessionBus());
     auto *watcher = new QDBusPendingCallWatcher(
         properties.asyncCall(QStringLiteral("Set"), QStringLiteral("org.forjaos.Hero"),
-                             QStringLiteral("MicrophoneEnabled"), QDBusVariant(!m_microphoneEnabled)), this);
+                             QStringLiteral("MicrophoneEnabled"),
+                             QVariant::fromValue(QDBusVariant(!m_microphoneEnabled))), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, watcher]() {
         updateState();
         watcher->deleteLater();

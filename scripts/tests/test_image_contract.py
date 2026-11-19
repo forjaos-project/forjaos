@@ -29,7 +29,8 @@ STATES = {
 
 class ImageContractTests(unittest.TestCase):
     def test_valid_inherited_image_passes(self):
-        self.assertEqual(MODULE.check_contract(REQUIRED, STATES), [])
+        with patch.object(MODULE, "REQUIRED_EXECUTABLES", ()):
+            self.assertEqual(MODULE.check_contract(REQUIRED, STATES), [])
 
     def test_missing_developer_and_gaming_packages_fail(self):
         errors = MODULE.check_contract(REQUIRED - {"podman", "steam", "gamescope", "mangohud", "bluez"}, STATES)
@@ -51,7 +52,8 @@ class ImageContractTests(unittest.TestCase):
 
     def test_absent_cockpit_socket_is_safe_when_components_exist(self):
         states = {**STATES, "cockpit.socket": "not-found"}
-        self.assertEqual(MODULE.check_contract(REQUIRED, states), [])
+        with patch.object(MODULE, "REQUIRED_EXECUTABLES", ()):
+            self.assertEqual(MODULE.check_contract(REQUIRED, states), [])
 
     def test_rpm_query_failure_fails_closed(self):
         with patch.object(MODULE.subprocess, "run", return_value=subprocess.CompletedProcess([], 2, "", "bad rpm")):

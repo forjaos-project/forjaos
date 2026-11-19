@@ -11,6 +11,11 @@ RUN install -d -m 0700 /var/roothome/.cargo /var/roothome/.cache /opt/forjaos/uv
 COPY image/build_files/generate_python_license_inventory.py /tmp/generate_python_license_inventory.py
 RUN /opt/forjaos/graphify-runtime/.venv/bin/python \
       /tmp/generate_python_license_inventory.py > /tmp/THIRD_PARTY_PYTHON_LICENSES.md
+COPY hero/wakeword/runtime/pyproject.toml hero/wakeword/runtime/uv.lock /opt/forjaos/wakeword-runtime/
+WORKDIR /opt/forjaos/wakeword-runtime
+RUN uv sync --locked --no-dev --no-install-project --python 3.14 \
+    && /opt/forjaos/wakeword-runtime/.venv/bin/python \
+      /tmp/generate_python_license_inventory.py > /tmp/THIRD_PARTY_WAKE_LICENSES.md
 WORKDIR /
 COPY cli/Cargo.toml cli/Cargo.lock /tmp/forja-cli/
 COPY cli/src/ /tmp/forja-cli/src/
@@ -89,7 +94,9 @@ COPY hero/overlay/ /usr/share/forjaos/hero-overlay/
 COPY brand/mascot/guara-idle.svg brand/mascot/guara-thinking.svg /usr/share/forjaos/hero-overlay/mascot/
 COPY --from=branding-builder /tmp/hero-overlay_en.qm /usr/share/forjaos/hero-overlay/i18n/hero-overlay_en.qm
 COPY --from=branding-builder /opt/forjaos/graphify-runtime/.venv /opt/forjaos/graphify-runtime/.venv
+COPY --from=branding-builder /opt/forjaos/wakeword-runtime/.venv /opt/forjaos/wakeword-runtime/.venv
 COPY --from=branding-builder /tmp/THIRD_PARTY_PYTHON_LICENSES.md /usr/share/licenses/forjaos/THIRD_PARTY_PYTHON_LICENSES.md
+COPY --from=branding-builder /tmp/THIRD_PARTY_WAKE_LICENSES.md /usr/share/licenses/forjaos/THIRD_PARTY_WAKE_LICENSES.md
 RUN dnf install -y /tmp/forjaos-branding.rpm && dnf clean all && rm /tmp/forjaos-branding.rpm
 RUN dnf install -y /tmp/forjaos-plasma.rpm \
     && dnf remove -y --no-autoremove plasma-lookandfeel-fedora f45-backgrounds-kde \
@@ -124,6 +131,8 @@ COPY hero/voice-runtime/launcher.py /usr/share/forjaos/voice-runtime/launcher.py
 COPY hero/voice-runtime/worker.py /usr/share/forjaos/voice-runtime/worker.py
 COPY hero/voice-runtime/playback.py /usr/share/forjaos/voice-runtime/playback.py
 COPY hero/wakeword/worker.py /usr/share/forjaos/wakeword/worker.py
+COPY hero/wakeword/features.py /usr/share/forjaos/wakeword/features.py
+COPY hero/wakeword/launcher.py /usr/share/forjaos/wakeword/launcher.py
 COPY hero/voice-runtime/requirements.txt /usr/share/forjaos/voice-runtime/requirements.txt
 COPY hero/voice-runtime/pyproject.toml /usr/share/forjaos/voice-runtime/pyproject.toml
 COPY hero/voice-runtime/uv.lock /usr/share/forjaos/voice-runtime/uv.lock
@@ -170,15 +179,16 @@ RUN ln -s /opt/forjaos/graphify-runtime/.venv/bin/graphify /usr/bin/graphify \
     && ln -s /usr/share/forjaos/voice-runtime/launcher.py /usr/libexec/forjaos/voice-worker \
     && chmod 0755 /usr/share/forjaos/voice-runtime/playback.py \
     && ln -s /usr/share/forjaos/voice-runtime/playback.py /usr/libexec/forjaos/hero-speak \
-    && chmod 0755 /usr/share/forjaos/wakeword/worker.py \
-    && ln -s /usr/share/forjaos/wakeword/worker.py /usr/libexec/forjaos/hero-wakeword \
+    && chmod 0755 /usr/share/forjaos/wakeword/launcher.py \
+    && ln -s /usr/share/forjaos/wakeword/launcher.py /usr/libexec/forjaos/hero-wakeword \
     && test -x /usr/bin/graphify \
     && test -x /usr/libexec/forjaos/hero-overlay \
     && test -x /usr/libexec/forjaos/hero-mic-toggle \
     && test -x /usr/libexec/forjaos/hero-ptt-toggle \
     && test -x /usr/libexec/forjaos/voice-worker \
     && test -x /usr/libexec/forjaos/hero-speak \
-    && test -x /usr/libexec/forjaos/hero-wakeword
+    && test -x /usr/libexec/forjaos/hero-wakeword \
+    && test -x /opt/forjaos/wakeword-runtime/.venv/bin/python
 
 RUN python3 /tmp/configure_image.py \
       --root / \

@@ -1806,6 +1806,49 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn locked_session_keeps_wake_and_push_to_talk_on_the_shared_stream() {
+        let active = Arc::new(AtomicBool::new(true));
+        let (server, _client) = voice_test_connection_with_lock(Some(active)).await;
+        let stream = MicStream::start_with_factory(|| {
+            let mut command = tokio::process::Command::new("python3");
+            command.args(["-u", "-c", "import sys,time; frame=b'\\x00\\x05'*1280; [(sys.stdout.buffer.write(frame),sys.stdout.flush(),time.sleep(.01)) for _ in range(250)]"]);
+            command
+        });
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        let mut hero = interface.get_mut().await;
+        hero.mic_stream = Some(stream);
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !hero.mic_stream.as_ref().is_some_and(MicStream::is_ready) {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("microphone ready");
+        hero.handle_voice_event(VoiceEvent::WakeDetected(0), interface.signal_emitter())
+            .await;
+        assert_eq!(hero.capture_origin, Some(CaptureOrigin::WakeWord));
+        let reply = hero
+            .start_push_to_talk(interface.signal_emitter().clone())
+            .await;
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&reply).unwrap()["status"],
+            "recording"
+        );
+        assert_eq!(hero.capture_origin, Some(CaptureOrigin::PushToTalk));
+        if let Some(capture) = hero.capture.take() {
+            capture.cancel().await;
+        }
+        if let Some(stream) = hero.mic_stream.take() {
+            stream.stop().await;
+        }
+    }
+
     #[test]
     fn state_names_round_trip_and_unknown_values_are_rejected() {
         for (state, name) in [

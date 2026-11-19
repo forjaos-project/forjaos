@@ -28,8 +28,6 @@ const WAKE_WORKER_SOURCE: &str = "/usr/share/forjaos/wakeword/worker.py";
 #[serde(deny_unknown_fields)]
 struct WakeConfig {
     model: PathBuf,
-    melspec: PathBuf,
-    embedding: PathBuf,
     #[serde(default = "default_wake_threshold")]
     threshold: f32,
 }
@@ -43,10 +41,8 @@ impl WakeConfig {
         let home = std::env::var_os("HOME")?;
         let path = PathBuf::from(home).join(".config/hero/wakeword.toml");
         let config: Self = toml::from_str(&fs::read_to_string(path).ok()?).ok()?;
-        let models = [&config.model, &config.melspec, &config.embedding];
-        if models
-            .iter()
-            .any(|path| !path.is_absolute() || !regular_file(path))
+        if !config.model.is_absolute()
+            || !regular_file(&config.model)
             || !config.threshold.is_finite()
             || config.threshold <= 0.0
             || config.threshold >= 1.0
@@ -62,10 +58,6 @@ impl WakeConfig {
         command
             .arg("--model")
             .arg(&self.model)
-            .arg("--melspec")
-            .arg(&self.melspec)
-            .arg("--embedding")
-            .arg(&self.embedding)
             .arg("--threshold")
             .arg(self.threshold.to_string());
         command
@@ -652,7 +644,7 @@ impl Capture {
                         break match control {
                             Ok(CaptureCommand::Finish) => {
                                 if audio.is_empty() {
-                                    if let Ok(Ok(size)) = tokio::time::timeout(Duration::from_millis(250), output.read(&mut block)).await {
+                                    if let Ok(Ok(size)) = tokio::time::timeout(Duration::from_secs(2), output.read(&mut block)).await {
                                         if size <= MAX_AUDIO_BYTES {
                                             audio.extend_from_slice(&block[..size]);
                                         }

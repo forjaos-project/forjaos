@@ -34,12 +34,10 @@ O `herod` lê `~/.config/hero/wakeword.toml` ao iniciar ou ao religar o microfon
 
 ```toml
 model = "/caminho/para/classificador-pt-br.onnx"
-melspec = "/caminho/para/melspectrogram.onnx"
-embedding = "/caminho/para/embedding.onnx"
 threshold = 0.5
 ```
 
-O worker instalado pela receita da imagem requer `openwakeword` e `numpy`, que ainda não são embarcados. Nenhum modelo wake word é distribuído. A procedência e a licença dos ONNX compartilhados, bem como a validação das oito frases com 20 locutores reais, continuam pendentes em [DATASETS.md](wakeword/DATASETS.md). O caminho de captura e os estados têm testes sintéticos; a ativação real, a supressão do áudio Piper e o ajuste do endpointing ainda não têm prova em hardware. O botão PTT assume a captura durante um turno wake word.
+O worker usa ONNX WeKws com extração log-mel local e exige fala em quatro dos últimos oito quadros antes de ativar. A imagem local foi construída e executou o worker com ONNX Runtime 1.32.0; [a prova sintética](../docs/evidence/f4-001/wekws-aec-synthetic-2026-11-19.md) cobriu Piper isolado no AEC e fala externa simultânea. Nenhum modelo wake word é distribuído até que os oito classificadores e as métricas passem pelos gates de [DATASETS.md](wakeword/DATASETS.md). Microfone físico, sala, sessão Plasma e ajuste do endpointing permanecem na validação final. O botão PTT assume a captura durante um turno wake word.
 
 Exemplo de rota cloud opt-in:
 

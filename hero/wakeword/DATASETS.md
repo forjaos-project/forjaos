@@ -54,7 +54,7 @@ relativo ao manifesto. Uma linha corresponde a uma gravação. Execute
 conferir formato e cobertura de 20 códigos distintos por frase. O script não
 atesta que a voz seja humana nem que haja consentimento; essa revisão é manual.
 
-**Bloqueio de licença:** os [modelos pré-treinados do openWakeWord](https://github.com/dscripka/openWakeWord#license)
+**Motivo da troca de motor:** os [modelos pré-treinados do openWakeWord](https://github.com/dscripka/openWakeWord#license)
 e as [features negativas prontas](https://huggingface.co/datasets/davidscripka/openwakeword_features)
 estão sob CC BY-NC-SA 4.0. A licença dos dois ONNX compartilhados de extração
 (`melspectrogram.onnx` e `embedding_model.onnx`) segue sem esclarecimento
@@ -91,20 +91,28 @@ pesos de origem permissiva comprovada.
   Essa prova verifica apenas exportação e inferência de pesos aleatórios: não
   verifica português, acurácia, falso positivo, consumo nem latência.
 
-Nenhum substituto foi aprovado para ADR-012. A escolha depende de um modelo
-pt-BR treinado com dados de procedência verificada e das métricas FR-080/081;
-a validação por 20 locutores reais segue pendente conforme acima.
+Em 19/11/2026, Rodrigo aprovou WeKws como substituto de openWakeWord em
+ADR-012/FR-080. O código fonte Apache-2.0 foi fixado localmente no commit
+`6a45aeb994dd81c0969ff877a5a7c46d60ed0c86`; nenhum peso pré-treinado
+do upstream será incorporado. A troca resolve o bloqueio dos ONNX
+compartilhados de openWakeWord, mas não equivale a um modelo pt-BR validado.
+Continuam necessários treino com dados de procedência verificada, métricas
+FR-080/081 e as 20 gravações reais por frase.
 
-`worker.py` já implementa a inferência openWakeWord em quadros PCM de 80 ms
-recebidos por stdin, com modelos ONNX indicados por caminhos locais explícitos.
-Ele não baixa nem seleciona classificadores pré-treinados. Os testes usam
-classificador sintético. O `Containerfile` copia o worker e o `herod` tem uma
-ponte opt-in para o fluxo PCM compartilhado; a imagem completa ainda não foi
-reconstruída com essa mudança. O pacote Python `openwakeword` e os modelos não
-são embarcados, pois os modelos compartilhados e o classificador pt-BR ainda
-não passaram pelos gates de procedência e validação acima. A ponte e o
-endpointing foram verificados apenas por testes sintéticos, sem comprovação de
-acurácia ou supressão do próprio Piper.
+`worker.py` agora faz inferência WeKws em quadros PCM de 80 ms recebidos por
+stdin. `features.py` fornece a mesma extração log-mel determinística ao treino
+e à inferência; o ONNX deve ter `input`, `cache`, `output`, `r_cache` e metadados
+`cache_dim`/`cache_len`/`feature_type=forja-logmel-v1`. O runtime mínimo fixa NumPy e ONNX Runtime em
+`runtime/uv.lock`. A prova com pesos aleatórios exportados pelo WeKws oficial
+teve diferença máxima de `5,96e-8` entre os escores PyTorch e ONNX Runtime
+em três blocos de streaming. Isso verifica contrato e continuidade do cache,
+não português, acurácia, falso positivo, consumo nem latência. O `Containerfile`
+copia o worker e o `herod` assina o fluxo PCM compartilhado. A imagem local foi
+construída e o worker executou um ONNX de prova no Linux. O [ensaio sintético
+AEC](../../docs/evidence/f4-001/wekws-aec-synthetic-2026-11-19.md) não detectou
+o Piper isolado em duas execuções e detectou outra fala sintética simultânea.
+O classificador de prova tem falsos positivos e não é distribuído. Nenhum
+classificador é embarcado antes da avaliação exigida.
 
 Em 19/11/2026, a [questão #338](https://github.com/dscripka/openWakeWord/issues/338)
 continuava aberta sem resposta do mantenedor sobre a licença dos ONNX
@@ -112,5 +120,5 @@ compartilhados. As [questões #348](https://github.com/dscripka/openWakeWord/iss
 e [#357](https://github.com/dscripka/openWakeWord/issues/357) reiteravam a
 mesma dúvida. O [README upstream](https://github.com/dscripka/openWakeWord/blob/main/README.md#license)
 continuava distinguindo código Apache-2.0 de modelos pré-treinados CC BY-NC-SA
-4.0 sem classificar expressamente esses dois artefatos. A verificação dos MP3
-não altera essa pendência de licença nem autoriza embarcar os modelos.
+4.0 sem classificar expressamente esses dois artefatos. WeKws elimina a
+dependência desses ONNX; os modelos próprios ainda aguardam a validação FR-081.
