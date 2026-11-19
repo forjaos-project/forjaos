@@ -5,9 +5,11 @@ import argparse
 import base64
 import binascii
 import json
+import secrets
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -18,6 +20,7 @@ VOICE_WORKER = "/usr/libexec/forjaos/voice-worker"
 PIPEWIRE_PLAYER = "/usr/bin/pw-cat"
 PIPEWIRE_DUMP = "/usr/bin/pw-dump"
 AEC_SINK = "forjaos.hero.aec.sink"
+PLAYER_NODE = "forjaos.hero.speech"
 
 
 def aec_sink_available() -> bool:
@@ -32,6 +35,41 @@ def aec_sink_available() -> bool:
         return False
 
 
+def aec_playback_linked(player_node: str) -> bool:
+    try:
+        result = subprocess.run(
+            [PIPEWIRE_DUMP], capture_output=True, timeout=2, check=True,
+        )
+        graph = json.loads(result.stdout)
+        if not isinstance(graph, list):
+            return False
+        names = {
+            node["id"]: node.get("info", {}).get("props", {}).get("node.name")
+            for node in graph if node.get("type") == "PipeWire:Interface:Node"
+        }
+        player_ids = {node_id for node_id, name in names.items()
+                      if name == player_node}
+        links = [node for node in graph
+                 if node.get("type") == "PipeWire:Interface:Link"
+                 and node.get("info", {}).get("output-node-id") in player_ids]
+        return bool(links) and all(
+            names.get(link["info"]["input-node-id"]) == AEC_SINK for link in links
+        )
+    except (OSError, KeyError, ValueError, TypeError, subprocess.SubprocessError):
+        return False
+
+
+def wait_for_aec_playback(player: subprocess.Popen, player_node: str) -> None:
+    deadline = time.monotonic() + 2
+    while player.poll() is None:
+        if aec_playback_linked(player_node):
+            return
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(0.05)
+    raise RuntimeError("reprodução fora do sink AEC do HERO")
+
+
 class SpeechHandle:
     def __init__(self, model: Path, text: str):
         if not text.strip() or len(text) > MAX_TEXT_CHARS:
@@ -40,6 +78,7 @@ class SpeechHandle:
         self.text = text
         self.synthesizer = None
         self.player = None
+        self.player_node = None
         self.cancelled = False
 
     def cancel(self, *_):
@@ -88,17 +127,26 @@ class SpeechHandle:
                 if self.player is None:
                     if not aec_sink_available():
                         raise RuntimeError("sink AEC do HERO indisponível")
+                    self.player_node = f"{PLAYER_NODE}.{secrets.token_hex(8)}"
+                    properties = json.dumps({
+                        "node.name": self.player_node,
+                        "node.dont-reconnect": True,
+                    }, separators=(",", ":"))
                     self.player = subprocess.Popen(
                         [PIPEWIRE_PLAYER, "--playback", "--raw",
                          f"--target={AEC_SINK}",
-                         '--properties={"node.dont-reconnect":true}', "--format", "s16",
+                         f"--properties={properties}",
+                         "--format", "s16",
                          "--rate", str(rate), "--channels", "1", "-"],
                         stdin=subprocess.PIPE,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                     )
+                    wait_for_aec_playback(self.player, self.player_node)
                 elif rate != self.rate:
                     raise ValueError("taxa de áudio TTS mudou entre blocos")
+                elif not aec_playback_linked(self.player_node):
+                    raise RuntimeError("reprodução saiu do sink AEC do HERO")
                 self.rate = rate
                 audio = base64.b64decode(event.get("pcm_s16le_base64", ""), validate=True)
                 if not audio or len(audio) % 2 or len(audio) > MAX_CHUNK_BYTES:

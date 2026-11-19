@@ -897,6 +897,13 @@ impl Hero {
                 return json!({"status":"invalid_snapshot","answer":"Contexto do aplicativo inválido."}).to_string()
             }
         };
+        if session_lock::locked(emitter.connection()).await {
+            return json!({
+                "status":"locked",
+                "answer":"Desbloqueie a tela para usar o modo texto."
+            })
+            .to_string();
+        }
         let resolved_project =
             policy::resolve_project_context(cwd, query, snapshot.window_title.as_deref());
         let effective_cwd = resolved_project
@@ -1757,7 +1764,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn locked_session_rejects_new_and_pending_mutating_actions() {
+    async fn locked_session_rejects_text_and_pending_mutating_actions() {
         let _home = TestHome::new();
         let active = Arc::new(AtomicBool::new(true));
         let (server, _client) = voice_test_connection_with_lock(Some(active.clone())).await;
@@ -1767,6 +1774,14 @@ mod tests {
             .await
             .expect("HERO interface");
         let mut hero = interface.get_mut().await;
+        let conversation = hero
+            .ask_text("olá", ".", "{}", interface.signal_emitter().clone())
+            .await;
+        let conversation: serde_json::Value =
+            serde_json::from_str(&conversation).expect("JSON response");
+        assert_eq!(conversation["status"], "locked");
+        assert_eq!(hero.state, State::Idle);
+        assert!(hero.history.is_empty());
         let request = hero
             .ask_text("ligue wifi", ".", "{}", interface.signal_emitter().clone())
             .await;

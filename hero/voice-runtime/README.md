@@ -31,7 +31,8 @@ processos; o teste sintético de cancelamento não exige dispositivo de áudio.
 O `pw-cat` envia a fala ao sink `forjaos.hero.aec.sink`; o daemon captura da
 fonte filtrada `forjaos.hero.aec.source`. O daemon não inicia a captura sem a
 fonte AEC e confere o link antes de aceitar o primeiro quadro; o supervisor
-não inicia a reprodução sem o sink AEC. A imagem carrega
+não inicia a reprodução sem o sink AEC e confere o link do player antes de
+enviar PCM e entre blocos. A imagem carrega
 o módulo de cancelamento de eco do PipeWire com prioridade baixa para seus
 nós virtuais.
 

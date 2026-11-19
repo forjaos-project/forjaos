@@ -99,6 +99,15 @@ supervisor Python ligou a reprodução ao sink AEC e recusou reprodução quando
 o sink configurado estava ausente. Essas verificações são de início de fluxo;
 não provam o comportamento diante de remoção do módulo durante a fala.
 
+Um teste adicional no mesmo grafo confirmou que o link do `pw-cat` existe
+antes do envio do primeiro quadro PCM. O supervisor passou a identificar cada
+player por nome único, exigir que todos os seus links apontem ao sink AEC antes
+da primeira escrita e conferir novamente entre blocos. Com o alvo removido
+após uma checagem de disponibilidade simulada, ele retornou
+`reprodução fora do sink AEC do HERO` antes de escrever áudio. A fala normal
+terminou pelo sink AEC. Ainda não foi testada a remoção do módulo durante um
+bloco já entregue ao PipeWire.
+
 Após a alteração, `cargo fmt`, Clippy e 77 testes Rust passaram. A medição
 Linux isolada do `llvm-cov` foi 77,86% de linhas. Em uma janela de captura AEC
 de 2.560 bytes, `strace -ff` observou PCM apenas em `stdout` e nenhuma abertura
@@ -111,3 +120,18 @@ teste atuar como microfone com eco digital. Três frases Piper tiveram RMS bruto
 para 3.256,0. A redução foi variável e esse pico ainda precisa ser avaliado
 pelo detector wake real. O loopback é somente um substituto digital para o
 caminho acústico; não comprova supressão em sala, voz humana nem latência.
+
+## Tela bloqueada e verificação atual
+
+No D-Bus privado, `org.freedesktop.ScreenSaver.GetActive = true` agora faz
+`AskText` retornar `locked` também para conversa. O estado permanece `ocioso`,
+sem histórico ou ação pendente. `GetActive = false` mantém a solicitação de
+confirmação para ações `alterar`. Isso testa a política do daemon, não uma
+sessão Plasma bloqueada com `loginctl lock-session`.
+
+Com a verificação adicional do link de reprodução, `cargo fmt --check`,
+Clippy e 77 testes Rust passaram. O perfil Linux isolado atual do `llvm-cov`
+apontou 77,65% de linhas. O `hero-speak` foi exercitado com worker TTS
+sintético e grafo PipeWire privado: fala válida ligada ao sink AEC, sink
+ausente recusado na checagem inicial e alvo ausente após checagem simulada
+recusado antes do envio de PCM. Não houve build da imagem completa.
