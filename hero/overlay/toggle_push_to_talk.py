@@ -2,7 +2,10 @@
 """Global toggle for the local HERO push-to-talk capture."""
 
 import json
+import os
+import socket
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, QObject, SLOT, QTimer, Slot
 from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
@@ -51,11 +54,31 @@ def notify(bus: QDBusConnection, body: str) -> None:
         notifications.call("Notify", "ForjaOS HERO", 0, "audio-input-microphone", "HERO", body, [], {}, 5000)
 
 
+def hero_state() -> str:
+    runtime = os.environ.get("XDG_RUNTIME_DIR", "")
+    if not runtime:
+        return "indisponível"
+    path = Path(runtime) / "forjaos" / "herod.sock"
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+            connection.settimeout(0.15)
+            connection.connect(str(path))
+            data = connection.recv(256).decode("utf-8", errors="replace").splitlines()[0]
+        return str(json.loads(data).get("state", "indisponível"))
+    except (OSError, ValueError, IndexError):
+        return "indisponível"
+
+
 def main() -> int:
     _app = QCoreApplication(sys.argv)
     bus = QDBusConnection.sessionBus()
+    if not bus.isConnected():
+        return 1
+    if hero_state() not in {"ocioso", "falando", "gravando"}:
+        notify(bus, "Gatilho ignorado: HERO ocupado ou indisponível.")
+        return 1
     hero = QDBusInterface(BUS_NAME, OBJECT_PATH, INTERFACE, bus)
-    if not bus.isConnected() or not hero.isValid():
+    if not hero.isValid():
         return 1
 
     result = VoiceResult()

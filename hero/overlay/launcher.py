@@ -434,7 +434,13 @@ class HeroBackend(QObject):
 
     @Slot()
     def startPushToTalk(self) -> None:
-        if not self.microphoneEnabled or self._busy or self._ptt_starting or self._ptt_recording:
+        if self._busy or self._ptt_starting or self._ptt_recording:
+            return
+        state = self.heroState
+        if state not in {"ocioso", "idle", "falando", "speaking"}:
+            self.voiceIgnored.emit(state)
+            return
+        if not self.microphoneEnabled:
             return
         self._ptt_starting = True
         self._ptt_stop_requested = False
