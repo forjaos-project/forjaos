@@ -135,3 +135,12 @@ apontou 77,65% de linhas. O `hero-speak` foi exercitado com worker TTS
 sintético e grafo PipeWire privado: fala válida ligada ao sink AEC, sink
 ausente recusado na checagem inicial e alvo ausente após checagem simulada
 recusado antes do envio de PCM. Não houve build da imagem completa.
+
+O fragmento AEC continua carregado sem consumidor. Antes do primeiro
+`pw-cat`, a fonte virtual de microfone e os nós AEC estavam `suspended`.
+Cinco segundos após encerrar todos os consumidores, a fonte virtual e a saída
+AEC voltaram a `suspended`; o nó intermediário `forjaos.hero.aec.capture`
+ficou `idle`, sem porta ativa. Isso indica que o grafo não processava a fonte
+virtual naquele instante, conforme os [estados de nó do PipeWire](https://pipewire.pages.freedesktop.org/pipewire/group__pw__node.html).
+Ainda falta verificar o indicador e o dispositivo físico após o kill switch
+em uma sessão Plasma.
