@@ -1,16 +1,19 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 
 use base64::Engine;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
-use tokio::sync::oneshot;
+use tokio::sync::{broadcast, oneshot, watch};
 
 const MAX_AUDIO_BYTES: usize = 16_000 * 2 * 30;
 const CAPTURE_SECONDS: u64 = 30;
+const FRAME_BYTES: usize = 16_000 * 2 * 80 / 1000;
+const STREAM_RETRY: Duration = Duration::from_secs(1);
 
 pub fn selected_piper_model() -> Result<PathBuf, &'static str> {
     let voice = crate::persona::load().voice.ok_or("voice_not_selected")?;
@@ -99,30 +102,168 @@ enum CaptureCommand {
     Cancel,
 }
 
+#[derive(Clone)]
+enum MicPacket {
+    Audio(Arc<[u8]>),
+    Disconnected,
+}
+
+pub struct MicStream {
+    packets: broadcast::Sender<MicPacket>,
+    connected: watch::Receiver<bool>,
+    cancel: oneshot::Sender<()>,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl MicStream {
+    pub fn start() -> Self {
+        Self::start_with_factory(|| {
+            let mut command = Command::new("pw-cat");
+            command.args([
+                "--record",
+                "--raw",
+                "--media-role=Communication",
+                "--properties={\"node.name\":\"forjaos.hero.microphone\",\"media.name\":\"HERO microphone\",\"application.name\":\"ForjaOS HERO\"}",
+                "--format",
+                "s16",
+                "--rate",
+                "16000",
+                "--channels",
+                "1",
+                "-",
+            ]);
+            command
+        })
+    }
+
+    fn start_with_factory<F>(factory: F) -> Self
+    where
+        F: Fn() -> Command + Send + 'static,
+    {
+        let (packets, _) = broadcast::channel(64);
+        let (connected_tx, connected) = watch::channel(false);
+        let (cancel, mut receiver) = oneshot::channel();
+        let sender = packets.clone();
+        let task = tokio::spawn(async move {
+            loop {
+                let mut command = factory();
+                let child = command
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null())
+                    .kill_on_drop(true)
+                    .spawn();
+                if let Ok(mut process) = child {
+                    if let Some(mut output) = process.stdout.take() {
+                        let _ = connected_tx.send(true);
+                        let mut pending = Vec::with_capacity(FRAME_BYTES + 4096);
+                        let mut block = [0u8; 4096];
+                        loop {
+                            tokio::select! {
+                                _ = &mut receiver => {
+                                    let _ = connected_tx.send(false);
+                                    let _ = sender.send(MicPacket::Disconnected);
+                                    let _ = process.start_kill();
+                                    let _ = process.wait().await;
+                                    return;
+                                }
+                                read = output.read(&mut block) => {
+                                    match read {
+                                        Ok(0) | Err(_) => break,
+                                        Ok(size) => {
+                                            pending.extend_from_slice(&block[..size]);
+                                            while pending.len() >= FRAME_BYTES {
+                                                let frame: Arc<[u8]> = pending.drain(..FRAME_BYTES).collect::<Vec<_>>().into();
+                                                let _ = sender.send(MicPacket::Audio(frame));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let _ = connected_tx.send(false);
+                    let _ = sender.send(MicPacket::Disconnected);
+                    let _ = process.start_kill();
+                    let _ = process.wait().await;
+                }
+                tokio::select! {
+                    _ = &mut receiver => return,
+                    () = tokio::time::sleep(STREAM_RETRY) => {},
+                }
+            }
+        });
+        Self {
+            packets,
+            connected,
+            cancel,
+            task,
+        }
+    }
+
+    pub async fn stop(self) {
+        let _ = self.cancel.send(());
+        let _ = self.task.await;
+    }
+}
+
 pub struct Capture {
     command: oneshot::Sender<CaptureCommand>,
     task: tokio::task::JoinHandle<Result<Vec<u8>, &'static str>>,
 }
 
 impl Capture {
-    pub fn start() -> Result<Self, &'static str> {
-        let mut command = Command::new("pw-cat");
-        command.args([
-            "--record",
-            "--raw",
-            "--media-role=Communication",
-            "--properties={\"node.name\":\"forjaos.hero.microphone\",\"media.name\":\"HERO microphone\",\"application.name\":\"ForjaOS HERO\"}",
-            "--format",
-            "s16",
-            "--rate",
-            "16000",
-            "--channels",
-            "1",
-            "-",
-        ]);
-        Self::start_command(command)
+    pub fn start_from_stream(stream: &MicStream) -> Result<Self, &'static str> {
+        if !*stream.connected.borrow() {
+            return Err("pipewire_capture_unavailable");
+        }
+        let mut packets = stream.packets.subscribe();
+        let connected = stream.connected.clone();
+        let (command, mut receiver) = oneshot::channel();
+        let task = tokio::spawn(async move {
+            let mut audio = Vec::with_capacity(16_000 * 2);
+            let deadline = tokio::time::sleep(Duration::from_secs(CAPTURE_SECONDS));
+            tokio::pin!(deadline);
+            loop {
+                tokio::select! {
+                    biased;
+                    control = &mut receiver => {
+                        return match control {
+                            Ok(CaptureCommand::Finish) => {
+                                if !*connected.borrow() {
+                                    return Err("pipewire_capture_failed");
+                                }
+                                if audio.is_empty() {
+                                    match tokio::time::timeout(Duration::from_millis(250), packets.recv()).await {
+                                        Ok(Ok(MicPacket::Audio(frame))) => audio.extend_from_slice(&frame),
+                                        Ok(_) => return Err("pipewire_capture_failed"),
+                                        Err(_) => {},
+                                    }
+                                }
+                                if !audio.is_empty() && audio.len().is_multiple_of(2) {
+                                    Ok(audio)
+                                } else {
+                                    Err("empty_or_invalid_audio")
+                                }
+                            }
+                            _ => Err("capture_cancelled"),
+                        };
+                    }
+                    packet = packets.recv() => {
+                        match packet {
+                            Ok(MicPacket::Audio(frame)) if audio.len() + frame.len() <= MAX_AUDIO_BYTES => audio.extend_from_slice(&frame),
+                            Ok(MicPacket::Audio(_)) => return Err("audio_duration_exceeded"),
+                            _ => return Err("pipewire_capture_failed"),
+                        }
+                    }
+                    () = &mut deadline => return Err("audio_duration_exceeded"),
+                }
+            }
+        });
+        Ok(Self { command, task })
     }
 
+    #[cfg(test)]
     pub(crate) fn start_command(mut command: Command) -> Result<Self, &'static str> {
         let mut process = command
             .stdin(Stdio::null())
@@ -274,10 +415,12 @@ pub fn set_microphone_enabled(enabled: bool) -> Result<(), &'static str> {
 mod tests {
     use super::{
         microphone_enabled, selected_piper_model, set_microphone_enabled, speak_with_command,
-        transcribe_with_command, Capture, MAX_AUDIO_BYTES,
+        transcribe_with_command, Capture, MicPacket, MicStream, MAX_AUDIO_BYTES,
     };
     use crate::test_support::TestHome;
     use std::fs;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
     use std::time::Duration;
     use tokio::{process::Command, sync::oneshot};
 
@@ -319,6 +462,74 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(2), capture.cancel())
             .await
             .expect("cancel stops the child");
+    }
+
+    #[tokio::test]
+    async fn one_microphone_process_feeds_push_to_talk_and_another_consumer() {
+        let launches = Arc::new(AtomicUsize::new(0));
+        let counter = launches.clone();
+        let stream = MicStream::start_with_factory(move || {
+            counter.fetch_add(1, Ordering::SeqCst);
+            python_command("import sys,time; time.sleep(.2); [(sys.stdout.buffer.write(b'\\x00\\x01'*1280),sys.stdout.flush(),time.sleep(.02)) for _ in range(50)]; time.sleep(2)")
+        });
+        let mut connected = stream.connected.clone();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !*connected.borrow() {
+                connected.changed().await.expect("microphone stream");
+            }
+        })
+        .await
+        .expect("stream connected");
+
+        let mut wake_consumer = stream.packets.subscribe();
+        let capture = Capture::start_from_stream(&stream).expect("PTT subscribes");
+        let packet = tokio::time::timeout(Duration::from_secs(2), wake_consumer.recv())
+            .await
+            .expect("second consumer receives a frame")
+            .expect("microphone frame");
+        assert!(matches!(packet, MicPacket::Audio(_)));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let audio = capture.finish().await.expect("PTT returns PCM");
+        assert!(!audio.is_empty());
+        assert!(audio.len() <= MAX_AUDIO_BYTES);
+        assert_eq!(&audio[..2], &[0, 1]);
+        assert_eq!(launches.load(Ordering::SeqCst), 1);
+        stream.stop().await;
+    }
+
+    #[tokio::test]
+    async fn microphone_disconnect_fails_capture_and_restarts_the_owner() {
+        let launches = Arc::new(AtomicUsize::new(0));
+        let counter = launches.clone();
+        let stream = MicStream::start_with_factory(move || {
+            counter.fetch_add(1, Ordering::SeqCst);
+            python_command("import sys,time; time.sleep(.2); sys.stdout.buffer.write(b'\\x00\\x01'*1280); sys.stdout.flush()")
+        });
+        let mut connected = stream.connected.clone();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !*connected.borrow() {
+                connected.changed().await.expect("microphone stream");
+            }
+        })
+        .await
+        .expect("stream connected");
+        let capture = Capture::start_from_stream(&stream).expect("PTT subscribes");
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while *connected.borrow() {
+                connected.changed().await.expect("microphone stream");
+            }
+        })
+        .await
+        .expect("stream disconnected");
+        assert_eq!(capture.finish().await, Err("pipewire_capture_failed"));
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while launches.load(Ordering::SeqCst) < 2 {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("owner retries after disconnect");
+        stream.stop().await;
     }
 
     #[tokio::test]

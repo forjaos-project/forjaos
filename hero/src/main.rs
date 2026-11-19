@@ -106,6 +106,7 @@ struct Hero {
     state_tx: watch::Sender<&'static str>,
     state_epoch: Arc<AtomicU64>,
     microphone_enabled: bool,
+    mic_stream: Option<voice::MicStream>,
     capture: Option<voice::Capture>,
     voice_generation: u64,
     voice_tx: mpsc::UnboundedSender<VoiceEvent>,
@@ -655,7 +656,12 @@ impl Hero {
             );
         }
         let _ = self.transition_to("escutando", &emitter).await;
-        match voice::Capture::start() {
+        let capture = self
+            .mic_stream
+            .as_ref()
+            .map(voice::Capture::start_from_stream)
+            .unwrap_or(Err("pipewire_capture_unavailable"));
+        match capture {
             Ok(capture) => {
                 self.capture = Some(capture);
                 let _ = self.transition_to("gravando", &emitter).await;
@@ -819,6 +825,11 @@ impl Hero {
             if let Some(task) = self.stt_task.take() {
                 task.abort();
             }
+            if let Some(stream) = self.mic_stream.take() {
+                stream.stop().await;
+            }
+        } else {
+            self.mic_stream = Some(voice::MicStream::start());
         }
         if !enabled
             && matches!(
@@ -1214,6 +1225,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(unix))]
     let _ = state_rx;
     let (voice_tx, mut voice_rx) = mpsc::unbounded_channel();
+    let microphone_enabled = voice::microphone_enabled();
     let trigger = VoiceTrigger {
         state_rx: state_rx.clone(),
         state_epoch: state_epoch.clone(),
@@ -1223,7 +1235,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state: State::Idle,
         state_tx,
         state_epoch,
-        microphone_enabled: voice::microphone_enabled(),
+        microphone_enabled,
+        mic_stream: microphone_enabled.then(voice::MicStream::start),
         capture: None,
         voice_generation: 0,
         voice_tx,
@@ -1333,6 +1346,7 @@ mod tests {
             state_tx,
             state_epoch,
             microphone_enabled: true,
+            mic_stream: None,
             capture: None,
             voice_generation: 0,
             voice_tx,
@@ -1607,6 +1621,7 @@ mod tests {
             state_tx,
             state_epoch: Arc::new(AtomicU64::new(0)),
             microphone_enabled: true,
+            mic_stream: None,
             capture: None,
             voice_generation: 0,
             voice_tx,
