@@ -98,9 +98,13 @@ a validação por 20 locutores reais segue pendente conforme acima.
 `worker.py` já implementa a inferência openWakeWord em quadros PCM de 80 ms
 recebidos por stdin, com modelos ONNX indicados por caminhos locais explícitos.
 Ele não baixa nem seleciona classificadores pré-treinados. Os testes usam
-classificador sintético; o worker ainda não está instalado na imagem nem ligado
-ao `herod`, pois os modelos compartilhados e o classificador pt-BR ainda não
-passaram pelos gates de procedência e validação acima.
+classificador sintético. O `Containerfile` copia o worker e o `herod` tem uma
+ponte opt-in para o fluxo PCM compartilhado; a imagem completa ainda não foi
+reconstruída com essa mudança. O pacote Python `openwakeword` e os modelos não
+são embarcados, pois os modelos compartilhados e o classificador pt-BR ainda
+não passaram pelos gates de procedência e validação acima. A ponte e o
+endpointing foram verificados apenas por testes sintéticos, sem comprovação de
+acurácia ou supressão do próprio Piper.
 
 Em 19/11/2026, a [questão #338](https://github.com/dscripka/openWakeWord/issues/338)
 continuava aberta sem resposta do mantenedor sobre a licença dos ONNX

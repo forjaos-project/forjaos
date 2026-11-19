@@ -1,10 +1,12 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use base64::Engine;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
@@ -15,6 +17,60 @@ const CAPTURE_SECONDS: u64 = 30;
 const FRAME_BYTES: usize = 16_000 * 2 * 80 / 1000;
 const STREAM_RETRY: Duration = Duration::from_secs(1);
 const AEC_SOURCE: &str = "forjaos.hero.aec.source";
+const WAKE_SPEECH_RMS: u64 = 400;
+const WAKE_MIN_SPEECH_FRAMES: u16 = 4;
+const WAKE_QUIET_FRAMES: u16 = 10;
+const WAKE_WAIT_FRAMES: u16 = 63;
+const WAKE_WORKER: &str = "/usr/libexec/forjaos/hero-wakeword";
+const WAKE_WORKER_SOURCE: &str = "/usr/share/forjaos/wakeword/worker.py";
+
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WakeConfig {
+    model: PathBuf,
+    melspec: PathBuf,
+    embedding: PathBuf,
+    #[serde(default = "default_wake_threshold")]
+    threshold: f32,
+}
+
+fn default_wake_threshold() -> f32 {
+    0.5
+}
+
+impl WakeConfig {
+    fn load() -> Option<Self> {
+        let home = std::env::var_os("HOME")?;
+        let path = PathBuf::from(home).join(".config/hero/wakeword.toml");
+        let config: Self = toml::from_str(&fs::read_to_string(path).ok()?).ok()?;
+        let models = [&config.model, &config.melspec, &config.embedding];
+        if models
+            .iter()
+            .any(|path| !path.is_absolute() || !regular_file(path))
+            || !config.threshold.is_finite()
+            || config.threshold <= 0.0
+            || config.threshold >= 1.0
+            || !regular_file(std::path::Path::new(WAKE_WORKER_SOURCE))
+        {
+            return None;
+        }
+        Some(config)
+    }
+
+    fn command(&self) -> Command {
+        let mut command = Command::new(WAKE_WORKER);
+        command
+            .arg("--model")
+            .arg(&self.model)
+            .arg("--melspec")
+            .arg(&self.melspec)
+            .arg("--embedding")
+            .arg(&self.embedding)
+            .arg("--threshold")
+            .arg(self.threshold.to_string());
+        command
+    }
+}
 
 pub fn selected_piper_model() -> Result<PathBuf, &'static str> {
     let voice = crate::persona::load().voice.ok_or("voice_not_selected")?;
@@ -116,6 +172,222 @@ pub struct MicStream {
     task: tokio::task::JoinHandle<()>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WakeEndpointResult {
+    SpeechComplete,
+    NoSpeech,
+    Disconnected,
+}
+
+#[derive(Default)]
+struct WakeEndpointDetector {
+    frames: u16,
+    speech_frames: u16,
+    quiet_frames: u16,
+}
+
+impl WakeEndpointDetector {
+    fn observe(&mut self, frame: &[u8]) -> Option<WakeEndpointResult> {
+        if frame.len() != FRAME_BYTES {
+            return Some(WakeEndpointResult::Disconnected);
+        }
+        self.frames = self.frames.saturating_add(1);
+        let (samples, _) = frame.as_chunks::<2>();
+        let sum_of_squares = samples
+            .iter()
+            .map(|sample| {
+                let value = i16::from_le_bytes([sample[0], sample[1]]) as i64;
+                (value * value) as u64
+            })
+            .sum::<u64>();
+        let speech = sum_of_squares > WAKE_SPEECH_RMS.pow(2) * (FRAME_BYTES / 2) as u64;
+        if speech {
+            self.speech_frames = self.speech_frames.saturating_add(1);
+            self.quiet_frames = 0;
+        } else if self.speech_frames > 0 {
+            self.quiet_frames = self.quiet_frames.saturating_add(1);
+        }
+        if self.speech_frames >= WAKE_MIN_SPEECH_FRAMES && self.quiet_frames >= WAKE_QUIET_FRAMES {
+            return Some(WakeEndpointResult::SpeechComplete);
+        }
+        if self.quiet_frames >= WAKE_QUIET_FRAMES && self.speech_frames < WAKE_MIN_SPEECH_FRAMES {
+            self.speech_frames = 0;
+        }
+        if self.frames >= WAKE_WAIT_FRAMES && self.speech_frames < WAKE_MIN_SPEECH_FRAMES {
+            return Some(WakeEndpointResult::NoSpeech);
+        }
+        None
+    }
+}
+
+pub struct WakeEndpoint {
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl WakeEndpoint {
+    pub fn start<F>(stream: &MicStream, finished: F) -> Self
+    where
+        F: FnOnce(WakeEndpointResult) + Send + 'static,
+    {
+        let mut packets = stream.packets.subscribe();
+        let task = tokio::spawn(async move {
+            let mut detector = WakeEndpointDetector::default();
+            let result = loop {
+                match packets.recv().await {
+                    Ok(MicPacket::Audio(frame)) => {
+                        if let Some(result) = detector.observe(&frame) {
+                            break result;
+                        }
+                    }
+                    _ => break WakeEndpointResult::Disconnected,
+                }
+            };
+            finished(result);
+        });
+        Self { task }
+    }
+
+    pub async fn stop(self) {
+        self.task.abort();
+        let _ = self.task.await;
+    }
+}
+
+pub struct WakeDetector {
+    cancel: oneshot::Sender<()>,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl WakeDetector {
+    pub fn start_configured<F>(
+        stream: &MicStream,
+        state: watch::Receiver<&'static str>,
+        epoch: Arc<AtomicU64>,
+        detected: F,
+    ) -> Option<Self>
+    where
+        F: Fn(u64) + Send + 'static,
+    {
+        let config = WakeConfig::load()?;
+        Some(Self::start_with_factory(
+            stream,
+            state,
+            epoch,
+            move || config.command(),
+            detected,
+        ))
+    }
+
+    fn start_with_factory<C, F>(
+        stream: &MicStream,
+        mut state: watch::Receiver<&'static str>,
+        epoch: Arc<AtomicU64>,
+        command: C,
+        detected: F,
+    ) -> Self
+    where
+        C: Fn() -> Command + Send + 'static,
+        F: Fn(u64) + Send + 'static,
+    {
+        let packets = stream.packets.clone();
+        let (cancel, mut receiver) = oneshot::channel();
+        let task = tokio::spawn(async move {
+            loop {
+                if !matches!(*state.borrow(), "ocioso" | "falando") {
+                    tokio::select! {
+                        _ = &mut receiver => return,
+                        changed = state.changed() => {
+                            if changed.is_err() { return; }
+                        }
+                    }
+                    continue;
+                }
+                let mut frames = packets.subscribe();
+                let child = command()
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null())
+                    .kill_on_drop(true)
+                    .spawn();
+                let Ok(mut process) = child else {
+                    tokio::select! {
+                        _ = &mut receiver => return,
+                        () = tokio::time::sleep(STREAM_RETRY) => continue,
+                    }
+                };
+                let (Some(mut input), Some(output)) = (process.stdin.take(), process.stdout.take())
+                else {
+                    let _ = process.start_kill();
+                    let _ = process.wait().await;
+                    return;
+                };
+                let mut output = BufReader::new(output);
+                let mut activated = None;
+                loop {
+                    let mut marker = [0u8; 5];
+                    tokio::select! {
+                        biased;
+                        _ = &mut receiver => {
+                            let _ = process.start_kill();
+                            let _ = process.wait().await;
+                            return;
+                        }
+                        changed = state.changed() => {
+                            if changed.is_err() { return; }
+                            if !matches!(*state.borrow(), "ocioso" | "falando") { break; }
+                        }
+                        packet = frames.recv() => {
+                            match packet {
+                                Ok(MicPacket::Audio(frame)) => {
+                                    if !matches!(tokio::time::timeout(Duration::from_secs(1), input.write_all(&frame)).await, Ok(Ok(()))) {
+                                        break;
+                                    }
+                                }
+                                _ => break,
+                            }
+                        }
+                        read = output.read_exact(&mut marker) => {
+                            if read.is_err() || marker != *b"wake\n" { break; }
+                            if matches!(*state.borrow(), "ocioso" | "falando") {
+                                let current = epoch.load(Ordering::SeqCst);
+                                detected(current);
+                                activated = Some(current);
+                            }
+                            break;
+                        }
+                    }
+                }
+                let _ = process.start_kill();
+                let _ = process.wait().await;
+                if let Some(activation_epoch) = activated {
+                    tokio::select! {
+                        _ = &mut receiver => return,
+                        _ = async {
+                            while epoch.load(Ordering::SeqCst) == activation_epoch
+                                && matches!(*state.borrow(), "ocioso" | "falando")
+                            {
+                                if state.changed().await.is_err() { break; }
+                            }
+                        } => {},
+                        () = tokio::time::sleep(STREAM_RETRY) => {},
+                    }
+                } else {
+                    tokio::select! {
+                        _ = &mut receiver => return,
+                        () = tokio::time::sleep(STREAM_RETRY) => {},
+                    }
+                }
+            }
+        });
+        Self { cancel, task }
+    }
+
+    pub async fn stop(self) {
+        let _ = self.cancel.send(());
+        let _ = self.task.await;
+    }
+}
+
 impl MicStream {
     pub fn is_ready(&self) -> bool {
         *self.connected.borrow()
@@ -146,7 +418,7 @@ impl MicStream {
     }
 
     #[cfg(test)]
-    fn start_with_factory<F>(factory: F) -> Self
+    pub(crate) fn start_with_factory<F>(factory: F) -> Self
     where
         F: Fn() -> Command + Send + 'static,
     {
@@ -506,14 +778,18 @@ pub fn set_microphone_enabled(enabled: bool) -> Result<(), &'static str> {
 mod tests {
     use super::{
         microphone_enabled, selected_piper_model, set_microphone_enabled, speak_with_command,
-        transcribe_with_command, Capture, MicPacket, MicStream, MAX_AUDIO_BYTES,
+        transcribe_with_command, Capture, MicPacket, MicStream, WakeDetector, WakeEndpoint,
+        WakeEndpointDetector, WakeEndpointResult, FRAME_BYTES, MAX_AUDIO_BYTES,
     };
     use crate::test_support::TestHome;
     use std::fs;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::Duration;
-    use tokio::{process::Command, sync::oneshot};
+    use tokio::{
+        process::Command,
+        sync::{mpsc, oneshot, watch},
+    };
 
     #[test]
     fn microphone_rejects_a_pipewire_link_from_the_default_source() {
@@ -543,10 +819,104 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn wake_endpoint_waits_for_speech_then_closes_after_silence() {
+        let mut detector = WakeEndpointDetector::default();
+        let quiet = vec![0u8; FRAME_BYTES];
+        let speech = 1200i16.to_le_bytes().repeat(FRAME_BYTES / 2);
+        for _ in 0..12 {
+            assert_eq!(detector.observe(&quiet), None);
+        }
+        for _ in 0..4 {
+            assert_eq!(detector.observe(&speech), None);
+        }
+        for _ in 0..9 {
+            assert_eq!(detector.observe(&quiet), None);
+        }
+        assert_eq!(
+            detector.observe(&quiet),
+            Some(WakeEndpointResult::SpeechComplete)
+        );
+
+        let mut no_speech = WakeEndpointDetector::default();
+        for _ in 0..62 {
+            assert_eq!(no_speech.observe(&quiet), None);
+        }
+        assert_eq!(
+            no_speech.observe(&quiet),
+            Some(WakeEndpointResult::NoSpeech)
+        );
+
+        let mut noise = WakeEndpointDetector::default();
+        for _ in 0..3 {
+            assert_eq!(noise.observe(&speech), None);
+        }
+        for _ in 0..59 {
+            assert_eq!(noise.observe(&quiet), None);
+        }
+        assert_eq!(noise.observe(&quiet), Some(WakeEndpointResult::NoSpeech));
+    }
+
     fn python_command(script: &str) -> Command {
         let mut command = Command::new(if cfg!(windows) { "python" } else { "python3" });
         command.args(["-u", "-c", script]);
         command
+    }
+
+    #[tokio::test]
+    async fn wake_detector_waits_for_idle_and_uses_the_shared_microphone_stream() {
+        let stream = MicStream::start_with_factory(|| {
+            python_command("import sys,time; time.sleep(.3); frame=b'\\x00\\x05'*1280; [(sys.stdout.buffer.write(frame),sys.stdout.flush(),time.sleep(.02)) for _ in range(40)]; time.sleep(2)")
+        });
+        let launches = Arc::new(AtomicUsize::new(0));
+        let count = launches.clone();
+        let (state_tx, state_rx) = watch::channel("gravando");
+        let (wake_tx, mut wake_rx) = mpsc::unbounded_channel();
+        let detector = WakeDetector::start_with_factory(
+            &stream,
+            state_rx,
+            Arc::new(AtomicU64::new(7)),
+            move || {
+                count.fetch_add(1, Ordering::SeqCst);
+                python_command("import sys,time; [sys.stdin.buffer.read(2560) for _ in range(4)]; sys.stdout.buffer.write(b'wake\\n'); sys.stdout.flush(); time.sleep(2)")
+            },
+            move |epoch| {
+                let _ = wake_tx.send(epoch);
+            },
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(launches.load(Ordering::SeqCst), 0);
+        state_tx.send("ocioso").expect("wake state");
+        let detected = tokio::time::timeout(Duration::from_secs(2), wake_rx.recv())
+            .await
+            .expect("wake signal");
+        assert_eq!(detected, Some(7));
+        assert_eq!(launches.load(Ordering::SeqCst), 1);
+        state_tx.send("gravando").expect("PTT suspension");
+        detector.stop().await;
+        stream.stop().await;
+    }
+
+    #[tokio::test]
+    async fn wake_endpoint_consumes_pcm_without_another_microphone_process() {
+        let launches = Arc::new(AtomicUsize::new(0));
+        let count = launches.clone();
+        let stream = MicStream::start_with_factory(move || {
+            count.fetch_add(1, Ordering::SeqCst);
+            python_command("import sys,time; time.sleep(.2); speech=b'\\x00\\x05'*1280; quiet=bytes(2560); [(sys.stdout.buffer.write(speech),sys.stdout.flush(),time.sleep(.02)) for _ in range(4)]; [(sys.stdout.buffer.write(quiet),sys.stdout.flush(),time.sleep(.02)) for _ in range(10)]; time.sleep(2)")
+        });
+        let (done_tx, done_rx) = oneshot::channel();
+        let endpoint = WakeEndpoint::start(&stream, move |result| {
+            let _ = done_tx.send(result);
+        });
+        let result = tokio::time::timeout(Duration::from_secs(2), done_rx)
+            .await
+            .expect("endpoint completed")
+            .expect("endpoint result");
+        assert_eq!(result, WakeEndpointResult::SpeechComplete);
+        assert_eq!(launches.load(Ordering::SeqCst), 1);
+        endpoint.stop().await;
+        stream.stop().await;
     }
 
     #[test]

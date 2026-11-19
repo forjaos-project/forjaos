@@ -107,7 +107,11 @@ struct Hero {
     state_epoch: Arc<AtomicU64>,
     microphone_enabled: bool,
     mic_stream: Option<voice::MicStream>,
+    wake_detector: Option<voice::WakeDetector>,
     capture: Option<voice::Capture>,
+    capture_origin: Option<CaptureOrigin>,
+    voice_origin: CaptureOrigin,
+    wake_endpoint: Option<voice::WakeEndpoint>,
     voice_generation: u64,
     voice_tx: mpsc::UnboundedSender<VoiceEvent>,
     stt_task: Option<tokio::task::JoinHandle<()>>,
@@ -121,12 +125,29 @@ struct Hero {
 
 enum VoiceEvent {
     Trigger(TriggerRequest),
+    WakeDetected(u64),
+    WakeEndpointFinished(u64, voice::WakeEndpointResult),
     CaptureExpired(u64),
     TurnExpired(u64),
     Transcribed(u64, Result<String, &'static str>),
     TurnCompleted(u64, String, String),
     ActionCompleted(VoiceActionResult),
     SpeechCompleted(u64, Result<(), &'static str>),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CaptureOrigin {
+    PushToTalk,
+    WakeWord,
+}
+
+impl CaptureOrigin {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::PushToTalk => "push_to_talk",
+            Self::WakeWord => "wake_word",
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -208,7 +229,7 @@ impl VoiceTrigger {
 
 fn trigger_allowed(mode: TriggerMode, state: &str) -> bool {
     match mode {
-        TriggerMode::Start => matches!(state, "ocioso" | "falando"),
+        TriggerMode::Start => matches!(state, "ocioso" | "falando" | "gravando"),
         TriggerMode::Stop => state == "gravando",
         TriggerMode::Toggle => matches!(state, "ocioso" | "falando" | "gravando"),
     }
@@ -264,6 +285,56 @@ impl Hero {
                 };
                 let _ = request.response.send(reply);
             }
+            VoiceEvent::WakeDetected(epoch) => {
+                if epoch != self.state_epoch.load(Ordering::SeqCst)
+                    || !matches!(self.state, State::Idle | State::Speaking)
+                    || !self.microphone_enabled
+                {
+                    let _ = Self::voice_ignored(emitter, self.state.as_str()).await;
+                    audit::record_trigger(
+                        "wake_word",
+                        "conversa-de-voz",
+                        "audio.trigger",
+                        "livre",
+                        "ignorado_ocupado",
+                        0,
+                    );
+                } else {
+                    let _ = self
+                        .start_capture(CaptureOrigin::WakeWord, emitter.clone())
+                        .await;
+                }
+            }
+            VoiceEvent::WakeEndpointFinished(generation, result)
+                if generation == self.voice_generation
+                    && self.capture_origin == Some(CaptureOrigin::WakeWord) =>
+            {
+                match result {
+                    voice::WakeEndpointResult::SpeechComplete => {
+                        let _ = self.stop_push_to_talk(emitter.clone()).await;
+                    }
+                    voice::WakeEndpointResult::NoSpeech
+                    | voice::WakeEndpointResult::Disconnected => {
+                        if let Some(endpoint) = self.wake_endpoint.take() {
+                            endpoint.stop().await;
+                        }
+                        if let Some(capture) = self.capture.take() {
+                            capture.cancel().await;
+                        }
+                        self.capture_origin = None;
+                        self.voice_generation = self.voice_generation.wrapping_add(1);
+                        let _ = self.transition_to("ocioso", emitter).await;
+                        let _ = Self::voice_failed(
+                            emitter,
+                            match result {
+                                voice::WakeEndpointResult::NoSpeech => "wake_no_speech",
+                                _ => "pipewire_capture_failed",
+                            },
+                        )
+                        .await;
+                    }
+                }
+            }
             VoiceEvent::TurnExpired(generation)
                 if generation == self.voice_generation
                     && matches!(
@@ -277,6 +348,10 @@ impl Hero {
                 if let Some(capture) = self.capture.take() {
                     capture.cancel().await;
                 }
+                if let Some(endpoint) = self.wake_endpoint.take() {
+                    endpoint.stop().await;
+                }
+                self.capture_origin = None;
                 if let Some(task) = self.stt_task.take() {
                     task.abort();
                 }
@@ -291,7 +366,7 @@ impl Hero {
                     self.pending.remove(&id);
                 }
                 if let Some(action) = &active_action {
-                    audit_voice(
+                    self.audit_current(
                         action.route,
                         action.tool,
                         action.tier.as_str(),
@@ -315,9 +390,13 @@ impl Hero {
             VoiceEvent::CaptureExpired(generation)
                 if generation == self.voice_generation && self.capture.is_some() =>
             {
+                if let Some(endpoint) = self.wake_endpoint.take() {
+                    endpoint.stop().await;
+                }
                 if let Some(capture) = self.capture.take() {
                     capture.cancel().await;
                 }
+                self.capture_origin = None;
                 let _ = self.transition_to("erro", emitter).await;
                 let _ = self.transition_to("ocioso", emitter).await;
                 let _ = Self::voice_failed(emitter, "audio_duration_exceeded").await;
@@ -329,7 +408,7 @@ impl Hero {
                 match result {
                     Ok(text) => {
                         audit::record_trigger(
-                            "push_to_talk",
+                            self.voice_origin.as_str(),
                             "conversa-de-voz",
                             "audio.transcribe",
                             "livre",
@@ -342,7 +421,7 @@ impl Hero {
                     }
                     Err(_error) => {
                         audit::record_trigger(
-                            "push_to_talk",
+                            self.voice_origin.as_str(),
                             "conversa-de-voz",
                             "audio.transcribe",
                             "livre",
@@ -420,7 +499,7 @@ impl Hero {
             if let Some(pending) = self.pending.remove(&id) {
                 let proposal = pending.proposal;
                 if pending.expires_at <= Instant::now() {
-                    audit_voice(proposal.route, proposal.tool, "alterar", "expirado", 0);
+                    self.audit_current(proposal.route, proposal.tool, "alterar", "expirado", 0);
                     self.start_speech(
                         "A confirmação expirou. Solicite a ação novamente.".into(),
                         generation,
@@ -431,7 +510,7 @@ impl Hero {
                 }
                 if is_voice_confirmation(&text) {
                     if session_lock::locked(emitter.connection()).await {
-                        audit_voice(
+                        self.audit_current(
                             proposal.route,
                             proposal.tool,
                             "alterar",
@@ -449,7 +528,7 @@ impl Hero {
                     }
                     return;
                 }
-                audit_voice(proposal.route, proposal.tool, "alterar", "cancelado", 0);
+                self.audit_current(proposal.route, proposal.tool, "alterar", "cancelado", 0);
                 if is_voice_cancellation(&text) {
                     self.start_speech(
                         "Ação cancelada; nada foi executado.".into(),
@@ -486,14 +565,14 @@ impl Hero {
                 tool,
                 message,
             } => {
-                audit_voice(route, tool, "bloqueado", "recusado", 0);
+                self.audit_current(route, tool, "bloqueado", "recusado", 0);
                 self.start_speech(bounded_voice_answer(message), generation, emitter)
                     .await;
             }
             Classification::Proposal(proposal)
                 if matches!(&proposal.action, policy::Action::CodeDelegate { .. }) =>
             {
-                audit_voice(
+                self.audit_current(
                     proposal.route,
                     proposal.tool,
                     proposal.tier.as_str(),
@@ -510,7 +589,7 @@ impl Hero {
             }
             Classification::Proposal(proposal) => match proposal.tier {
                 Tier::Blocked => {
-                    audit_voice(proposal.route, proposal.tool, "bloqueado", "recusado", 0);
+                    self.audit_current(proposal.route, proposal.tool, "bloqueado", "recusado", 0);
                     self.start_speech(
                         "Esta ação está bloqueada pela política local.".into(),
                         generation,
@@ -520,7 +599,7 @@ impl Hero {
                 }
                 Tier::Alter => {
                     if session_lock::locked(emitter.connection()).await {
-                        audit_voice(
+                        self.audit_current(
                             proposal.route,
                             proposal.tool,
                             "alterar",
@@ -548,7 +627,7 @@ impl Hero {
                         "Confirma a ação {}? Pressione o botão de voz novamente e diga apenas confirmo ou cancelo.",
                         proposal.tool
                     );
-                    audit_voice(
+                    self.audit_current(
                         proposal.route,
                         proposal.tool,
                         "alterar",
@@ -569,7 +648,7 @@ impl Hero {
                     if session_lock::locked(emitter.connection()).await
                         && !proposal.action.allowed_while_locked()
                     {
-                        audit_voice(
+                        self.audit_current(
                             proposal.route,
                             proposal.tool,
                             "livre",
@@ -590,6 +669,24 @@ impl Hero {
         }
     }
 
+    fn audit_current(
+        &self,
+        route: &str,
+        tool: &str,
+        tier: &str,
+        decision: &str,
+        duration_ms: u128,
+    ) {
+        audit::record_trigger(
+            self.voice_origin.as_str(),
+            route,
+            tool,
+            tier,
+            decision,
+            duration_ms,
+        );
+    }
+
     fn start_voice_action(&mut self, proposal: Proposal, generation: u64, approved: bool) {
         self.active_voice_action = Some(ActiveVoiceAction {
             route: proposal.route,
@@ -597,8 +694,10 @@ impl Hero {
             tier: proposal.tier,
         });
         let voice_tx = self.voice_tx.clone();
+        let origin = self.voice_origin.as_str();
         self.thinking_task = Some(tokio::spawn(async move {
-            audit_voice(
+            audit::record_trigger(
+                origin,
                 proposal.route,
                 proposal.tool,
                 proposal.tier.as_str(),
@@ -608,7 +707,8 @@ impl Hero {
             let started = Instant::now();
             let result = actions::execute(proposal.action).await;
             let elapsed_ms = started.elapsed().as_millis();
-            audit_voice(
+            audit::record_trigger(
+                origin,
                 proposal.route,
                 proposal.tool,
                 proposal.tier.as_str(),
@@ -626,12 +726,26 @@ impl Hero {
     }
 
     async fn start_push_to_talk(&mut self, emitter: SignalEmitter<'_>) -> String {
+        if self.capture_origin == Some(CaptureOrigin::WakeWord) {
+            if let Some(endpoint) = self.wake_endpoint.take() {
+                endpoint.stop().await;
+            }
+            if let Some(capture) = self.capture.take() {
+                capture.cancel().await;
+            }
+            self.capture_origin = None;
+            let _ = self.transition_to("ocioso", &emitter).await;
+        }
+        self.start_capture(CaptureOrigin::PushToTalk, emitter).await
+    }
+
+    async fn start_capture(&mut self, origin: CaptureOrigin, emitter: SignalEmitter<'_>) -> String {
         if !self.microphone_enabled {
             return json!({"status":"microphone_disabled"}).to_string();
         }
         if !matches!(self.state, State::Idle | State::Speaking) || self.capture.is_some() {
             audit::record_trigger(
-                "push_to_talk",
+                origin.as_str(),
                 "conversa-de-voz",
                 "audio.trigger",
                 "livre",
@@ -647,7 +761,7 @@ impl Hero {
             .is_some_and(voice::MicStream::is_ready)
         {
             audit::record_trigger(
-                "push_to_talk",
+                origin.as_str(),
                 "conversa-de-voz",
                 "audio.capture",
                 "livre",
@@ -663,7 +777,7 @@ impl Hero {
             let _ = speech.cancel.send(());
             let _ = speech.task.await;
             audit::record_trigger(
-                "push_to_talk",
+                origin.as_str(),
                 "conversa-de-voz",
                 "speech.cancel",
                 "livre",
@@ -680,7 +794,19 @@ impl Hero {
         match capture {
             Ok(capture) => {
                 self.capture = Some(capture);
+                self.capture_origin = Some(origin);
+                self.voice_origin = origin;
                 let _ = self.transition_to("gravando", &emitter).await;
+                if origin == CaptureOrigin::WakeWord {
+                    if let Some(stream) = self.mic_stream.as_ref() {
+                        let voice_tx = self.voice_tx.clone();
+                        self.wake_endpoint =
+                            Some(voice::WakeEndpoint::start(stream, move |result| {
+                                let _ = voice_tx
+                                    .send(VoiceEvent::WakeEndpointFinished(generation, result));
+                            }));
+                    }
+                }
                 let voice_tx = self.voice_tx.clone();
                 tokio::spawn(async move {
                     tokio::time::sleep(Duration::from_secs(30)).await;
@@ -692,7 +818,7 @@ impl Hero {
                     let _ = voice_tx.send(VoiceEvent::TurnExpired(generation));
                 });
                 audit::record_trigger(
-                    "push_to_talk",
+                    origin.as_str(),
                     "conversa-de-voz",
                     "audio.capture",
                     "livre",
@@ -710,9 +836,13 @@ impl Hero {
     }
 
     async fn stop_push_to_talk(&mut self, emitter: SignalEmitter<'_>) -> String {
+        if let Some(endpoint) = self.wake_endpoint.take() {
+            endpoint.stop().await;
+        }
         let Some(capture) = self.capture.take() else {
             return json!({"status":"not_recording"}).to_string();
         };
+        self.capture_origin = None;
         let audio = match capture.finish().await {
             Ok(audio) => audio,
             Err(error) => {
@@ -733,7 +863,9 @@ impl Hero {
     }
 
     async fn toggle_push_to_talk(&mut self, emitter: SignalEmitter<'_>) -> String {
-        if self.capture.is_some() {
+        if self.capture_origin == Some(CaptureOrigin::WakeWord) {
+            self.start_push_to_talk(emitter).await
+        } else if self.capture.is_some() {
             self.stop_push_to_talk(emitter).await
         } else {
             self.start_push_to_talk(emitter).await
@@ -832,12 +964,19 @@ impl Hero {
         voice::set_microphone_enabled(enabled).map_err(|error| fdo::Error::Failed(error.into()))?;
         self.microphone_enabled = enabled;
         if !enabled {
+            if let Some(detector) = self.wake_detector.take() {
+                detector.stop().await;
+            }
+            if let Some(endpoint) = self.wake_endpoint.take() {
+                endpoint.stop().await;
+            }
             if self.capture.is_some() || self.stt_task.is_some() {
                 self.voice_generation = self.voice_generation.wrapping_add(1);
             }
             if let Some(capture) = self.capture.take() {
                 capture.cancel().await;
             }
+            self.capture_origin = None;
             if let Some(task) = self.stt_task.take() {
                 task.abort();
             }
@@ -845,7 +984,17 @@ impl Hero {
                 stream.stop().await;
             }
         } else {
-            self.mic_stream = Some(voice::MicStream::start());
+            let stream = voice::MicStream::start();
+            let voice_tx = self.voice_tx.clone();
+            self.wake_detector = voice::WakeDetector::start_configured(
+                &stream,
+                self.state_tx.subscribe(),
+                self.state_epoch.clone(),
+                move |epoch| {
+                    let _ = voice_tx.send(VoiceEvent::WakeDetected(epoch));
+                },
+            );
+            self.mic_stream = Some(stream);
         }
         if !enabled
             && matches!(
@@ -1249,6 +1398,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = state_rx;
     let (voice_tx, mut voice_rx) = mpsc::unbounded_channel();
     let microphone_enabled = voice::microphone_enabled();
+    let mic_stream = microphone_enabled.then(voice::MicStream::start);
+    let wake_tx = voice_tx.clone();
+    let wake_detector = mic_stream.as_ref().and_then(|stream| {
+        voice::WakeDetector::start_configured(
+            stream,
+            state_rx.clone(),
+            state_epoch.clone(),
+            move |epoch| {
+                let _ = wake_tx.send(VoiceEvent::WakeDetected(epoch));
+            },
+        )
+    });
     let trigger = VoiceTrigger {
         state_rx: state_rx.clone(),
         state_epoch: state_epoch.clone(),
@@ -1259,8 +1420,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state_tx,
         state_epoch,
         microphone_enabled,
-        mic_stream: microphone_enabled.then(voice::MicStream::start),
+        mic_stream,
+        wake_detector,
         capture: None,
+        capture_origin: None,
+        voice_origin: CaptureOrigin::PushToTalk,
+        wake_endpoint: None,
         voice_generation: 0,
         voice_tx,
         stt_task: None,
@@ -1314,14 +1479,15 @@ mod tests {
     use super::confirmation_id;
     use super::{
         bounded_voice_answer, is_voice_cancellation, is_voice_confirmation, snapshot_context,
-        voice_answer_from_reply, ActiveVoiceAction, Hero, PendingAction, SpeechTask, State,
-        TriggerMode, TriggerRequest, VoiceEvent, VoiceTrigger, OBJECT_PATH, VOICE_FAILURE_MESSAGE,
+        voice_answer_from_reply, ActiveVoiceAction, CaptureOrigin, Hero, PendingAction, SpeechTask,
+        State, TriggerMode, TriggerRequest, VoiceEvent, VoiceTrigger, OBJECT_PATH,
+        VOICE_FAILURE_MESSAGE,
     };
     use crate::ai::SnapshotDoApp;
     #[cfg(unix)]
     use crate::policy::{Action, Proposal, Tier};
     use crate::test_support::TestHome;
-    use crate::voice::Capture;
+    use crate::voice::{Capture, MicStream};
     use std::collections::{HashMap, VecDeque};
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::Arc;
@@ -1370,7 +1536,11 @@ mod tests {
             state_epoch,
             microphone_enabled: true,
             mic_stream: None,
+            wake_detector: None,
             capture: None,
+            capture_origin: None,
+            voice_origin: CaptureOrigin::PushToTalk,
+            wake_endpoint: None,
             voice_generation: 0,
             voice_tx,
             stt_task: None,
@@ -1572,6 +1742,54 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn push_to_talk_takes_over_a_wake_capture_and_ignores_late_wake() {
+        let (server, _client) = voice_test_connection().await;
+        let stream = MicStream::start_with_factory(|| {
+            let mut command =
+                tokio::process::Command::new(if cfg!(windows) { "python" } else { "python3" });
+            command.args(["-u", "-c", "import sys,time; time.sleep(.2); frame=b'\\x00\\x05'*1280; [(sys.stdout.buffer.write(frame),sys.stdout.flush(),time.sleep(.01)) for _ in range(250)]; time.sleep(2)"]);
+            command
+        });
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        let mut hero = interface.get_mut().await;
+        hero.mic_stream = Some(stream);
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !hero.mic_stream.as_ref().is_some_and(MicStream::is_ready) {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("microphone ready");
+        hero.handle_voice_event(VoiceEvent::WakeDetected(0), interface.signal_emitter())
+            .await;
+        assert_eq!(hero.state, State::Recording);
+        assert_eq!(hero.capture_origin, Some(CaptureOrigin::WakeWord));
+        let reply = hero
+            .start_push_to_talk(interface.signal_emitter().clone())
+            .await;
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&reply).unwrap()["status"],
+            "recording"
+        );
+        assert_eq!(hero.capture_origin, Some(CaptureOrigin::PushToTalk));
+        assert!(hero.wake_endpoint.is_none());
+        let epoch = hero.state_epoch.load(Ordering::SeqCst);
+        hero.handle_voice_event(VoiceEvent::WakeDetected(epoch), interface.signal_emitter())
+            .await;
+        assert_eq!(hero.capture_origin, Some(CaptureOrigin::PushToTalk));
+        if let Some(capture) = hero.capture.take() {
+            capture.cancel().await;
+        }
+        if let Some(stream) = hero.mic_stream.take() {
+            stream.stop().await;
+        }
+    }
+
     #[test]
     fn state_names_round_trip_and_unknown_values_are_rejected() {
         for (state, name) in [
@@ -1684,7 +1902,11 @@ mod tests {
             state_epoch: Arc::new(AtomicU64::new(0)),
             microphone_enabled: true,
             mic_stream: None,
+            wake_detector: None,
             capture: None,
+            capture_origin: None,
+            voice_origin: CaptureOrigin::PushToTalk,
+            wake_endpoint: None,
             voice_generation: 0,
             voice_tx,
             stt_task: None,
