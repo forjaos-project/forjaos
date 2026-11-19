@@ -14,6 +14,7 @@ const MAX_AUDIO_BYTES: usize = 16_000 * 2 * 30;
 const CAPTURE_SECONDS: u64 = 30;
 const FRAME_BYTES: usize = 16_000 * 2 * 80 / 1000;
 const STREAM_RETRY: Duration = Duration::from_secs(1);
+const AEC_SOURCE: &str = "forjaos.hero.aec.source";
 
 pub fn selected_piper_model() -> Result<PathBuf, &'static str> {
     let voice = crate::persona::load().voice.ok_or("voice_not_selected")?;
@@ -121,13 +122,15 @@ impl MicStream {
     }
 
     pub fn start() -> Self {
-        Self::start_with_factory(|| {
-            let mut command = Command::new("pw-cat");
-            command.args([
+        Self::start_with_target(
+            || {
+                let mut command = Command::new("pw-cat");
+                command.args([
                 "--record",
                 "--raw",
+                "--target=forjaos.hero.aec.source",
                 "--media-role=Communication",
-                "--properties={\"node.name\":\"forjaos.hero.microphone\",\"media.name\":\"HERO microphone\",\"application.name\":\"ForjaOS HERO\"}",
+                "--properties={\"node.name\":\"forjaos.hero.microphone\",\"media.name\":\"HERO microphone\",\"application.name\":\"ForjaOS HERO\",\"node.dont-reconnect\":true}",
                 "--format",
                 "s16",
                 "--rate",
@@ -136,11 +139,21 @@ impl MicStream {
                 "1",
                 "-",
             ]);
-            command
-        })
+                command
+            },
+            Some(AEC_SOURCE),
+        )
     }
 
+    #[cfg(test)]
     fn start_with_factory<F>(factory: F) -> Self
+    where
+        F: Fn() -> Command + Send + 'static,
+    {
+        Self::start_with_target(factory, None)
+    }
+
+    fn start_with_target<F>(factory: F, target: Option<&'static str>) -> Self
     where
         F: Fn() -> Command + Send + 'static,
     {
@@ -150,6 +163,14 @@ impl MicStream {
         let sender = packets.clone();
         let task = tokio::spawn(async move {
             loop {
+                if let Some(target) = target {
+                    if !pipewire_node_available(target).await {
+                        tokio::select! {
+                            _ = &mut receiver => return,
+                            () = tokio::time::sleep(STREAM_RETRY) => continue,
+                        }
+                    }
+                }
                 let mut command = factory();
                 let child = command
                     .stdin(Stdio::null())
@@ -161,7 +182,8 @@ impl MicStream {
                     if let Some(mut output) = process.stdout.take() {
                         let mut pending = Vec::with_capacity(FRAME_BYTES + 4096);
                         let mut block = [0u8; 4096];
-                        loop {
+                        let mut verified_source = target.is_none();
+                        'capture: loop {
                             tokio::select! {
                                 _ = &mut receiver => {
                                     let _ = connected_tx.send(false);
@@ -176,6 +198,12 @@ impl MicStream {
                                         Ok(size) => {
                                             pending.extend_from_slice(&block[..size]);
                                             while pending.len() >= FRAME_BYTES {
+                                                if !verified_source {
+                                                    if !pipewire_capture_linked(target.unwrap_or_default()).await {
+                                                        break 'capture;
+                                                    }
+                                                    verified_source = true;
+                                                }
                                                 let frame: Arc<[u8]> = pending.drain(..FRAME_BYTES).collect::<Vec<_>>().into();
                                                 if !*connected_tx.borrow() {
                                                     let _ = connected_tx.send(true);
@@ -211,6 +239,63 @@ impl MicStream {
         let _ = self.cancel.send(());
         let _ = self.task.await;
     }
+}
+
+async fn pipewire_node_available(name: &str) -> bool {
+    let Some(nodes) = pipewire_graph().await else {
+        return false;
+    };
+    nodes.as_array().is_some_and(|nodes| {
+        nodes
+            .iter()
+            .any(|node| node["info"]["props"]["node.name"] == name)
+    })
+}
+
+async fn pipewire_capture_linked(source: &str) -> bool {
+    let Some(graph) = pipewire_graph().await else {
+        return false;
+    };
+    capture_linked_in_graph(&graph, source)
+}
+
+fn capture_linked_in_graph(graph: &Value, source: &str) -> bool {
+    let Some(nodes) = graph.as_array() else {
+        return false;
+    };
+    let source_id = nodes
+        .iter()
+        .find(|node| node["info"]["props"]["node.name"] == source)
+        .map(|node| &node["id"]);
+    let input_id = nodes
+        .iter()
+        .find(|node| node["info"]["props"]["node.name"] == "forjaos.hero.microphone")
+        .map(|node| &node["id"]);
+    let (Some(source_id), Some(input_id)) = (source_id, input_id) else {
+        return false;
+    };
+    let links: Vec<_> = nodes
+        .iter()
+        .filter(|node| node["type"] == "PipeWire:Interface:Link")
+        .filter(|node| node["info"]["input-node-id"] == *input_id)
+        .collect();
+    !links.is_empty()
+        && links
+            .iter()
+            .all(|link| link["info"]["output-node-id"] == *source_id)
+}
+
+async fn pipewire_graph() -> Option<Value> {
+    let mut command = Command::new("pw-dump");
+    command.kill_on_drop(true);
+    let Ok(Ok(output)) = tokio::time::timeout(Duration::from_secs(2), command.output()).await
+    else {
+        return None;
+    };
+    if !output.status.success() || output.stdout.len() > 4 * 1024 * 1024 {
+        return None;
+    }
+    serde_json::from_slice(&output.stdout).ok()
 }
 
 pub struct Capture {
@@ -429,6 +514,34 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
     use tokio::{process::Command, sync::oneshot};
+
+    #[test]
+    fn microphone_rejects_a_pipewire_link_from_the_default_source() {
+        let graph = serde_json::json!([
+            {"id": 1, "info": {"props": {"node.name": "forjaos.hero.aec.source"}}},
+            {"id": 2, "info": {"props": {"node.name": "forjaos.hero.microphone"}}},
+            {"id": 3, "info": {"props": {"node.name": "raw.microphone"}}},
+            {"type": "PipeWire:Interface:Link", "info": {"output-node-id": 1, "input-node-id": 2}}
+        ]);
+        assert!(super::capture_linked_in_graph(
+            &graph,
+            "forjaos.hero.aec.source"
+        ));
+
+        let mut fallback = graph.clone();
+        fallback[3]["info"]["output-node-id"] = serde_json::json!(3);
+        assert!(!super::capture_linked_in_graph(
+            &fallback,
+            "forjaos.hero.aec.source"
+        ));
+        fallback.as_array_mut().expect("PipeWire graph").push(
+            serde_json::json!({"type": "PipeWire:Interface:Link", "info": {"output-node-id": 1, "input-node-id": 2}}),
+        );
+        assert!(!super::capture_linked_in_graph(
+            &fallback,
+            "forjaos.hero.aec.source"
+        ));
+    }
 
     fn python_command(script: &str) -> Command {
         let mut command = Command::new(if cfg!(windows) { "python" } else { "python3" });

@@ -16,6 +16,20 @@ MAX_LINE_CHARS = 16 * 1024 * 1024
 MAX_CHUNK_BYTES = 12 * 1024 * 1024
 VOICE_WORKER = "/usr/libexec/forjaos/voice-worker"
 PIPEWIRE_PLAYER = "/usr/bin/pw-cat"
+PIPEWIRE_DUMP = "/usr/bin/pw-dump"
+AEC_SINK = "forjaos.hero.aec.sink"
+
+
+def aec_sink_available() -> bool:
+    try:
+        result = subprocess.run(
+            [PIPEWIRE_DUMP], capture_output=True, timeout=2, check=True,
+        )
+        nodes = json.loads(result.stdout)
+        return any(node.get("info", {}).get("props", {}).get("node.name") == AEC_SINK
+                   for node in nodes)
+    except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+        return False
 
 
 class SpeechHandle:
@@ -72,8 +86,12 @@ class SpeechHandle:
                 if not isinstance(rate, int) or rate < 8000 or rate > 48000:
                     raise ValueError("taxa de áudio TTS inválida")
                 if self.player is None:
+                    if not aec_sink_available():
+                        raise RuntimeError("sink AEC do HERO indisponível")
                     self.player = subprocess.Popen(
-                        [PIPEWIRE_PLAYER, "--playback", "--raw", "--format", "s16",
+                        [PIPEWIRE_PLAYER, "--playback", "--raw",
+                         f"--target={AEC_SINK}",
+                         '--properties={"node.dont-reconnect":true}', "--format", "s16",
                          "--rate", str(rate), "--channels", "1", "-"],
                         stdin=subprocess.PIPE,
                         stdout=subprocess.DEVNULL,

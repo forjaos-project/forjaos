@@ -81,3 +81,33 @@ autoconexão da fonte AEC nela mesma; o sink AEC continuou ligado ao sink físic
 virtual de teste. A fonte AEC entregou 2.560 bytes ao `pw-cat`. Isso testa a
 seleção automática **com uma fonte virtual disponível**, não a troca de
 microfone físico, dispositivos ausentes ou reconexão durante a sessão.
+
+## Fragmento de imagem e daemon
+
+Uma cópia exata de `image/pipewire/forja-hero-echo-cancel.conf` foi carregada
+como fragmento de `forja-test.conf` no PipeWire isolado. O `herod` compilado
+passou a usar `--target=forjaos.hero.aec.source`. O PipeWire ligou a fonte
+virtual de teste ao capturador AEC e a fonte filtrada ao `pw-cat` do HERO.
+`StartPushToTalk` retornou `recording`, o estado D-Bus foi `gravando` e o kill
+switch encerrou `pw-cat` e voltou a `ocioso`. Um `pw-cat` apontado para um alvo
+inexistente com `node.dont-fallback=true` recebeu 0 bytes em 1 s; o alvo AEC
+presente entregou 2.560 bytes. O ensaio não instalou a imagem completa.
+
+Sem o fragmento AEC, o mesmo daemon recusou `StartPushToTalk` com
+`pipewire_capture_unavailable` e não iniciou `pw-cat`. Com o fragmento, o
+supervisor Python ligou a reprodução ao sink AEC e recusou reprodução quando
+o sink configurado estava ausente. Essas verificações são de início de fluxo;
+não provam o comportamento diante de remoção do módulo durante a fala.
+
+Após a alteração, `cargo fmt`, Clippy e 77 testes Rust passaram. A medição
+Linux isolada do `llvm-cov` foi 77,86% de linhas. Em uma janela de captura AEC
+de 2.560 bytes, `strace -ff` observou PCM apenas em `stdout` e nenhuma abertura
+de arquivo regular para escrita de áudio. A observação não cobre toda a sessão
+nem os outros processos do grafo.
+
+Com a mesma cópia do fragmento, um loopback virtual fez o monitor do sink de
+teste atuar como microfone com eco digital. Três frases Piper tiveram RMS bruto
+3.348,2 e RMS AEC 384,2; nos primeiros 1.920 ms, o pico RMS caiu de 8.111,5
+para 3.256,0. A redução foi variável e esse pico ainda precisa ser avaliado
+pelo detector wake real. O loopback é somente um substituto digital para o
+caminho acústico; não comprova supressão em sala, voz humana nem latência.
