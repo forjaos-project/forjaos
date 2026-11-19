@@ -44,6 +44,7 @@ REQUIRED_EXECUTABLES = (
 )
 REQUIRED_FILES = (
     "/usr/share/forjaos/wakeword/train.py",
+    "/usr/share/forjaos/wakeword/prepare_manifest.py",
     "/usr/share/forjaos/wakeword-training-runtime/uv.lock",
 )
 

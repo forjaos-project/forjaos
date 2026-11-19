@@ -66,6 +66,19 @@ manifestos ficam fora do repositório. O treinador carrega o WAV em memória e
 não cria cópias de áudio; checkpoints, modelo candidato e métricas ficam na
 pasta privada `wakeword-training/<nome>/`.
 
+Para montar esse TSV sem distribuir locutores entre divisões, use
+`python3 hero/wakeword/prepare_manifest.py Guará <corpus-humano.tsv> <negativos-wav.tsv> <raiz-privada>/manifest-guara.tsv`.
+O manifesto humano segue as colunas do `validate_corpus.py`; o manifesto
+negativo contém `source`, `speaker_code` e `path`, com `source` igual a
+`common_voice` ou `noise`. Os WAVs permanecem nos diretórios privados de
+origem, sob uma pasta ancestral comum à saída. Passe o arquivo gerado ao
+treinador com `--manifest`; a raiz do manifesto pode ser diferente da pasta
+privada usada para checkpoints. O gerador exige 20 códigos
+humanos para a frase, WAV PCM mono 16 kHz/16 bits, divisões de locutor
+determinísticas e amostras positivas/negativas em treino, desenvolvimento e
+teste. Ele não converte MP3, não extrai arquivos de datasets e não verifica
+consentimento; a revisão da procedência continua manual.
+
 Para nomes da lista FR-021, o treinador exige pelo menos 20 participantes
 humanos distintos no conjunto positivo. Em qualquer modelo, a promoção exige
 ao menos oito horas de áudio negativo de teste, taxa observada de falsos

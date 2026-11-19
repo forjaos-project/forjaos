@@ -36,6 +36,7 @@ class ImageContractTests(unittest.TestCase):
         with patch.object(MODULE, "REQUIRED_EXECUTABLES", ()):
             errors = MODULE.check_contract(REQUIRED, STATES)
         self.assertTrue(any("train.py" in error for error in errors))
+        self.assertTrue(any("prepare_manifest.py" in error for error in errors))
         self.assertTrue(any("uv.lock" in error for error in errors))
 
     def test_missing_developer_and_gaming_packages_fail(self):
