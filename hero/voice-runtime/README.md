@@ -42,5 +42,7 @@ classifica o texto no Policy Engine, processa conversas na rota local
 Ações de tier `alterar` exigem uma confirmação falada em novo PTT; delegação de
 código longa exige modo texto. O PTT durante a reprodução envia SIGTERM
 ao supervisor, que encerra Piper e PipeWire. O overlay mostra transcrição e
-resposta; o atalho global de PTT mostra a resposta em notificação. Ainda faltam
-wake word, supressão do próprio TTS, visemas no QML e medição no Linux de referência.
+resposta; o atalho global de PTT mostra a resposta em notificação. Wake WeKws
+compartilha o fluxo PCM PipeWire do HERO e pode recarregar pelo método D-Bus
+`ReloadWakeWord` sem reiniciar `herod`. Modelos pt-BR aprovados, visemas no QML
+e medição no Linux de referência continuam pendentes.

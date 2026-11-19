@@ -54,6 +54,28 @@ relativo ao manifesto. Uma linha corresponde a uma gravação. Execute
 conferir formato e cobertura de 20 códigos distintos por frase. O script não
 atesta que a voz seja humana nem que haja consentimento; essa revisão é manual.
 
+O treinador usa um segundo manifesto privado em
+`$XDG_DATA_HOME/hero/wakeword-training/manifest.tsv`, com as colunas
+`split`, `label`, `path`, `source`, `phrase` e `speaker_code`. `split` é
+`train`, `dev` ou `test`; `label` é `wake` ou `negative`; `source` é `human`,
+`piper`, `common_voice` ou `noise`. `path` continua relativo ao manifesto e
+aponta para WAV PCM mono de 16 kHz/16 bits. Em amostras positivas, `phrase`
+deve corresponder exatamente ao nome treinado. Use códigos anônimos por
+participante e mantenha cada participante em uma única divisão. Áudio e
+manifestos ficam fora do repositório. O treinador carrega o WAV em memória e
+não cria cópias de áudio; checkpoints, modelo candidato e métricas ficam na
+pasta privada `wakeword-training/<nome>/`.
+
+Para nomes da lista FR-021, o treinador exige pelo menos 20 participantes
+humanos distintos no conjunto positivo. Em qualquer modelo, a promoção exige
+ao menos oito horas de áudio negativo de teste, taxa observada de falsos
+positivos de no máximo 1 por 8 horas e latência p95 de até 300 ms. Esses
+números são resultados do conjunto informado; a revisão manual ainda precisa
+confirmar consentimento e procedência. Métricas de dados Piper/Common Voice não
+substituem a validação comunitária FR-081. O WeKws fixado é baixado para o
+cache privado do usuário apenas no primeiro treino; a imagem recebe o
+treinador e o lock, não o PyTorch nem o corpus.
+
 **Motivo da troca de motor:** os [modelos pré-treinados do openWakeWord](https://github.com/dscripka/openWakeWord#license)
 e as [features negativas prontas](https://huggingface.co/datasets/davidscripka/openwakeword_features)
 estão sob CC BY-NC-SA 4.0. A licença dos dois ONNX compartilhados de extração

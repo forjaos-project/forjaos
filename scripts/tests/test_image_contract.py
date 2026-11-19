@@ -29,8 +29,14 @@ STATES = {
 
 class ImageContractTests(unittest.TestCase):
     def test_valid_inherited_image_passes(self):
-        with patch.object(MODULE, "REQUIRED_EXECUTABLES", ()):
+        with patch.object(MODULE, "REQUIRED_EXECUTABLES", ()), patch.object(MODULE, "REQUIRED_FILES", ()):
             self.assertEqual(MODULE.check_contract(REQUIRED, STATES), [])
+
+    def test_missing_trainer_files_fail(self):
+        with patch.object(MODULE, "REQUIRED_EXECUTABLES", ()):
+            errors = MODULE.check_contract(REQUIRED, STATES)
+        self.assertTrue(any("train.py" in error for error in errors))
+        self.assertTrue(any("uv.lock" in error for error in errors))
 
     def test_missing_developer_and_gaming_packages_fail(self):
         errors = MODULE.check_contract(REQUIRED - {"podman", "steam", "gamescope", "mangohud", "bluez"}, STATES)
@@ -52,7 +58,7 @@ class ImageContractTests(unittest.TestCase):
 
     def test_absent_cockpit_socket_is_safe_when_components_exist(self):
         states = {**STATES, "cockpit.socket": "not-found"}
-        with patch.object(MODULE, "REQUIRED_EXECUTABLES", ()):
+        with patch.object(MODULE, "REQUIRED_EXECUTABLES", ()), patch.object(MODULE, "REQUIRED_FILES", ()):
             self.assertEqual(MODULE.check_contract(REQUIRED, states), [])
 
     def test_rpm_query_failure_fails_closed(self):

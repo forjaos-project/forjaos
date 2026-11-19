@@ -39,6 +39,15 @@ threshold = 0.5
 
 O worker usa ONNX WeKws com extração log-mel local e exige fala em quatro dos últimos oito quadros antes de ativar. A imagem local foi construída e executou o worker com ONNX Runtime 1.32.0; [a prova sintética](../docs/evidence/f4-001/wekws-aec-synthetic-2026-11-19.md) cobriu Piper isolado no AEC e fala externa simultânea. Nenhum modelo wake word é distribuído até que os oito classificadores e as métricas passem pelos gates de [DATASETS.md](wakeword/DATASETS.md). Microfone físico, sala, sessão Plasma e ajuste do endpointing permanecem na validação final. O botão PTT assume a captura durante um turno wake word.
 
+`forja mascot train "<nome>"` executa o treinador em um serviço de usuário. O
+PyTorch e o WeKws fixado são instalados sob demanda em cache privado; o treino
+usa `manifest.tsv` local conforme o contrato em `wakeword/DATASETS.md`. Um
+modelo que não passa nos gates permanece como candidato privado. Após a
+promoção, `ReloadWakeWord` recarrega somente o detector do fluxo PipeWire
+existente; `herod` continua em execução. Se o daemon não estiver disponível,
+o modelo é selecionado na próxima inicialização e o resultado registra
+`installed_reload_pending`.
+
 Exemplo de rota cloud opt-in:
 
 ```toml

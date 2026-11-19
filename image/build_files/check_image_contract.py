@@ -42,6 +42,10 @@ REQUIRED_EXECUTABLES = (
     "/usr/libexec/forjaos/herod",
     "/usr/libexec/forjaos/memd",
 )
+REQUIRED_FILES = (
+    "/usr/share/forjaos/wakeword/train.py",
+    "/usr/share/forjaos/wakeword-training-runtime/uv.lock",
+)
 
 
 def read_packages() -> set[str]:
@@ -95,6 +99,10 @@ def check_contract(packages: set[str], unit_states: dict[str, str]) -> list[str]
         path = Path(executable)
         if not path.is_file() or path.is_symlink() or not os.access(path, os.X_OK):
             errors.append(f"required executable missing or invalid: {executable}")
+    for file in REQUIRED_FILES:
+        path = Path(file)
+        if not path.is_file() or path.is_symlink():
+            errors.append(f"required file missing or invalid: {file}")
     return errors
 
 
