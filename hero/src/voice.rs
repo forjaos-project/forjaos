@@ -116,6 +116,10 @@ pub struct MicStream {
 }
 
 impl MicStream {
+    pub fn is_ready(&self) -> bool {
+        *self.connected.borrow()
+    }
+
     pub fn start() -> Self {
         Self::start_with_factory(|| {
             let mut command = Command::new("pw-cat");
@@ -216,7 +220,7 @@ pub struct Capture {
 
 impl Capture {
     pub fn start_from_stream(stream: &MicStream) -> Result<Self, &'static str> {
-        if !*stream.connected.borrow() {
+        if !stream.is_ready() {
             return Err("pipewire_capture_unavailable");
         }
         let mut packets = stream.packets.subscribe();

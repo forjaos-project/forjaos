@@ -641,6 +641,22 @@ impl Hero {
             let _ = Self::voice_ignored(&emitter, self.state.as_str()).await;
             return ai::busy();
         }
+        if !self
+            .mic_stream
+            .as_ref()
+            .is_some_and(voice::MicStream::is_ready)
+        {
+            audit::record_trigger(
+                "push_to_talk",
+                "conversa-de-voz",
+                "audio.capture",
+                "livre",
+                "indisponivel",
+                0,
+            );
+            return json!({"status":"capture_failed","reason":"pipewire_capture_unavailable"})
+                .to_string();
+        }
         self.voice_generation = self.voice_generation.wrapping_add(1);
         let generation = self.voice_generation;
         if let Some(speech) = self.speech.take() {
@@ -1291,8 +1307,8 @@ mod tests {
     use super::confirmation_id;
     use super::{
         bounded_voice_answer, is_voice_cancellation, is_voice_confirmation, snapshot_context,
-        voice_answer_from_reply, ActiveVoiceAction, Hero, PendingAction, State, TriggerMode,
-        TriggerRequest, VoiceEvent, VoiceTrigger, OBJECT_PATH, VOICE_FAILURE_MESSAGE,
+        voice_answer_from_reply, ActiveVoiceAction, Hero, PendingAction, SpeechTask, State,
+        TriggerMode, TriggerRequest, VoiceEvent, VoiceTrigger, OBJECT_PATH, VOICE_FAILURE_MESSAGE,
     };
     use crate::ai::SnapshotDoApp;
     #[cfg(unix)]
@@ -1437,6 +1453,45 @@ mod tests {
         assert_eq!(receiver.await.expect("trigger reply"), crate::ai::busy());
         assert_eq!(hero.state, State::Idle);
         assert!(hero.capture.is_none());
+    }
+
+    #[tokio::test]
+    async fn unavailable_microphone_does_not_interrupt_speech() {
+        let (server, _client) = voice_test_connection().await;
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        let mut hero = interface.get_mut().await;
+        hero.transition_to("pensando", interface.signal_emitter())
+            .await
+            .expect("turn starts");
+        hero.transition_to("falando", interface.signal_emitter())
+            .await
+            .expect("speech starts");
+        let (cancel, receiver) = oneshot::channel();
+        let task = tokio::spawn(async move {
+            receiver.await.expect("cancel received");
+        });
+        hero.speech = Some(SpeechTask { cancel, task });
+        let generation = hero.voice_generation;
+
+        let reply = hero
+            .start_push_to_talk(interface.signal_emitter().clone())
+            .await;
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&reply).unwrap()["reason"],
+            "pipewire_capture_unavailable"
+        );
+        assert_eq!(hero.state, State::Speaking);
+        assert_eq!(hero.voice_generation, generation);
+        assert!(hero.speech.is_some());
+        assert!(hero.capture.is_none());
+
+        let speech = hero.speech.take().expect("speech is still active");
+        speech.cancel.send(()).expect("stop synthetic speech");
+        speech.task.await.expect("speech task");
     }
 
     #[tokio::test]
