@@ -5,6 +5,7 @@ mod persona;
 mod policy;
 mod router;
 mod routes;
+mod session_lock;
 #[cfg(unix)]
 mod socket;
 #[cfg(test)]
@@ -434,6 +435,24 @@ impl Hero {
                 .to_string()
             }
             Classification::Proposal(proposal) => match proposal.tier {
+                Tier::Alter if session_lock::locked(emitter.connection()).await => {
+                    audit::record(
+                        proposal.route,
+                        proposal.tool,
+                        "alterar",
+                        "sessao_bloqueada",
+                        0,
+                    );
+                    json!({
+                        "status":"locked",
+                        "route":proposal.route,
+                        "tool":proposal.tool,
+                        "context":proposal.context,
+                        "tier":"alterar",
+                        "requires_confirmation":false,
+                        "answer":"Desbloqueie a tela antes de solicitar esta ação. Nenhuma ação foi executada."
+                    }).to_string()
+                }
                 Tier::Alter => match confirmation_id() {
                     Some(id) => {
                         audit::record(
@@ -637,6 +656,13 @@ impl Hero {
     ) -> String {
         if approved && self.state != State::Idle {
             return ai::busy();
+        }
+        if approved && session_lock::locked(emitter.connection()).await {
+            return json!({
+                "status":"locked",
+                "answer":"Desbloqueie a tela para confirmar esta ação. Nenhuma ação foi executada."
+            })
+            .to_string();
         }
         let Some(pending) = self.pending.remove(id) else {
             return json!({"status":"confirmation_not_found"}).to_string();
@@ -859,14 +885,37 @@ mod tests {
         OBJECT_PATH, VOICE_FAILURE_MESSAGE,
     };
     use crate::ai::SnapshotDoApp;
+    #[cfg(unix)]
+    use crate::policy::{Action, Proposal, Tier};
     use crate::test_support::TestHome;
     use crate::voice::Capture;
     use std::collections::{HashMap, VecDeque};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
     use std::time::Duration;
+    #[cfg(unix)]
+    use std::time::Instant;
     use tokio::sync::{mpsc, watch};
     use zbus::connection;
 
+    struct TestScreenSaver {
+        active: Arc<AtomicBool>,
+    }
+
+    #[zbus::interface(name = "org.freedesktop.ScreenSaver")]
+    impl TestScreenSaver {
+        fn get_active(&self) -> bool {
+            self.active.load(Ordering::SeqCst)
+        }
+    }
+
     async fn voice_test_connection() -> (zbus::Connection, zbus::Connection) {
+        voice_test_connection_with_lock(None).await
+    }
+
+    async fn voice_test_connection_with_lock(
+        active: Option<Arc<AtomicBool>>,
+    ) -> (zbus::Connection, zbus::Connection) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind private D-Bus peer");
@@ -896,6 +945,13 @@ mod tests {
             .serve_at(OBJECT_PATH, hero)
             .expect("serve HERO");
         let client = connection::Builder::tcp_stream(peer).p2p();
+        let client = if let Some(active) = active {
+            client
+                .serve_at("/ScreenSaver", TestScreenSaver { active })
+                .expect("serve screen locker")
+        } else {
+            client
+        };
         tokio::try_join!(server.build(), client.build()).expect("connect private D-Bus peer")
     }
 
@@ -1083,6 +1139,56 @@ mod tests {
         }
         tokio::task::yield_now().await;
         assert!(abort.is_finished());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn locked_session_rejects_new_and_pending_mutating_actions() {
+        let _home = TestHome::new();
+        let active = Arc::new(AtomicBool::new(true));
+        let (server, _client) = voice_test_connection_with_lock(Some(active.clone())).await;
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        let mut hero = interface.get_mut().await;
+        let request = hero
+            .ask_text("ligue wifi", ".", "{}", interface.signal_emitter().clone())
+            .await;
+        let request: serde_json::Value = serde_json::from_str(&request).expect("JSON response");
+        assert_eq!(request["status"], "locked");
+        assert!(hero.pending.is_empty());
+
+        let id = "existing-confirmation".to_string();
+        hero.pending.insert(
+            id.clone(),
+            PendingAction {
+                proposal: Proposal {
+                    route: "sistema",
+                    context: "nenhum".into(),
+                    tool: "wifi.toggle",
+                    tier: Tier::Alter,
+                    action: Action::Wifi(true),
+                },
+                expires_at: Instant::now() + Duration::from_secs(120),
+            },
+        );
+        let confirmation = hero
+            .confirm_action(&id, true, interface.signal_emitter().clone())
+            .await;
+        let confirmation: serde_json::Value =
+            serde_json::from_str(&confirmation).expect("JSON response");
+        assert_eq!(confirmation["status"], "locked");
+        assert!(hero.pending.contains_key(&id));
+
+        active.store(false, Ordering::SeqCst);
+        let request = hero
+            .ask_text("ligue wifi", ".", "{}", interface.signal_emitter().clone())
+            .await;
+        let request: serde_json::Value = serde_json::from_str(&request).expect("JSON response");
+        assert_eq!(request["status"], "confirmation_required");
+        assert!(hero.pending.contains_key(&id));
     }
 
     #[tokio::test]
