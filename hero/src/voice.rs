@@ -155,7 +155,6 @@ impl MicStream {
                     .spawn();
                 if let Ok(mut process) = child {
                     if let Some(mut output) = process.stdout.take() {
-                        let _ = connected_tx.send(true);
                         let mut pending = Vec::with_capacity(FRAME_BYTES + 4096);
                         let mut block = [0u8; 4096];
                         loop {
@@ -174,6 +173,9 @@ impl MicStream {
                                             pending.extend_from_slice(&block[..size]);
                                             while pending.len() >= FRAME_BYTES {
                                                 let frame: Arc<[u8]> = pending.drain(..FRAME_BYTES).collect::<Vec<_>>().into();
+                                                if !*connected_tx.borrow() {
+                                                    let _ = connected_tx.send(true);
+                                                }
                                                 let _ = sender.send(MicPacket::Audio(frame));
                                             }
                                         }
@@ -495,6 +497,20 @@ mod tests {
         assert_eq!(&audio[..2], &[0, 1]);
         assert_eq!(launches.load(Ordering::SeqCst), 1);
         stream.stop().await;
+    }
+
+    #[tokio::test]
+    async fn microphone_without_pcm_is_not_connected() {
+        let stream = MicStream::start_with_factory(|| python_command("import time; time.sleep(5)"));
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        assert!(!*stream.connected.borrow());
+        assert!(matches!(
+            Capture::start_from_stream(&stream),
+            Err("pipewire_capture_unavailable")
+        ));
+        tokio::time::timeout(Duration::from_secs(2), stream.stop())
+            .await
+            .expect("stop stalled source");
     }
 
     #[tokio::test]
