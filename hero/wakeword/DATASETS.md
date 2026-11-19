@@ -59,6 +59,11 @@ e as [features negativas prontas](https://huggingface.co/datasets/davidscripka/o
 estão sob CC BY-NC-SA 4.0. A licença dos dois ONNX compartilhados de extração
 (`melspectrogram.onnx` e `embedding_model.onnx`) segue sem esclarecimento
 explícito do mantenedor na [questão upstream #338](https://github.com/dscripka/openWakeWord/issues/338).
+Em 19/11/2026, as [questões #348](https://github.com/dscripka/openWakeWord/issues/348)
+e [#357](https://github.com/dscripka/openWakeWord/issues/357) também estavam
+abertas, sem uma licença separada declarada para esses artefatos. A descrição
+da arquitetura no README menciona Apache 2.0 para o modelo do Google que
+inspirou o extrator, mas não substitui a licença dos arquivos ONNX distribuídos.
 Treinar apenas os oito classificadores não resolve essa dúvida. Antes de
 embarcar o runtime, é necessária procedência e licença permissiva verificáveis
 para os dois modelos compartilhados, ou uma implementação independente com
