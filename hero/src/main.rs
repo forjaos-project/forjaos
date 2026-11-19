@@ -9,6 +9,7 @@ mod routes;
 mod socket;
 #[cfg(test)]
 mod test_support;
+mod voice;
 
 use policy::{Classification, Proposal, Tier};
 use serde_json::json;
@@ -97,6 +98,8 @@ impl State {
 struct Hero {
     state: State,
     state_tx: watch::Sender<&'static str>,
+    microphone_enabled: bool,
+    capture: Option<voice::Capture>,
     pending: HashMap<String, PendingAction>,
     history: VecDeque<ai::Turn>,
 }
@@ -136,6 +139,46 @@ impl Hero {
     #[zbus(property)]
     fn state(&self) -> String {
         self.state.as_str().to_string()
+    }
+
+    #[zbus(property)]
+    fn microphone_enabled(&self) -> bool {
+        self.microphone_enabled
+    }
+
+    #[zbus(property)]
+    async fn set_microphone_enabled(
+        &mut self,
+        enabled: bool,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> fdo::Result<()> {
+        if self.microphone_enabled == enabled {
+            return Ok(());
+        }
+        voice::set_microphone_enabled(enabled).map_err(|error| fdo::Error::Failed(error.into()))?;
+        self.microphone_enabled = enabled;
+        if !enabled {
+            if let Some(capture) = self.capture.take() {
+                capture.cancel().await;
+            }
+        }
+        if !enabled
+            && matches!(
+                self.state,
+                State::Listening | State::Recording | State::Transcribing
+            )
+        {
+            let _ = self.transition_to("ocioso", &emitter).await;
+        }
+        audit::record_trigger(
+            "microphone",
+            "microfone",
+            "microphone.switch",
+            "livre",
+            if enabled { "ligado" } else { "desligado" },
+            0,
+        );
+        Ok(())
     }
 
     #[zbus(signal, name = "StateChanged")]
@@ -298,6 +341,84 @@ impl Hero {
         };
         let _ = self.transition_to("ocioso", &emitter).await;
         result
+    }
+
+    async fn start_push_to_talk(
+        &mut self,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> String {
+        if !self.microphone_enabled {
+            return json!({"status":"microphone_disabled"}).to_string();
+        }
+        if self.state != State::Idle || self.capture.is_some() {
+            return ai::busy();
+        }
+        let _ = self.transition_to("escutando", &emitter).await;
+        match voice::Capture::start() {
+            Ok(capture) => {
+                self.capture = Some(capture);
+                let _ = self.transition_to("gravando", &emitter).await;
+                audit::record_trigger(
+                    "push_to_talk",
+                    "conversa-de-voz",
+                    "audio.capture",
+                    "livre",
+                    "iniciado",
+                    0,
+                );
+                json!({"status":"recording"}).to_string()
+            }
+            Err(error) => {
+                let _ = self.transition_to("erro", &emitter).await;
+                let _ = self.transition_to("ocioso", &emitter).await;
+                json!({"status":"capture_failed","reason":error}).to_string()
+            }
+        }
+    }
+
+    async fn stop_push_to_talk(
+        &mut self,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> String {
+        let Some(capture) = self.capture.take() else {
+            return json!({"status":"not_recording"}).to_string();
+        };
+        let audio = match capture.finish().await {
+            Ok(audio) => audio,
+            Err(error) => {
+                let _ = self.transition_to("erro", &emitter).await;
+                let _ = self.transition_to("ocioso", &emitter).await;
+                return json!({"status":"capture_failed","reason":error}).to_string();
+            }
+        };
+        let _ = self.transition_to("transcrevendo", &emitter).await;
+        let result = voice::transcribe(&audio).await;
+        drop(audio);
+        let _ = self.transition_to("ocioso", &emitter).await;
+        match result {
+            Ok(text) => {
+                audit::record_trigger(
+                    "push_to_talk",
+                    "conversa-de-voz",
+                    "audio.transcribe",
+                    "livre",
+                    "transcrito",
+                    0,
+                );
+                json!({"status":"ok","text":text}).to_string()
+            }
+            Err(error) => {
+                audit::record_trigger(
+                    "push_to_talk",
+                    "conversa-de-voz",
+                    "audio.transcribe",
+                    "livre",
+                    "falha",
+                    0,
+                );
+                json!({"status":"stt_failed","reason":error}).to_string()
+            }
+        }
     }
 
     async fn confirm_action(
@@ -474,6 +595,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let hero = Hero {
         state: State::Idle,
         state_tx,
+        microphone_enabled: voice::microphone_enabled(),
+        capture: None,
         pending: HashMap::new(),
         history: VecDeque::new(),
     };
@@ -607,6 +730,8 @@ mod tests {
         let mut hero = Hero {
             state: State::Idle,
             state_tx,
+            microphone_enabled: true,
+            capture: None,
             pending: HashMap::<String, PendingAction>::new(),
             history: VecDeque::new(),
         };

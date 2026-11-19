@@ -24,7 +24,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusPendingCallWatcher
+from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusPendingCallWatcher, QDBusVariant
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtCore import QTranslator
 from PySide6.QtQml import QQmlApplicationEngine
@@ -230,6 +230,8 @@ class HeroBackend(QObject):
     changed = Signal()
     messageAdded = Signal(str, str, str, str, str, bool)
     requestFinished = Signal()
+    voiceTranscribed = Signal(str)
+    voiceError = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
@@ -245,6 +247,9 @@ class HeroBackend(QObject):
         self._last_network: tuple[int, int] | None = None
         self._last_sample = 0.0
         self._busy = False
+        self._ptt_starting = False
+        self._ptt_recording = False
+        self._ptt_stop_requested = False
         self._pending_id = ""
         self._request_started = 0.0
         self._closed = False
@@ -402,6 +407,68 @@ class HeroBackend(QObject):
     @Property(bool, notify=changed)
     def busy(self) -> bool:
         return self._busy
+
+    @Property(bool, notify=changed)
+    def microphoneEnabled(self) -> bool:
+        return self._hero.isValid() and bool(self._hero.property("MicrophoneEnabled"))
+
+    @Slot()
+    def toggleMicrophone(self) -> None:
+        if not self._hero.isValid():
+            return
+        properties = QDBusInterface(BUS_NAME, OBJECT_PATH, "org.freedesktop.DBus.Properties", self._bus, self)
+        call = properties.asyncCallWithArgumentList(
+            "Set", [INTERFACE, "MicrophoneEnabled", QDBusVariant(not self.microphoneEnabled)]
+        )
+        watcher = QDBusPendingCallWatcher(call, self)
+        watcher.finished.connect(lambda finished: (self.changed.emit(), finished.deleteLater()))
+
+    @Slot()
+    def startPushToTalk(self) -> None:
+        if not self.microphoneEnabled or self._busy or self._ptt_starting or self._ptt_recording:
+            return
+        self._ptt_starting = True
+        self._ptt_stop_requested = False
+        watcher = QDBusPendingCallWatcher(self._hero.asyncCall("StartPushToTalk"), self)
+        watcher.finished.connect(self._push_to_talk_started)
+
+    def _push_to_talk_started(self, watcher: QDBusPendingCallWatcher) -> None:
+        self._ptt_starting = False
+        try:
+            reply = json.loads(str(watcher.reply().arguments()[0])) if not watcher.isError() else {}
+        except (ValueError, TypeError, IndexError):
+            reply = {}
+        watcher.deleteLater()
+        if reply.get("status") != "recording":
+            self._ptt_stop_requested = False
+            self.voiceError.emit(QCoreApplication.translate("main", "Não foi possível iniciar a gravação local."))
+            return
+        self._ptt_recording = True
+        if self._ptt_stop_requested:
+            self.stopPushToTalk()
+
+    @Slot()
+    def stopPushToTalk(self) -> None:
+        if self._ptt_starting:
+            self._ptt_stop_requested = True
+            return
+        if not self._ptt_recording:
+            return
+        self._ptt_recording = False
+        self._ptt_stop_requested = False
+        watcher = QDBusPendingCallWatcher(self._hero.asyncCall("StopPushToTalk"), self)
+        watcher.finished.connect(self._push_to_talk_stopped)
+
+    def _push_to_talk_stopped(self, watcher: QDBusPendingCallWatcher) -> None:
+        try:
+            reply = json.loads(str(watcher.reply().arguments()[0])) if not watcher.isError() else {}
+        except (ValueError, TypeError, IndexError):
+            reply = {}
+        watcher.deleteLater()
+        if reply.get("status") == "ok" and isinstance(reply.get("text"), str):
+            self.voiceTranscribed.emit(reply["text"])
+        else:
+            self.voiceError.emit(QCoreApplication.translate("main", "Não foi possível transcrever a gravação local."))
 
     @Property(str, notify=changed)
     def pendingId(self) -> str:

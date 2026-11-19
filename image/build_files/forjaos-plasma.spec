@@ -68,6 +68,7 @@ install -Dm0644 %{_sourcedir}/licenses/OFL.txt %{buildroot}/usr/share/licenses/f
 /usr/share/kglobalaccel/org.forjaos.terminal.desktop
 /usr/share/kglobalaccel/org.forjaos.files.desktop
 /usr/share/kglobalaccel/org.forjaos.hero.desktop
+/usr/share/kglobalaccel/org.forjaos.microphone.desktop
 /usr/share/plymouth/themes/forjaos-dark
 /usr/share/plymouth/themes/forjaos-light
 /usr/share/grub/themes/forja-dark

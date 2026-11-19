@@ -5,10 +5,12 @@ O daemon de sessão `herod` publica `org.forjaos.Hero` no barramento D-Bus do us
 ## API atual
 
 - Propriedade `State` (`s`): estado atual em português, conforme FR-071.
+- Propriedade `MicrophoneEnabled` (`b`, gravável): permissão local de captura do HERO. Inicia desligada, persiste em `~/.config/hero/microphone.state` com permissão privada e falha para desligado se o estado salvo for inválido. Mudanças geram `PropertiesChanged` e `AuditEvent` com gatilho `microphone`.
 - `org.freedesktop.DBus.Properties.PropertiesChanged`: notifica clientes de cada mudança na propriedade `State`.
 - Sinal `StateChanged(s)`: publica o novo estado depois de cada transição válida.
 - Socket Unix `$XDG_RUNTIME_DIR/forjaos/herod.sock`: endpoint local somente leitura. Ao conectar, envia uma linha JSON `{"state":"ocioso"}` com o estado atual. O diretório tem permissão `0700` e o socket `0600`.
 - Método `AskText(s, s, s) -> s`: recebe pergunta, diretório atual e JSON `SnapshotDoApp`; retorna JSON com `status`, `route`, `context`, `tier`, `requires_confirmation`, `answer` e, quando disponível, `model`; respostas de ação incluem também `tool`. A classificação usa regras e Qwen3 4B local; indisponibilidade do classificador seleciona `conversa-de-voz` local.
+- `StartPushToTalk() -> s` e `StopPushToTalk() -> s`: iniciam a captura mono PCM 16 kHz pelo PipeWire e devolvem a transcrição local em JSON. O overlay oferece um botão de segurar e coloca a transcrição no campo de texto para revisão antes de `AskText`. O áudio fica em memória por no máximo 30 s e é descartado após a transcrição; mutar o microfone cancela a captura ativa.
 - Método `RouteProviders() -> s` lista os provedores configurados em JSON. `SetRouteProvider(s, s, s) -> s` atualiza rota, provedor e modelo em `~/.config/hero/routes.toml`; as rotas `conversa-de-voz` e `sistema` recusam qualquer provedor cloud.
 - Métodos `Persona() -> s` e `SetPersonaInstructions(s) -> s` leem e atualizam as instruções editáveis em `~/.config/hero/persona.toml`. As instruções fixas de segurança são acrescentadas pelo daemon e não podem ser substituídas.
 - Métodos `ToolTiers() -> s` e `SetToolTier(s, s) -> s` listam tiers mínimo/efetivo do manifesto `tool-policy.toml` e permitem somente elevar o tier efetivo; overrides ficam em `~/.config/hero/policy.toml`.
@@ -24,7 +26,7 @@ A rota `código` reconhece pedidos explícitos para Claude Code, Codex CLI ou He
 
 A rota `saúde-do-sistema` consulta erros do journald das últimas 24 horas, GPU, carga da CPU, memória, estado da rede, firewall, auditd, portas TCP em escuta, espaço em disco e sensores térmicos. Cada fonte indisponível aparece como indisponível, sem ser convertida em um valor normal.
 
-Estados aceitos: `desligado`, `ocioso`, `escutando`, `gravando`, `transcrevendo`, `pensando`, `falando`, `erro`. A transição inicia em `ocioso`. A unit `herod.service` limita o daemon a 400 MiB, 50% de CPU e prioridade `Nice=5`; Ollama roda fora do cgroup do daemon. O turno de conversa tem limite de 58 segundos e subprocessos comuns de ação, até 55 segundos. A delegação de código tem limite de 10 minutos. Erros do provedor são sanitizados e não há fallback automático. A integração de áudio e wake word pertence à Fase 4.
+Estados aceitos: `desligado`, `ocioso`, `escutando`, `gravando`, `transcrevendo`, `pensando`, `falando`, `erro`. A transição inicia em `ocioso`. A unit `herod.service` limita o daemon a 400 MiB, 50% de CPU e prioridade `Nice=5`; Ollama roda fora do cgroup do daemon. O turno de conversa tem limite de 58 segundos e subprocessos comuns de ação, até 55 segundos. A delegação de código tem limite de 10 minutos. Erros do provedor são sanitizados e não há fallback automático. O controle do microfone e a captura PTT com STT local estão conectados ao daemon; o atalho global de PTT, a resposta falada, o wake word, o barge-in e a política de tela bloqueada ainda faltam. A transcrição no overlay só é enviada após ação explícita do usuário.
 
 Exemplo de rota cloud opt-in:
 

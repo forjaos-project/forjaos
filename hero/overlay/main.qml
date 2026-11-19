@@ -88,6 +88,22 @@ Window {
                         font.pixelSize: 10
                     }
                 }
+                ToolButton {
+                    id: microphoneButton
+                    text: hero.microphoneEnabled ? qsTr("Desligar microfone") : qsTr("Ligar microfone")
+                    icon.name: "audio-input-microphone"
+                    Accessible.name: text
+                    ToolTip.text: text
+                    ToolTip.visible: hovered || activeFocus
+                    onClicked: hero.toggleMicrophone()
+                    contentItem: Text {
+                        text: "●"
+                        color: hero.microphoneEnabled ? "#10b981" : "#f43f5e"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 20
+                    }
+                }
 
                 ToolButton {
                     id: closeButton
@@ -350,6 +366,17 @@ Window {
                             Keys.onReturnPressed: sendPrompt()
                         }
                         Button {
+                            id: pushToTalkButton
+                            text: qsTr("Segure para falar")
+                            enabled: hero.microphoneEnabled && !hero.busy && hero.pendingId.length === 0
+                            onPressed: hero.startPushToTalk()
+                            onReleased: hero.stopPushToTalk()
+                            onCanceled: hero.stopPushToTalk()
+                            Accessible.name: text
+                            ToolTip.text: qsTr("A fala será transcrita no campo para revisão antes do envio")
+                            ToolTip.visible: hovered || activeFocus
+                        }
+                        Button {
                             id: sendButton
                             text: hero.busy ? "…" : qsTr("Enviar")
                             enabled: !hero.busy && hero.pendingId.length === 0 && promptInput.text.trim().length > 0
@@ -407,6 +434,14 @@ Window {
 
     Connections {
         target: hero
+        function onVoiceTranscribed(text) {
+            promptInput.text = text
+            promptInput.forceActiveFocus()
+        }
+        function onVoiceError(message) {
+            messages.append({question: qsTr("Áudio"), answer: message, tool: "", tier: "", status: "erro", pending: false})
+            conversation.positionViewAtEnd()
+        }
         function onMessageAdded(question, answer, tool, tier, status, pending) {
             if (pending) {
                 messages.append({question: question, answer: answer, tool: tool, tier: tier, status: status, pending: true})

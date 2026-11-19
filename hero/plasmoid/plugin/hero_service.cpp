@@ -3,6 +3,7 @@
 #include <QDBusConnection>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
+#include <QDBusVariant>
 #include <QDir>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -19,11 +20,45 @@ HeroService::HeroService(QObject *parent)
                                           QStringLiteral("org.forjaos.Hero"),
                                           QStringLiteral("StateChanged"), this,
                                           SLOT(stateChangedFromBus(QString)));
+    QDBusConnection::sessionBus().connect(QStringLiteral("org.forjaos.Hero"),
+                                          QStringLiteral("/org/forjaos/Hero"),
+                                          QStringLiteral("org.freedesktop.DBus.Properties"),
+                                          QStringLiteral("PropertiesChanged"), this,
+                                          SLOT(propertiesChangedFromBus(QString,QVariantMap,QStringList)));
 }
 
 QString HeroService::state() const { return m_state; }
 QString HeroService::lastAnswer() const { return m_lastAnswer; }
 bool HeroService::busy() const { return m_busy; }
+bool HeroService::microphoneEnabled() const { return m_microphoneEnabled; }
+
+void HeroService::toggleMicrophone()
+{
+    QDBusInterface properties(QStringLiteral("org.forjaos.Hero"), QStringLiteral("/org/forjaos/Hero"),
+                              QStringLiteral("org.freedesktop.DBus.Properties"), QDBusConnection::sessionBus());
+    auto *watcher = new QDBusPendingCallWatcher(
+        properties.asyncCall(QStringLiteral("Set"), QStringLiteral("org.forjaos.Hero"),
+                             QStringLiteral("MicrophoneEnabled"), QDBusVariant(!m_microphoneEnabled)), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, watcher]() {
+        updateState();
+        watcher->deleteLater();
+    });
+}
+
+void HeroService::propertiesChangedFromBus(const QString &interface, const QVariantMap &changed,
+                                            const QStringList &invalidated)
+{
+    if (interface != QLatin1String("org.forjaos.Hero")) return;
+    if (changed.contains(QStringLiteral("MicrophoneEnabled"))) {
+        const bool next = changed.value(QStringLiteral("MicrophoneEnabled")).toBool();
+        if (m_microphoneEnabled != next) {
+            m_microphoneEnabled = next;
+            Q_EMIT microphoneEnabledChanged();
+        }
+    } else if (invalidated.contains(QStringLiteral("MicrophoneEnabled"))) {
+        updateState();
+    }
+}
 
 void HeroService::openOverlay()
 {
@@ -78,4 +113,9 @@ void HeroService::updateState()
 {
     const QString next = m_hero.isValid() ? m_hero.property("State").toString() : QStringLiteral("indisponível");
     stateChangedFromBus(next);
+    const bool microphone = m_hero.isValid() && m_hero.property("MicrophoneEnabled").toBool();
+    if (m_microphoneEnabled != microphone) {
+        m_microphoneEnabled = microphone;
+        Q_EMIT microphoneEnabledChanged();
+    }
 }

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ForjaOS HERO Microphone
+Name[pt_BR]=Microfone do HERO
+Comment=Toggle the HERO microphone
+Comment[pt_BR]=Ligar ou desligar o microfone do HERO
+Exec=/usr/libexec/forjaos/hero-mic-toggle
+TryExec=/usr/libexec/forjaos/hero-mic-toggle
+Icon=audio-input-microphone
+NoDisplay=true
+X-KDE-Shortcuts=Meta+M

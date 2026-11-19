@@ -29,6 +29,7 @@ worker TTS e envia os blocos PCM ao `pw-cat` em modo raw. Emite no stdout os
 visemas com deslocamento por bloco. `SIGTERM`/`SIGINT` interrompem os dois
 processos; o teste sintético de cancelamento não exige dispositivo de áudio.
 
-Ainda falta conectar a reprodução ao `herod` e ao QML, implementar a captura
-PipeWire pelo nó HERO, a API D-Bus de interrupção e medir a latência no Linux
-de referência.
+O `herod` já usa o `voice-worker stt-server` após a captura de PTT pelo PipeWire.
+O overlay recebe a transcrição para revisão antes do envio. Ainda faltam a
+reprodução ligada ao daemon e ao QML, o atalho global de PTT, a API D-Bus de
+interrupção, o wake word e a medição de latência no Linux de referência.

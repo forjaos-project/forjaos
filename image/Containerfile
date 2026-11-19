@@ -160,12 +160,15 @@ RUN install -D -m 0755 /tmp/forjaos-firstboot/setup-dual-boot.sh \
 RUN ln -s /opt/forjaos/graphify-runtime/.venv/bin/graphify /usr/bin/graphify \
     && chmod 0755 /usr/share/forjaos/hero-overlay/launcher.py \
     && ln -s /usr/share/forjaos/hero-overlay/launcher.py /usr/libexec/forjaos/hero-overlay \
+    && chmod 0755 /usr/share/forjaos/hero-overlay/toggle_microphone.py \
+    && ln -s /usr/share/forjaos/hero-overlay/toggle_microphone.py /usr/libexec/forjaos/hero-mic-toggle \
     && chmod 0755 /usr/share/forjaos/voice-runtime/launcher.py \
     && ln -s /usr/share/forjaos/voice-runtime/launcher.py /usr/libexec/forjaos/voice-worker \
     && chmod 0755 /usr/share/forjaos/voice-runtime/playback.py \
     && ln -s /usr/share/forjaos/voice-runtime/playback.py /usr/libexec/forjaos/hero-speak \
     && test -x /usr/bin/graphify \
     && test -x /usr/libexec/forjaos/hero-overlay \
+    && test -x /usr/libexec/forjaos/hero-mic-toggle \
     && test -x /usr/libexec/forjaos/voice-worker \
     && test -x /usr/libexec/forjaos/hero-speak
 
