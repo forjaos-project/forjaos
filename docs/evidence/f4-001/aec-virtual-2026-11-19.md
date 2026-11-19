@@ -13,8 +13,9 @@ Na primeira configuração, `monitor.mode = true` usou a fonte de captura virtua
 `forja-hero-aec-source`. Executado com
 `dbus-run-session -- bash /mnt/d/ForjaOS/validation/f4-001/pipewire-runtime/hero-aec-smoke.sh`.
 O script inicia e encerra somente seus processos PipeWire e WirePlumber. A
-configuração privada atual usa o monitor de `forja-test-sink` como captura para
-um ensaio digital de eco, mantendo o mesmo sink como referência AEC.
+configuração privada foi alterada entre os ensaios abaixo; a versão atual usa
+o sink AEC como caminho de reprodução e o monitor de `forja-test-sink` como
+captura digital de eco.
 
 Resultado observado:
 
@@ -47,3 +48,36 @@ pelo Piper** e não deve ser ligada ao `herod` como solução de FR-073. A ausê
 de um microfone e de uma sala reais impede concluir se o módulo AEC é inadequado
 em outra topologia. Faltam teste da própria wake word, barge-in com voz humana,
 latência e sessão Plasma. A captura atual de `herod` ainda usa a fonte padrão.
+
+## Reprodução dedicada ao sink AEC
+
+Um segundo ensaio usou `monitor.mode = false`: Piper reproduziu em
+`forja-hero-aec-sink`; o módulo encaminhou o áudio a `forja-test-sink` e usou
+esse sinal como referência. A captura continuou no monitor do sink físico de
+teste. Assim, a referência passou pelo caminho de reprodução descrito na
+[documentação do PipeWire](https://pipewire.pages.freedesktop.org/pipewire/page_module_echo_cancel.html).
+
+```text
+forja-test-sink:monitor_MONO -> echo-cancel-capture:input_MONO
+echo-cancel-playback:output_MONO -> forja-test-sink:playback_MONO
+Piper (3 frases): RMS bruto 3.242,6; RMS AEC 102,3
+Primeiros 1.920 ms: pico RMS bruto 8.503,6; pico RMS AEC 884,5
+Piper + tom adicional fora da referência: RMS bruto 3.608,0; RMS AEC 1.292,7
+```
+
+O resultado variou entre execuções: outra execução de três frases deu RMS
+bruto 3.528,4 e RMS AEC 302,4. O tom adicional de 1 kHz entrou diretamente
+no sink físico de teste, sem passar pela referência AEC; seu nível residual
+maior indica que o filtro não suprimiu todo sinal adicional. Isso é um ensaio
+digital controlado, não uma simulação acústica fiel de microfone, sala e voz
+humana. Não mede o escore de wake word nem demonstra que o pico inicial
+remanescente está abaixo do limiar de ativação. A topologia dedicada é candidata
+para integração e teste; ainda não satisfaz FR-073 por si só.
+
+No último ensaio, `capture.props` ficou sem `target.object` e as fontes/sinks
+AEC receberam `priority.session = 1`. O WirePlumber ligou
+`forja-test-source:capture_MONO` a `echo-cancel-capture:input_MONO`, sem
+autoconexão da fonte AEC nela mesma; o sink AEC continuou ligado ao sink físico
+virtual de teste. A fonte AEC entregou 2.560 bytes ao `pw-cat`. Isso testa a
+seleção automática **com uma fonte virtual disponível**, não a troca de
+microfone físico, dispositivos ausentes ou reconexão durante a sessão.
