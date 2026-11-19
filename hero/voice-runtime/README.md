@@ -30,8 +30,10 @@ visemas com deslocamento por bloco. `SIGTERM`/`SIGINT` interrompem os dois
 processos; o teste sintético de cancelamento não exige dispositivo de áudio.
 
 O `herod` usa o `voice-worker stt-server` após a captura de PTT pelo PipeWire,
-processa a pergunta na rota local `conversa-de-voz` e aciona `hero-speak` com a
-voz selecionada em `persona.toml`. O PTT durante a reprodução envia SIGTERM
+classifica o texto no Policy Engine, processa conversas na rota local
+`conversa-de-voz` e aciona `hero-speak` com a voz selecionada em `persona.toml`.
+Ações de tier `alterar` exigem uma confirmação falada em novo PTT; delegação de
+código longa exige modo texto. O PTT durante a reprodução envia SIGTERM
 ao supervisor, que encerra Piper e PipeWire. O overlay mostra transcrição e
 resposta; o atalho global de PTT mostra a resposta em notificação. Ainda faltam
-wake word, ações por voz, visemas no QML e medição no Linux de referência.
+wake word, supressão do próprio TTS, visemas no QML e medição no Linux de referência.

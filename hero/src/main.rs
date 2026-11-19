@@ -23,6 +23,8 @@ use zbus::{connection, fdo, interface, object_server::SignalEmitter};
 const BUS_NAME: &str = "org.forjaos.Hero";
 const OBJECT_PATH: &str = "/org/forjaos/Hero";
 const VOICE_FAILURE_MESSAGE: &str = "Desculpe, não consegui responder agora.";
+const VOICE_ACTION_TIMEOUT_MESSAGE: &str =
+    "O turno expirou. Verifique o estado da ação antes de repetir.";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum State {
@@ -106,8 +108,10 @@ struct Hero {
     voice_tx: mpsc::UnboundedSender<VoiceEvent>,
     stt_task: Option<tokio::task::JoinHandle<()>>,
     thinking_task: Option<tokio::task::JoinHandle<()>>,
+    active_voice_action: Option<ActiveVoiceAction>,
     speech: Option<SpeechTask>,
     pending: HashMap<String, PendingAction>,
+    voice_pending_id: Option<String>,
     history: VecDeque<ai::Turn>,
 }
 
@@ -116,7 +120,19 @@ enum VoiceEvent {
     TurnExpired(u64),
     Transcribed(u64, Result<String, &'static str>),
     TurnCompleted(u64, String, String),
+    ActionCompleted(VoiceActionResult),
     SpeechCompleted(u64, Result<(), &'static str>),
+}
+
+struct VoiceActionResult {
+    generation: u64,
+    result: Result<String, String>,
+}
+
+struct ActiveVoiceAction {
+    route: &'static str,
+    tool: &'static str,
+    tier: Tier,
 }
 
 struct SpeechTask {
@@ -140,6 +156,7 @@ impl Hero {
                     ) =>
             {
                 let stage = self.state;
+                let active_action = self.active_voice_action.take();
                 self.voice_generation = self.voice_generation.wrapping_add(1);
                 if let Some(capture) = self.capture.take() {
                     capture.cancel().await;
@@ -154,12 +171,29 @@ impl Hero {
                     let _ = speech.cancel.send(());
                     let _ = speech.task.await;
                 }
+                if let Some(id) = self.voice_pending_id.take() {
+                    self.pending.remove(&id);
+                }
+                if let Some(action) = &active_action {
+                    audit_voice(
+                        action.route,
+                        action.tool,
+                        action.tier.as_str(),
+                        "turno_expirado",
+                        60_000,
+                    );
+                }
                 let _ = self.transition_to("erro", emitter).await;
                 let _ = self.transition_to("ocioso", emitter).await;
                 if stage == State::Speaking {
                     let _ = Self::voice_failed(emitter, "speech_timeout").await;
                 } else {
-                    let _ = Self::voice_answer(emitter, VOICE_FAILURE_MESSAGE).await;
+                    let message = if active_action.is_some() {
+                        VOICE_ACTION_TIMEOUT_MESSAGE
+                    } else {
+                        VOICE_FAILURE_MESSAGE
+                    };
+                    let _ = Self::voice_answer(emitter, message).await;
                 }
             }
             VoiceEvent::CaptureExpired(generation)
@@ -188,20 +222,7 @@ impl Hero {
                         );
                         let _ = Self::voice_transcribed(emitter, &text).await;
                         let _ = self.transition_to("pensando", emitter).await;
-                        let history = self.history.iter().cloned().collect::<Vec<_>>();
-                        let voice_tx = self.voice_tx.clone();
-                        self.thinking_task = Some(tokio::spawn(async move {
-                            let response = ai::ask(
-                                &text,
-                                "conversa-de-voz",
-                                "nenhum contexto adicional",
-                                &ai::SnapshotDoApp::default(),
-                                &history,
-                            )
-                            .await;
-                            let _ = voice_tx
-                                .send(VoiceEvent::TurnCompleted(generation, text, response));
-                        }));
+                        self.handle_voice_text(text, generation, emitter).await;
                     }
                     Err(_error) => {
                         audit::record_trigger(
@@ -234,6 +255,18 @@ impl Hero {
                 }
                 self.start_speech(answer, generation, emitter).await;
             }
+            VoiceEvent::ActionCompleted(completed)
+                if completed.generation == self.voice_generation
+                    && self.state == State::Thinking =>
+            {
+                self.thinking_task.take();
+                self.active_voice_action.take();
+                let answer = completed
+                    .result
+                    .unwrap_or_else(|_| VOICE_FAILURE_MESSAGE.into());
+                self.start_speech(bounded_voice_answer(answer), completed.generation, emitter)
+                    .await;
+            }
             VoiceEvent::SpeechCompleted(generation, result)
                 if generation == self.voice_generation && self.state == State::Speaking =>
             {
@@ -259,6 +292,221 @@ impl Hero {
             let _ = voice_tx.send(VoiceEvent::SpeechCompleted(generation, result));
         });
         self.speech = Some(SpeechTask { cancel, task });
+    }
+
+    async fn handle_voice_text(
+        &mut self,
+        text: String,
+        generation: u64,
+        emitter: &SignalEmitter<'_>,
+    ) {
+        if let Some(id) = self.voice_pending_id.take() {
+            if let Some(pending) = self.pending.remove(&id) {
+                let proposal = pending.proposal;
+                if pending.expires_at <= Instant::now() {
+                    audit_voice(proposal.route, proposal.tool, "alterar", "expirado", 0);
+                    self.start_speech(
+                        "A confirmação expirou. Solicite a ação novamente.".into(),
+                        generation,
+                        emitter,
+                    )
+                    .await;
+                    return;
+                }
+                if is_voice_confirmation(&text) {
+                    if session_lock::locked(emitter.connection()).await {
+                        audit_voice(
+                            proposal.route,
+                            proposal.tool,
+                            "alterar",
+                            "sessao_bloqueada",
+                            0,
+                        );
+                        self.start_speech(
+                            "Desbloqueie a tela e solicite a ação novamente.".into(),
+                            generation,
+                            emitter,
+                        )
+                        .await;
+                    } else {
+                        self.start_voice_action(proposal, generation, true);
+                    }
+                    return;
+                }
+                audit_voice(proposal.route, proposal.tool, "alterar", "cancelado", 0);
+                if is_voice_cancellation(&text) {
+                    self.start_speech(
+                        "Ação cancelada; nada foi executado.".into(),
+                        generation,
+                        emitter,
+                    )
+                    .await;
+                    return;
+                }
+            }
+        }
+
+        let project = policy::resolve_project_context("", &text, None)
+            .map(|path| path.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        match policy::classify(&text, &project) {
+            Classification::Conversation => {
+                let history = self.history.iter().cloned().collect::<Vec<_>>();
+                let voice_tx = self.voice_tx.clone();
+                self.thinking_task = Some(tokio::spawn(async move {
+                    let response = ai::ask(
+                        &text,
+                        "conversa-de-voz",
+                        "nenhum contexto adicional",
+                        &ai::SnapshotDoApp::default(),
+                        &history,
+                    )
+                    .await;
+                    let _ = voice_tx.send(VoiceEvent::TurnCompleted(generation, text, response));
+                }));
+            }
+            Classification::Blocked {
+                route,
+                tool,
+                message,
+            } => {
+                audit_voice(route, tool, "bloqueado", "recusado", 0);
+                self.start_speech(bounded_voice_answer(message), generation, emitter)
+                    .await;
+            }
+            Classification::Proposal(proposal)
+                if matches!(&proposal.action, policy::Action::CodeDelegate { .. }) =>
+            {
+                audit_voice(
+                    proposal.route,
+                    proposal.tool,
+                    proposal.tier.as_str(),
+                    "requer_modo_texto",
+                    0,
+                );
+                self.start_speech(
+                    "Delegação de código requer o modo texto para acompanhar a tarefa longa. Nenhuma ação foi executada."
+                        .into(),
+                    generation,
+                    emitter,
+                )
+                .await;
+            }
+            Classification::Proposal(proposal) => match proposal.tier {
+                Tier::Blocked => {
+                    audit_voice(proposal.route, proposal.tool, "bloqueado", "recusado", 0);
+                    self.start_speech(
+                        "Esta ação está bloqueada pela política local.".into(),
+                        generation,
+                        emitter,
+                    )
+                    .await;
+                }
+                Tier::Alter => {
+                    if session_lock::locked(emitter.connection()).await {
+                        audit_voice(
+                            proposal.route,
+                            proposal.tool,
+                            "alterar",
+                            "sessao_bloqueada",
+                            0,
+                        );
+                        self.start_speech(
+                            "Desbloqueie a tela antes de solicitar esta ação.".into(),
+                            generation,
+                            emitter,
+                        )
+                        .await;
+                        return;
+                    }
+                    let Some(id) = confirmation_id() else {
+                        self.start_speech(
+                            "Não foi possível criar uma confirmação segura.".into(),
+                            generation,
+                            emitter,
+                        )
+                        .await;
+                        return;
+                    };
+                    let prompt = format!(
+                        "Confirma a ação {}? Pressione o botão de voz novamente e diga apenas confirmo ou cancelo.",
+                        proposal.tool
+                    );
+                    audit_voice(
+                        proposal.route,
+                        proposal.tool,
+                        "alterar",
+                        "confirmacao_pendente",
+                        0,
+                    );
+                    self.pending.insert(
+                        id.clone(),
+                        PendingAction {
+                            proposal,
+                            expires_at: Instant::now() + Duration::from_secs(120),
+                        },
+                    );
+                    self.voice_pending_id = Some(id);
+                    self.start_speech(prompt, generation, emitter).await;
+                }
+                Tier::Free => {
+                    if session_lock::locked(emitter.connection()).await
+                        && !proposal.action.allowed_while_locked()
+                    {
+                        audit_voice(
+                            proposal.route,
+                            proposal.tool,
+                            "livre",
+                            "sessao_bloqueada",
+                            0,
+                        );
+                        self.start_speech(
+                            "Desbloqueie a tela antes de solicitar esta ação.".into(),
+                            generation,
+                            emitter,
+                        )
+                        .await;
+                    } else {
+                        self.start_voice_action(proposal, generation, false);
+                    }
+                }
+            },
+        }
+    }
+
+    fn start_voice_action(&mut self, proposal: Proposal, generation: u64, approved: bool) {
+        self.active_voice_action = Some(ActiveVoiceAction {
+            route: proposal.route,
+            tool: proposal.tool,
+            tier: proposal.tier,
+        });
+        let voice_tx = self.voice_tx.clone();
+        self.thinking_task = Some(tokio::spawn(async move {
+            audit_voice(
+                proposal.route,
+                proposal.tool,
+                proposal.tier.as_str(),
+                "iniciado",
+                0,
+            );
+            let started = Instant::now();
+            let result = actions::execute(proposal.action).await;
+            let elapsed_ms = started.elapsed().as_millis();
+            audit_voice(
+                proposal.route,
+                proposal.tool,
+                proposal.tier.as_str(),
+                if result.is_ok() { "executado" } else { "falha" },
+                elapsed_ms,
+            );
+            if approved {
+                actions::record_hero_action(proposal.tool, result.is_ok(), &proposal.context).await;
+            }
+            let _ = voice_tx.send(VoiceEvent::ActionCompleted(VoiceActionResult {
+                generation,
+                result,
+            }));
+        }));
     }
 
     async fn transition_to(
@@ -298,6 +546,34 @@ fn voice_answer_from_reply(response: &str) -> (String, bool) {
         }
     }
     (VOICE_FAILURE_MESSAGE.to_string(), false)
+}
+
+fn bounded_voice_answer(answer: String) -> String {
+    let answer = answer.trim();
+    if answer.is_empty() || answer.chars().count() > 4000 {
+        VOICE_FAILURE_MESSAGE.into()
+    } else {
+        answer.into()
+    }
+}
+
+fn voice_control_word(text: &str) -> String {
+    text.trim()
+        .trim_end_matches(['.', '!', '?'])
+        .trim()
+        .to_lowercase()
+}
+
+fn is_voice_confirmation(text: &str) -> bool {
+    voice_control_word(text) == "confirmo"
+}
+
+fn is_voice_cancellation(text: &str) -> bool {
+    voice_control_word(text) == "cancelo"
+}
+
+fn audit_voice(route: &str, tool: &str, tier: &str, decision: &str, duration_ms: u128) {
+    audit::record_trigger("push_to_talk", route, tool, tier, decision, duration_ms);
 }
 
 #[interface(name = "org.forjaos.Hero")]
@@ -667,6 +943,9 @@ impl Hero {
         let Some(pending) = self.pending.remove(id) else {
             return json!({"status":"confirmation_not_found"}).to_string();
         };
+        if self.voice_pending_id.as_deref() == Some(id) {
+            self.voice_pending_id = None;
+        }
         let proposal = pending.proposal;
         if pending.expires_at <= Instant::now() {
             audit::record(
@@ -836,8 +1115,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         voice_tx,
         stt_task: None,
         thinking_task: None,
+        active_voice_action: None,
         speech: None,
         pending: HashMap::new(),
+        voice_pending_id: None,
         history: VecDeque::new(),
     };
     let connection = connection::Builder::session()?
@@ -881,7 +1162,8 @@ mod tests {
     #[cfg(unix)]
     use super::confirmation_id;
     use super::{
-        snapshot_context, voice_answer_from_reply, Hero, PendingAction, State, VoiceEvent,
+        bounded_voice_answer, is_voice_cancellation, is_voice_confirmation, snapshot_context,
+        voice_answer_from_reply, ActiveVoiceAction, Hero, PendingAction, State, VoiceEvent,
         OBJECT_PATH, VOICE_FAILURE_MESSAGE,
     };
     use crate::ai::SnapshotDoApp;
@@ -934,8 +1216,10 @@ mod tests {
             voice_tx,
             stt_task: None,
             thinking_task: None,
+            active_voice_action: None,
             speech: None,
             pending: HashMap::new(),
+            voice_pending_id: None,
             history: VecDeque::new(),
         };
         let server = connection::Builder::tcp_stream(server_stream)
@@ -1070,8 +1354,10 @@ mod tests {
             voice_tx,
             stt_task: None,
             thinking_task: None,
+            active_voice_action: None,
             speech: None,
             pending: HashMap::<String, PendingAction>::new(),
+            voice_pending_id: None,
             history: VecDeque::new(),
         };
         assert_eq!(hero.state(), "ocioso");
@@ -1191,6 +1477,166 @@ mod tests {
         assert!(hero.pending.contains_key(&id));
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn voice_action_requires_confirmation_and_rechecks_the_screen_lock() {
+        let _home = TestHome::new();
+        let active = Arc::new(AtomicBool::new(false));
+        let (server, _client) = voice_test_connection_with_lock(Some(active.clone())).await;
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        let mut hero = interface.get_mut().await;
+        hero.state = State::Thinking;
+        hero.voice_generation = 3;
+        hero.handle_voice_text("ligue wifi".into(), 3, interface.signal_emitter())
+            .await;
+        assert_eq!(hero.state, State::Speaking);
+        let id = hero.voice_pending_id.clone().expect("voice confirmation");
+        assert!(hero.pending.contains_key(&id));
+        assert!(hero.thinking_task.is_none());
+        hero.handle_voice_event(
+            VoiceEvent::SpeechCompleted(3, Err("voice_not_selected")),
+            interface.signal_emitter(),
+        )
+        .await;
+
+        active.store(true, Ordering::SeqCst);
+        hero.state = State::Thinking;
+        hero.voice_generation = 4;
+        hero.handle_voice_text("Confirmo.".into(), 4, interface.signal_emitter())
+            .await;
+        assert_eq!(hero.state, State::Speaking);
+        assert!(hero.voice_pending_id.is_none());
+        assert!(hero.pending.is_empty());
+        assert!(hero.thinking_task.is_none());
+
+        hero.handle_voice_event(
+            VoiceEvent::SpeechCompleted(4, Err("voice_not_selected")),
+            interface.signal_emitter(),
+        )
+        .await;
+        active.store(false, Ordering::SeqCst);
+        hero.state = State::Thinking;
+        hero.voice_generation = 5;
+        hero.handle_voice_text("ligue wifi".into(), 5, interface.signal_emitter())
+            .await;
+        assert!(hero.voice_pending_id.is_some());
+        hero.handle_voice_event(
+            VoiceEvent::SpeechCompleted(5, Err("voice_not_selected")),
+            interface.signal_emitter(),
+        )
+        .await;
+        hero.state = State::Thinking;
+        hero.voice_generation = 6;
+        hero.handle_voice_text("cancelo".into(), 6, interface.signal_emitter())
+            .await;
+        assert_eq!(hero.state, State::Speaking);
+        assert!(hero.voice_pending_id.is_none());
+        assert!(hero.pending.is_empty());
+        assert!(hero.thinking_task.is_none());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn voice_free_action_runs_through_the_policy_actor() {
+        let _home = TestHome::new();
+        let active = Arc::new(AtomicBool::new(false));
+        let (server, _client) = voice_test_connection_with_lock(Some(active)).await;
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        let (voice_tx, mut voice_rx) = mpsc::unbounded_channel();
+        let mut hero = interface.get_mut().await;
+        hero.voice_tx = voice_tx;
+        hero.state = State::Thinking;
+        hero.voice_generation = 8;
+        hero.handle_voice_text("mostre gpu".into(), 8, interface.signal_emitter())
+            .await;
+        assert_eq!(hero.state, State::Thinking);
+        let active = hero.active_voice_action.as_ref().expect("active action");
+        assert_eq!(active.tool, "gpu.status");
+        assert_eq!(active.tier, Tier::Free);
+        let event = tokio::time::timeout(Duration::from_secs(5), voice_rx.recv())
+            .await
+            .expect("action result")
+            .expect("voice event");
+        match &event {
+            VoiceEvent::ActionCompleted(completed) => {
+                assert_eq!(completed.generation, 8);
+            }
+            _ => panic!("expected policy action result"),
+        }
+        hero.handle_voice_event(event, interface.signal_emitter())
+            .await;
+        assert_eq!(hero.state, State::Speaking);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn explicit_voice_confirmation_consumes_pending_action_once() {
+        let _home = TestHome::new();
+        let active = Arc::new(AtomicBool::new(false));
+        let (server, _client) = voice_test_connection_with_lock(Some(active)).await;
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        let (voice_tx, mut voice_rx) = mpsc::unbounded_channel();
+        let mut hero = interface.get_mut().await;
+        hero.voice_tx = voice_tx;
+        hero.state = State::Thinking;
+        hero.voice_generation = 9;
+        let id = "voice-action".to_string();
+        hero.pending.insert(
+            id.clone(),
+            PendingAction {
+                proposal: Proposal {
+                    route: "sistema",
+                    context: "nenhum".into(),
+                    tool: "app.open",
+                    tier: Tier::Alter,
+                    action: Action::OpenApp("invalid;".into()),
+                },
+                expires_at: Instant::now() + Duration::from_secs(120),
+            },
+        );
+        hero.voice_pending_id = Some(id.clone());
+        hero.handle_voice_text("confirmo".into(), 9, interface.signal_emitter())
+            .await;
+        assert!(hero.pending.is_empty());
+        assert!(hero.voice_pending_id.is_none());
+        let active = hero.active_voice_action.as_ref().expect("active action");
+        assert_eq!(active.tier, Tier::Alter);
+        let event = tokio::time::timeout(Duration::from_secs(5), voice_rx.recv())
+            .await
+            .expect("action result")
+            .expect("voice event");
+        match &event {
+            VoiceEvent::ActionCompleted(completed) => {
+                assert!(completed.result.is_err());
+            }
+            _ => panic!("expected confirmed action result"),
+        }
+        hero.handle_voice_event(event, interface.signal_emitter())
+            .await;
+        assert_eq!(hero.state, State::Speaking);
+    }
+
+    #[test]
+    fn voice_confirmation_requires_an_explicit_word() {
+        assert!(is_voice_confirmation("Confirmo."));
+        assert!(!is_voice_confirmation("sim"));
+        assert!(!is_voice_confirmation("confirmo o resto"));
+        assert!(is_voice_cancellation("Cancelo!"));
+        assert_eq!(bounded_voice_answer(" ".into()), VOICE_FAILURE_MESSAGE);
+    }
+
     #[tokio::test]
     async fn local_voice_turn_advances_from_transcription_to_speech_and_idle() {
         let (server, _client) = voice_test_connection().await;
@@ -1249,6 +1695,35 @@ mod tests {
             .await;
         assert_eq!(hero.state, State::Idle);
         assert_eq!(hero.voice_generation, 11);
+        assert!(hero.thinking_task.is_none());
+        drop(hero);
+        tokio::task::yield_now().await;
+        assert!(abort.is_finished());
+    }
+
+    #[tokio::test]
+    async fn voice_action_timeout_clears_the_active_action() {
+        let (server, _client) = voice_test_connection().await;
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        let mut hero = interface.get_mut().await;
+        hero.state = State::Thinking;
+        hero.voice_generation = 20;
+        hero.active_voice_action = Some(ActiveVoiceAction {
+            route: "sistema",
+            tool: "wifi.toggle",
+            tier: crate::policy::Tier::Alter,
+        });
+        let task = tokio::spawn(async { tokio::time::sleep(Duration::from_secs(5)).await });
+        let abort = task.abort_handle();
+        hero.thinking_task = Some(task);
+        hero.handle_voice_event(VoiceEvent::TurnExpired(20), interface.signal_emitter())
+            .await;
+        assert_eq!(hero.state, State::Idle);
+        assert!(hero.active_voice_action.is_none());
         assert!(hero.thinking_task.is_none());
         drop(hero);
         tokio::task::yield_now().await;

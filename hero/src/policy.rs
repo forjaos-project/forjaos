@@ -67,6 +67,21 @@ pub enum Action {
     },
 }
 
+impl Action {
+    pub fn allowed_while_locked(&self) -> bool {
+        matches!(
+            self,
+            Self::ComposeLogs(_)
+                | Self::GitStatus(_)
+                | Self::GpuStatus
+                | Self::SystemStatus
+                | Self::MemorySearch(_)
+                | Self::ServiceList
+                | Self::ServiceStatus(_)
+        )
+    }
+}
+
 pub struct Proposal {
     pub route: &'static str,
     pub context: String,
@@ -991,6 +1006,14 @@ mod tests {
     use crate::test_support::TestHome;
     use std::collections::BTreeMap;
     use std::path::PathBuf;
+
+    #[test]
+    fn locked_session_allows_only_read_only_free_actions() {
+        assert!(Action::GpuStatus.allowed_while_locked());
+        assert!(Action::ServiceStatus("herod.service".into()).allowed_while_locked());
+        assert!(!Action::OpenApp("org.kde.konsole".into()).allowed_while_locked());
+        assert!(!Action::Wifi(true).allowed_while_locked());
+    }
 
     #[test]
     fn recognizes_only_explicit_supported_code_agents() {
