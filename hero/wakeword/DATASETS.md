@@ -60,3 +60,29 @@ Treinar apenas os oito classificadores não resolve essa dúvida. Antes de
 embarcar o runtime, é necessária procedência e licença permissiva verificáveis
 para os dois modelos compartilhados, ou uma implementação independente com
 pesos de origem permissiva comprovada.
+
+## Avaliação de alternativas em 18/11/2026
+
+- `openWakeWord` permanece na versão publicada 0.6.0 (fevereiro de 2024).
+  O [README upstream](https://github.com/dscripka/openWakeWord#license) distingue
+  código Apache-2.0 de modelos pré-treinados CC BY-NC-SA 4.0, mas não esclarece
+  a licença dos arquivos compartilhados; a [questão #338](https://github.com/dscripka/openWakeWord/issues/338)
+  continua aberta. A afirmação de que o embedding foi reimplementado a partir
+  de um modelo Google Apache-2.0 não basta para atribuir licença aos arquivos
+  ONNX distribuídos.
+- `sherpa-onnx` oferece keyword spotting configurável, mas os
+  [modelos KWS publicados](https://k2-fsa.github.io/sherpa/onnx/kws/index.html)
+  são para inglês e chinês. Eles não comprovam detecção das oito frases pt-BR.
+- [WeKws](https://github.com/wenet-e2e/wekws) é Apache-2.0 e tem treino a
+  partir de dados próprios e exportação ONNX. Uma prova local em Python 3.14,
+  PyTorch 2.11 e ONNX Runtime, usando MDTC inicializado sem pesos externos,
+  exportou 35.073 parâmetros para 277.279 bytes. A saída de 100 quadros teve
+  diferença absoluta máxima de 3,58e-7 entre PyTorch e ONNX Runtime. O
+  exportador atual produziu opset 18 apesar do pedido de opset 13; a
+  compatibilidade desse formato com a imagem Linux ainda deve ser conferida.
+  Essa prova verifica apenas exportação e inferência de pesos aleatórios: não
+  verifica português, acurácia, falso positivo, consumo nem latência.
+
+Nenhum substituto foi aprovado para ADR-012. A escolha depende de um modelo
+pt-BR treinado com dados de procedência verificada e das métricas FR-080/081;
+a validação por 20 locutores reais segue pendente conforme acima.
