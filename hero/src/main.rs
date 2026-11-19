@@ -125,6 +125,7 @@ struct Hero {
 
 enum VoiceEvent {
     Trigger(TriggerRequest),
+    ReloadWakeWord(oneshot::Sender<String>),
     WakeDetected(u64),
     WakeEndpointFinished(u64, voice::WakeEndpointResult),
     CaptureExpired(u64),
@@ -191,9 +192,28 @@ impl VoiceTrigger {
     ) -> String {
         self.dispatch(TriggerMode::Toggle, emitter).await
     }
+
+    async fn reload_wake_word(&self) -> String {
+        self.reload_wake_word_inner().await
+    }
 }
 
 impl VoiceTrigger {
+    async fn reload_wake_word_inner(&self) -> String {
+        let (response, receiver) = oneshot::channel();
+        if self
+            .voice_tx
+            .send(VoiceEvent::ReloadWakeWord(response))
+            .is_err()
+        {
+            return json!({"status":"unavailable"}).to_string();
+        }
+        match tokio::time::timeout(Duration::from_secs(5), receiver).await {
+            Ok(Ok(reply)) => reply,
+            _ => json!({"status":"unavailable"}).to_string(),
+        }
+    }
+
     async fn dispatch(&self, mode: TriggerMode, emitter: SignalEmitter<'_>) -> String {
         let epoch = self.state_epoch.load(Ordering::SeqCst);
         let state = *self.state_rx.borrow();
@@ -259,6 +279,40 @@ struct PendingAction {
 impl Hero {
     async fn handle_voice_event(&mut self, event: VoiceEvent, emitter: &SignalEmitter<'_>) {
         match event {
+            VoiceEvent::ReloadWakeWord(response) => {
+                if !matches!(self.state, State::Idle | State::Speaking) {
+                    let _ = response.send(json!({"status":"busy"}).to_string());
+                    return;
+                }
+                if let Some(detector) = self.wake_detector.take() {
+                    detector.stop().await;
+                }
+                self.wake_detector = self.mic_stream.as_ref().and_then(|stream| {
+                    let voice_tx = self.voice_tx.clone();
+                    voice::WakeDetector::start_configured(
+                        stream,
+                        self.state_tx.subscribe(),
+                        self.state_epoch.clone(),
+                        move |epoch| {
+                            let _ = voice_tx.send(VoiceEvent::WakeDetected(epoch));
+                        },
+                    )
+                });
+                let status = if self.wake_detector.is_some() {
+                    "active"
+                } else {
+                    "disabled"
+                };
+                audit::record_trigger(
+                    "wake_word",
+                    "conversa-de-voz",
+                    "wakeword.reload",
+                    "livre",
+                    status,
+                    0,
+                );
+                let _ = response.send(json!({"status":status}).to_string());
+            }
             VoiceEvent::Trigger(request) => {
                 if request.response.is_closed() {
                     return;
@@ -1748,6 +1802,56 @@ mod tests {
         if let Some(task) = hero.stt_task.take() {
             task.abort();
         }
+    }
+
+    #[tokio::test]
+    async fn wake_word_reload_is_exposed_over_dbus_without_restarting_herod() {
+        let (server, client) = voice_test_connection().await;
+        let (voice_tx, mut voice_rx) = mpsc::unbounded_channel();
+        let trigger = server
+            .object_server()
+            .interface::<_, VoiceTrigger>(OBJECT_PATH)
+            .await
+            .expect("trigger interface");
+        trigger.get_mut().await.voice_tx = voice_tx;
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+
+        let call = tokio::spawn(async move {
+            client
+                .call_method(
+                    None::<&str>,
+                    OBJECT_PATH,
+                    Some("org.forjaos.Hero.Trigger"),
+                    "ReloadWakeWord",
+                    &(),
+                )
+                .await
+                .expect("reload reply")
+                .body()
+                .deserialize::<String>()
+                .expect("reply body")
+        });
+        let event = tokio::time::timeout(Duration::from_secs(1), voice_rx.recv())
+            .await
+            .expect("reload received")
+            .expect("reload event");
+        interface
+            .get_mut()
+            .await
+            .handle_voice_event(event, interface.signal_emitter())
+            .await;
+        let reply = tokio::time::timeout(Duration::from_secs(2), call)
+            .await
+            .expect("reload completed")
+            .expect("call task");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&reply).unwrap()["status"],
+            "disabled"
+        );
     }
 
     #[tokio::test]

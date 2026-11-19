@@ -133,6 +133,10 @@ COPY hero/voice-runtime/playback.py /usr/share/forjaos/voice-runtime/playback.py
 COPY hero/wakeword/worker.py /usr/share/forjaos/wakeword/worker.py
 COPY hero/wakeword/features.py /usr/share/forjaos/wakeword/features.py
 COPY hero/wakeword/launcher.py /usr/share/forjaos/wakeword/launcher.py
+COPY hero/wakeword/train.py /usr/share/forjaos/wakeword/train.py
+COPY hero/wakeword/train_launcher.py /usr/share/forjaos/wakeword/train_launcher.py
+COPY hero/wakeword/prepare_manifest.py /usr/share/forjaos/wakeword/prepare_manifest.py
+COPY hero/wakeword/training-runtime/pyproject.toml hero/wakeword/training-runtime/uv.lock /usr/share/forjaos/wakeword-training-runtime/
 COPY hero/voice-runtime/requirements.txt /usr/share/forjaos/voice-runtime/requirements.txt
 COPY hero/voice-runtime/pyproject.toml /usr/share/forjaos/voice-runtime/pyproject.toml
 COPY hero/voice-runtime/uv.lock /usr/share/forjaos/voice-runtime/uv.lock
@@ -181,6 +185,10 @@ RUN ln -s /opt/forjaos/graphify-runtime/.venv/bin/graphify /usr/bin/graphify \
     && ln -s /usr/share/forjaos/voice-runtime/playback.py /usr/libexec/forjaos/hero-speak \
     && chmod 0755 /usr/share/forjaos/wakeword/launcher.py \
     && ln -s /usr/share/forjaos/wakeword/launcher.py /usr/libexec/forjaos/hero-wakeword \
+    && chmod 0755 /usr/share/forjaos/wakeword/train_launcher.py \
+    && chmod 0755 /usr/share/forjaos/wakeword/prepare_manifest.py \
+    && ln -s /usr/share/forjaos/wakeword/train_launcher.py /usr/libexec/forjaos/train-wakeword \
+    && ln -s /usr/share/forjaos/wakeword/prepare_manifest.py /usr/libexec/forjaos/prepare-wakeword-manifest \
     && test -x /usr/bin/graphify \
     && test -x /usr/libexec/forjaos/hero-overlay \
     && test -x /usr/libexec/forjaos/hero-mic-toggle \
@@ -188,6 +196,8 @@ RUN ln -s /opt/forjaos/graphify-runtime/.venv/bin/graphify /usr/bin/graphify \
     && test -x /usr/libexec/forjaos/voice-worker \
     && test -x /usr/libexec/forjaos/hero-speak \
     && test -x /usr/libexec/forjaos/hero-wakeword \
+    && test -x /usr/libexec/forjaos/train-wakeword \
+    && test -x /usr/libexec/forjaos/prepare-wakeword-manifest \
     && test -x /opt/forjaos/wakeword-runtime/.venv/bin/python
 
 RUN python3 /tmp/configure_image.py \
