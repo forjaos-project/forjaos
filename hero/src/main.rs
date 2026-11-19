@@ -311,7 +311,7 @@ impl Hero {
             {
                 match result {
                     voice::WakeEndpointResult::SpeechComplete => {
-                        let _ = self.stop_push_to_talk(emitter.clone()).await;
+                        let _ = self.finish_capture(emitter.clone()).await;
                     }
                     voice::WakeEndpointResult::NoSpeech
                     | voice::WakeEndpointResult::Disconnected => {
@@ -836,6 +836,13 @@ impl Hero {
     }
 
     async fn stop_push_to_talk(&mut self, emitter: SignalEmitter<'_>) -> String {
+        if self.capture_origin != Some(CaptureOrigin::PushToTalk) {
+            return json!({"status":"not_recording"}).to_string();
+        }
+        self.finish_capture(emitter).await
+    }
+
+    async fn finish_capture(&mut self, emitter: SignalEmitter<'_>) -> String {
         if let Some(endpoint) = self.wake_endpoint.take() {
             endpoint.stop().await;
         }
@@ -1702,6 +1709,7 @@ mod tests {
                 "import sys,time; sys.stdout.buffer.write(b'\\x00\\x01'*1600); sys.stdout.flush(); time.sleep(5)",
             ]);
             hero.capture = Some(Capture::start_command(command).expect("synthetic capture"));
+            hero.capture_origin = Some(CaptureOrigin::PushToTalk);
         }
         let call = tokio::spawn(async move {
             client
@@ -1768,6 +1776,14 @@ mod tests {
         hero.handle_voice_event(VoiceEvent::WakeDetected(0), interface.signal_emitter())
             .await;
         assert_eq!(hero.state, State::Recording);
+        assert_eq!(hero.capture_origin, Some(CaptureOrigin::WakeWord));
+        let stray_stop = hero
+            .stop_push_to_talk(interface.signal_emitter().clone())
+            .await;
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&stray_stop).unwrap()["status"],
+            "not_recording"
+        );
         assert_eq!(hero.capture_origin, Some(CaptureOrigin::WakeWord));
         let reply = hero
             .start_push_to_talk(interface.signal_emitter().clone())
