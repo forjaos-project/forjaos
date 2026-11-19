@@ -14,6 +14,7 @@ from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 BUS_NAME = "org.forjaos.Hero"
 OBJECT_PATH = "/org/forjaos/Hero"
 INTERFACE = "org.forjaos.Hero"
+TRIGGER_INTERFACE = "org.forjaos.Hero.Trigger"
 SCREEN_SAVER = "org.freedesktop.ScreenSaver"
 SCREEN_SAVER_PATH = "/ScreenSaver"
 
@@ -78,7 +79,8 @@ def main() -> int:
         notify(bus, "Gatilho ignorado: HERO ocupado ou indisponível.")
         return 1
     hero = QDBusInterface(BUS_NAME, OBJECT_PATH, INTERFACE, bus)
-    if not hero.isValid():
+    trigger = QDBusInterface(BUS_NAME, OBJECT_PATH, TRIGGER_INTERFACE, bus)
+    if not hero.isValid() or not trigger.isValid():
         return 1
 
     result = VoiceResult()
@@ -86,7 +88,7 @@ def main() -> int:
     connected_failure = bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceFailed", "s", result, SLOT("failed_result(QString)"))
     if not connected_answer or not connected_failure:
         return 1
-    reply = hero.call("TogglePushToTalk")
+    reply = trigger.call("TogglePushToTalk")
     if reply.type() == QDBusMessage.MessageType.ErrorMessage:
         return 1
     try:

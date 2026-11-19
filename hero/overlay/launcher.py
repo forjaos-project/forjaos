@@ -36,6 +36,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 BUS_NAME = "org.forjaos.Hero"
 OBJECT_PATH = "/org/forjaos/Hero"
 INTERFACE = "org.forjaos.Hero"
+TRIGGER_INTERFACE = "org.forjaos.Hero.Trigger"
 SCREEN_SAVER = "org.freedesktop.ScreenSaver"
 SCREEN_SAVER_PATH = "/ScreenSaver"
 DEFAULTS = {
@@ -261,6 +262,7 @@ class HeroBackend(QObject):
         self._pool = QThreadPool.globalInstance()
         self._bus = QDBusConnection.sessionBus()
         self._hero = QDBusInterface(BUS_NAME, OBJECT_PATH, INTERFACE, self._bus, self)
+        self._trigger = QDBusInterface(BUS_NAME, OBJECT_PATH, TRIGGER_INTERFACE, self._bus, self)
         self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceTranscribed", "s", self, SLOT("_on_voice_transcribed(QString)"))
         self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceAnswer", "s", self, SLOT("_on_voice_answer(QString)"))
         self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceIgnored", "s", self, SLOT("_on_voice_ignored(QString)"))
@@ -444,7 +446,7 @@ class HeroBackend(QObject):
             return
         self._ptt_starting = True
         self._ptt_stop_requested = False
-        watcher = QDBusPendingCallWatcher(self._hero.asyncCall("StartPushToTalk"), self)
+        watcher = QDBusPendingCallWatcher(self._trigger.asyncCall("StartPushToTalk"), self)
         watcher.finished.connect(self._push_to_talk_started)
 
     def _push_to_talk_started(self, watcher: QDBusPendingCallWatcher) -> None:
@@ -472,7 +474,7 @@ class HeroBackend(QObject):
             return
         self._ptt_recording = False
         self._ptt_stop_requested = False
-        watcher = QDBusPendingCallWatcher(self._hero.asyncCall("StopPushToTalk"), self)
+        watcher = QDBusPendingCallWatcher(self._trigger.asyncCall("StopPushToTalk"), self)
         watcher.finished.connect(self._push_to_talk_stopped)
 
     def _push_to_talk_stopped(self, watcher: QDBusPendingCallWatcher) -> None:

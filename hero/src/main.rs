@@ -16,6 +16,8 @@ use policy::{Classification, Proposal, Tier};
 use serde_json::json;
 use std::collections::{HashMap, VecDeque};
 use std::io::Read;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, oneshot, watch};
 use zbus::{connection, fdo, interface, object_server::SignalEmitter};
@@ -102,6 +104,7 @@ impl State {
 struct Hero {
     state: State,
     state_tx: watch::Sender<&'static str>,
+    state_epoch: Arc<AtomicU64>,
     microphone_enabled: bool,
     capture: Option<voice::Capture>,
     voice_generation: u64,
@@ -116,12 +119,98 @@ struct Hero {
 }
 
 enum VoiceEvent {
+    Trigger(TriggerRequest),
     CaptureExpired(u64),
     TurnExpired(u64),
     Transcribed(u64, Result<String, &'static str>),
     TurnCompleted(u64, String, String),
     ActionCompleted(VoiceActionResult),
     SpeechCompleted(u64, Result<(), &'static str>),
+}
+
+#[derive(Clone, Copy)]
+enum TriggerMode {
+    Start,
+    Stop,
+    Toggle,
+}
+
+struct TriggerRequest {
+    mode: TriggerMode,
+    epoch: u64,
+    response: oneshot::Sender<String>,
+}
+
+struct VoiceTrigger {
+    state_rx: watch::Receiver<&'static str>,
+    state_epoch: Arc<AtomicU64>,
+    voice_tx: mpsc::UnboundedSender<VoiceEvent>,
+}
+
+#[interface(name = "org.forjaos.Hero.Trigger")]
+impl VoiceTrigger {
+    async fn start_push_to_talk(
+        &self,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> String {
+        self.dispatch(TriggerMode::Start, emitter).await
+    }
+
+    async fn stop_push_to_talk(
+        &self,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> String {
+        self.dispatch(TriggerMode::Stop, emitter).await
+    }
+
+    async fn toggle_push_to_talk(
+        &self,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> String {
+        self.dispatch(TriggerMode::Toggle, emitter).await
+    }
+}
+
+impl VoiceTrigger {
+    async fn dispatch(&self, mode: TriggerMode, emitter: SignalEmitter<'_>) -> String {
+        let epoch = self.state_epoch.load(Ordering::SeqCst);
+        let state = *self.state_rx.borrow();
+        if !trigger_allowed(mode, state) {
+            let _ = Hero::voice_ignored(&emitter, state).await;
+            audit_voice(
+                "conversa-de-voz",
+                "audio.trigger",
+                "livre",
+                "ignorado_ocupado",
+                0,
+            );
+            return ai::busy();
+        }
+        let (response, receiver) = oneshot::channel();
+        if self
+            .voice_tx
+            .send(VoiceEvent::Trigger(TriggerRequest {
+                mode,
+                epoch,
+                response,
+            }))
+            .is_err()
+        {
+            return json!({"status":"unavailable"}).to_string();
+        }
+        match tokio::time::timeout(Duration::from_secs(5), receiver).await {
+            Ok(Ok(reply)) => reply,
+            _ => json!({"status":"unavailable"}).to_string(),
+        }
+    }
+}
+
+fn trigger_allowed(mode: TriggerMode, state: &str) -> bool {
+    match mode {
+        TriggerMode::Start => matches!(state, "ocioso" | "falando"),
+        TriggerMode::Stop => state == "gravando",
+        TriggerMode::Toggle => matches!(state, "ocioso" | "falando" | "gravando"),
+    }
 }
 
 struct VoiceActionResult {
@@ -148,6 +237,32 @@ struct PendingAction {
 impl Hero {
     async fn handle_voice_event(&mut self, event: VoiceEvent, emitter: &SignalEmitter<'_>) {
         match event {
+            VoiceEvent::Trigger(request) => {
+                if request.response.is_closed() {
+                    return;
+                }
+                let state = self.state.as_str();
+                if request.epoch != self.state_epoch.load(Ordering::SeqCst)
+                    || !trigger_allowed(request.mode, state)
+                {
+                    let _ = Self::voice_ignored(emitter, state).await;
+                    audit_voice(
+                        "conversa-de-voz",
+                        "audio.trigger",
+                        "livre",
+                        "ignorado_ocupado",
+                        0,
+                    );
+                    let _ = request.response.send(ai::busy());
+                    return;
+                }
+                let reply = match request.mode {
+                    TriggerMode::Start => self.start_push_to_talk(emitter.clone()).await,
+                    TriggerMode::Stop => self.stop_push_to_talk(emitter.clone()).await,
+                    TriggerMode::Toggle => self.toggle_push_to_talk(emitter.clone()).await,
+                };
+                let _ = request.response.send(reply);
+            }
             VoiceEvent::TurnExpired(generation)
                 if generation == self.voice_generation
                     && matches!(
@@ -509,6 +624,100 @@ impl Hero {
         }));
     }
 
+    async fn start_push_to_talk(&mut self, emitter: SignalEmitter<'_>) -> String {
+        if !self.microphone_enabled {
+            return json!({"status":"microphone_disabled"}).to_string();
+        }
+        if !matches!(self.state, State::Idle | State::Speaking) || self.capture.is_some() {
+            audit::record_trigger(
+                "push_to_talk",
+                "conversa-de-voz",
+                "audio.trigger",
+                "livre",
+                "ignorado_ocupado",
+                0,
+            );
+            let _ = Self::voice_ignored(&emitter, self.state.as_str()).await;
+            return ai::busy();
+        }
+        self.voice_generation = self.voice_generation.wrapping_add(1);
+        let generation = self.voice_generation;
+        if let Some(speech) = self.speech.take() {
+            let _ = speech.cancel.send(());
+            let _ = speech.task.await;
+            audit::record_trigger(
+                "push_to_talk",
+                "conversa-de-voz",
+                "speech.cancel",
+                "livre",
+                "interrompido",
+                0,
+            );
+        }
+        let _ = self.transition_to("escutando", &emitter).await;
+        match voice::Capture::start() {
+            Ok(capture) => {
+                self.capture = Some(capture);
+                let _ = self.transition_to("gravando", &emitter).await;
+                let voice_tx = self.voice_tx.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(Duration::from_secs(30)).await;
+                    let _ = voice_tx.send(VoiceEvent::CaptureExpired(generation));
+                });
+                let voice_tx = self.voice_tx.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(Duration::from_secs(60)).await;
+                    let _ = voice_tx.send(VoiceEvent::TurnExpired(generation));
+                });
+                audit::record_trigger(
+                    "push_to_talk",
+                    "conversa-de-voz",
+                    "audio.capture",
+                    "livre",
+                    "iniciado",
+                    0,
+                );
+                json!({"status":"recording"}).to_string()
+            }
+            Err(error) => {
+                let _ = self.transition_to("erro", &emitter).await;
+                let _ = self.transition_to("ocioso", &emitter).await;
+                json!({"status":"capture_failed","reason":error}).to_string()
+            }
+        }
+    }
+
+    async fn stop_push_to_talk(&mut self, emitter: SignalEmitter<'_>) -> String {
+        let Some(capture) = self.capture.take() else {
+            return json!({"status":"not_recording"}).to_string();
+        };
+        let audio = match capture.finish().await {
+            Ok(audio) => audio,
+            Err(error) => {
+                let _ = self.transition_to("erro", &emitter).await;
+                let _ = self.transition_to("ocioso", &emitter).await;
+                return json!({"status":"capture_failed","reason":error}).to_string();
+            }
+        };
+        let _ = self.transition_to("transcrevendo", &emitter).await;
+        let generation = self.voice_generation;
+        let voice_tx = self.voice_tx.clone();
+        self.stt_task = Some(tokio::spawn(async move {
+            let result = voice::transcribe(&audio).await;
+            drop(audio);
+            let _ = voice_tx.send(VoiceEvent::Transcribed(generation, result));
+        }));
+        json!({"status":"transcribing"}).to_string()
+    }
+
+    async fn toggle_push_to_talk(&mut self, emitter: SignalEmitter<'_>) -> String {
+        if self.capture.is_some() {
+            self.stop_push_to_talk(emitter).await
+        } else {
+            self.start_push_to_talk(emitter).await
+        }
+    }
+
     async fn transition_to(
         &mut self,
         next: &str,
@@ -526,6 +735,7 @@ impl Hero {
             ));
         }
         self.state = next;
+        self.state_epoch.fetch_add(1, Ordering::SeqCst);
         let _ = self.state_tx.send(next.as_str());
         Self::state_changed(self, emitter).await?;
         Self::state_transitioned(emitter, next.as_str()).await?;
@@ -821,109 +1031,6 @@ impl Hero {
         result
     }
 
-    async fn start_push_to_talk(
-        &mut self,
-        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
-    ) -> String {
-        if !self.microphone_enabled {
-            return json!({"status":"microphone_disabled"}).to_string();
-        }
-        if !matches!(self.state, State::Idle | State::Speaking) || self.capture.is_some() {
-            audit::record_trigger(
-                "push_to_talk",
-                "conversa-de-voz",
-                "audio.trigger",
-                "livre",
-                "ignorado_ocupado",
-                0,
-            );
-            let _ = Self::voice_ignored(&emitter, self.state.as_str()).await;
-            return ai::busy();
-        }
-        self.voice_generation = self.voice_generation.wrapping_add(1);
-        let generation = self.voice_generation;
-        if let Some(speech) = self.speech.take() {
-            let _ = speech.cancel.send(());
-            let _ = speech.task.await;
-            audit::record_trigger(
-                "push_to_talk",
-                "conversa-de-voz",
-                "speech.cancel",
-                "livre",
-                "interrompido",
-                0,
-            );
-        }
-        let _ = self.transition_to("escutando", &emitter).await;
-        match voice::Capture::start() {
-            Ok(capture) => {
-                self.capture = Some(capture);
-                let _ = self.transition_to("gravando", &emitter).await;
-                let voice_tx = self.voice_tx.clone();
-                tokio::spawn(async move {
-                    tokio::time::sleep(Duration::from_secs(30)).await;
-                    let _ = voice_tx.send(VoiceEvent::CaptureExpired(generation));
-                });
-                let voice_tx = self.voice_tx.clone();
-                tokio::spawn(async move {
-                    tokio::time::sleep(Duration::from_secs(60)).await;
-                    let _ = voice_tx.send(VoiceEvent::TurnExpired(generation));
-                });
-                audit::record_trigger(
-                    "push_to_talk",
-                    "conversa-de-voz",
-                    "audio.capture",
-                    "livre",
-                    "iniciado",
-                    0,
-                );
-                json!({"status":"recording"}).to_string()
-            }
-            Err(error) => {
-                let _ = self.transition_to("erro", &emitter).await;
-                let _ = self.transition_to("ocioso", &emitter).await;
-                json!({"status":"capture_failed","reason":error}).to_string()
-            }
-        }
-    }
-
-    async fn stop_push_to_talk(
-        &mut self,
-        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
-    ) -> String {
-        let Some(capture) = self.capture.take() else {
-            return json!({"status":"not_recording"}).to_string();
-        };
-        let audio = match capture.finish().await {
-            Ok(audio) => audio,
-            Err(error) => {
-                let _ = self.transition_to("erro", &emitter).await;
-                let _ = self.transition_to("ocioso", &emitter).await;
-                return json!({"status":"capture_failed","reason":error}).to_string();
-            }
-        };
-        let _ = self.transition_to("transcrevendo", &emitter).await;
-        let generation = self.voice_generation;
-        let voice_tx = self.voice_tx.clone();
-        self.stt_task = Some(tokio::spawn(async move {
-            let result = voice::transcribe(&audio).await;
-            drop(audio);
-            let _ = voice_tx.send(VoiceEvent::Transcribed(generation, result));
-        }));
-        json!({"status":"transcribing"}).to_string()
-    }
-
-    async fn toggle_push_to_talk(
-        &mut self,
-        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
-    ) -> String {
-        if self.capture.is_some() {
-            self.stop_push_to_talk(emitter).await
-        } else {
-            self.start_push_to_talk(emitter).await
-        }
-    }
-
     async fn confirm_action(
         &mut self,
         id: &str,
@@ -1101,14 +1208,21 @@ fn confirmation_id() -> Option<String> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (state_tx, state_rx) = watch::channel(State::Idle.as_str());
+    let state_epoch = Arc::new(AtomicU64::new(0));
     #[cfg(unix)]
     let state_socket = socket::bind()?;
     #[cfg(not(unix))]
     let _ = state_rx;
     let (voice_tx, mut voice_rx) = mpsc::unbounded_channel();
+    let trigger = VoiceTrigger {
+        state_rx: state_rx.clone(),
+        state_epoch: state_epoch.clone(),
+        voice_tx: voice_tx.clone(),
+    };
     let hero = Hero {
         state: State::Idle,
         state_tx,
+        state_epoch,
         microphone_enabled: voice::microphone_enabled(),
         capture: None,
         voice_generation: 0,
@@ -1124,6 +1238,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let connection = connection::Builder::session()?
         .name(BUS_NAME)?
         .serve_at(OBJECT_PATH, hero)?
+        .serve_at(OBJECT_PATH, trigger)?
         .build()
         .await?;
 
@@ -1163,8 +1278,8 @@ mod tests {
     use super::confirmation_id;
     use super::{
         bounded_voice_answer, is_voice_cancellation, is_voice_confirmation, snapshot_context,
-        voice_answer_from_reply, ActiveVoiceAction, Hero, PendingAction, State, VoiceEvent,
-        OBJECT_PATH, VOICE_FAILURE_MESSAGE,
+        voice_answer_from_reply, ActiveVoiceAction, Hero, PendingAction, State, TriggerMode,
+        TriggerRequest, VoiceEvent, VoiceTrigger, OBJECT_PATH, VOICE_FAILURE_MESSAGE,
     };
     use crate::ai::SnapshotDoApp;
     #[cfg(unix)]
@@ -1172,12 +1287,12 @@ mod tests {
     use crate::test_support::TestHome;
     use crate::voice::Capture;
     use std::collections::{HashMap, VecDeque};
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::Arc;
     use std::time::Duration;
     #[cfg(unix)]
     use std::time::Instant;
-    use tokio::sync::{mpsc, watch};
+    use tokio::sync::{mpsc, oneshot, watch};
     use zbus::connection;
 
     struct TestScreenSaver {
@@ -1205,11 +1320,18 @@ mod tests {
             .await
             .expect("connect private D-Bus peer");
         let server_stream = listener.accept().await.expect("accept private peer").0;
-        let (state_tx, _) = watch::channel(State::Idle.as_str());
+        let (state_tx, state_rx) = watch::channel(State::Idle.as_str());
         let (voice_tx, _) = mpsc::unbounded_channel();
+        let state_epoch = Arc::new(AtomicU64::new(0));
+        let trigger = VoiceTrigger {
+            state_rx,
+            state_epoch: state_epoch.clone(),
+            voice_tx: voice_tx.clone(),
+        };
         let hero = Hero {
             state: State::Idle,
             state_tx,
+            state_epoch,
             microphone_enabled: true,
             capture: None,
             voice_generation: 0,
@@ -1227,7 +1349,9 @@ mod tests {
             .expect("server GUID")
             .p2p()
             .serve_at(OBJECT_PATH, hero)
-            .expect("serve HERO");
+            .expect("serve HERO")
+            .serve_at(OBJECT_PATH, trigger)
+            .expect("serve trigger");
         let client = connection::Builder::tcp_stream(peer).p2p();
         let client = if let Some(active) = active {
             client
@@ -1237,6 +1361,139 @@ mod tests {
             client
         };
         tokio::try_join!(server.build(), client.build()).expect("connect private D-Bus peer")
+    }
+
+    #[tokio::test]
+    async fn direct_trigger_is_rejected_while_text_owns_the_hero_interface() {
+        let (server, client) = voice_test_connection().await;
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        let mut hero = interface.get_mut().await;
+        hero.transition_to("pensando", interface.signal_emitter())
+            .await
+            .expect("text turn starts");
+        let reply = tokio::time::timeout(
+            Duration::from_secs(1),
+            client.call_method(
+                None::<&str>,
+                OBJECT_PATH,
+                Some("org.forjaos.Hero.Trigger"),
+                "StartPushToTalk",
+                &(),
+            ),
+        )
+        .await
+        .expect("trigger responds without waiting for text")
+        .expect("trigger reply");
+        let answer: String = reply.body().deserialize().expect("reply body");
+        assert_eq!(answer, crate::ai::busy());
+        assert_eq!(hero.state, State::Thinking);
+        assert!(hero.capture.is_none());
+    }
+
+    #[tokio::test]
+    async fn queued_trigger_does_not_start_after_a_text_turn_finishes() {
+        let (server, _client) = voice_test_connection().await;
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        let mut hero = interface.get_mut().await;
+        let stale_epoch = hero.state_epoch.load(Ordering::SeqCst);
+        hero.transition_to("pensando", interface.signal_emitter())
+            .await
+            .expect("text turn starts");
+        hero.transition_to("ocioso", interface.signal_emitter())
+            .await
+            .expect("text turn finishes");
+        let (response, receiver) = oneshot::channel();
+        hero.handle_voice_event(
+            VoiceEvent::Trigger(TriggerRequest {
+                mode: TriggerMode::Start,
+                epoch: stale_epoch,
+                response,
+            }),
+            interface.signal_emitter(),
+        )
+        .await;
+        assert_eq!(receiver.await.expect("trigger reply"), crate::ai::busy());
+        assert_eq!(hero.state, State::Idle);
+        assert!(hero.capture.is_none());
+    }
+
+    #[tokio::test]
+    async fn direct_trigger_stops_a_synthetic_recording() {
+        let (server, client) = voice_test_connection().await;
+        let (voice_tx, mut voice_rx) = mpsc::unbounded_channel();
+        let trigger = server
+            .object_server()
+            .interface::<_, VoiceTrigger>(OBJECT_PATH)
+            .await
+            .expect("trigger interface");
+        trigger.get_mut().await.voice_tx = voice_tx;
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        {
+            let mut hero = interface.get_mut().await;
+            hero.transition_to("escutando", interface.signal_emitter())
+                .await
+                .expect("listen");
+            hero.transition_to("gravando", interface.signal_emitter())
+                .await
+                .expect("record");
+            let mut command =
+                tokio::process::Command::new(if cfg!(windows) { "python" } else { "python3" });
+            command.args([
+                "-u",
+                "-c",
+                "import sys,time; sys.stdout.buffer.write(b'\\x00\\x01'*1600); sys.stdout.flush(); time.sleep(5)",
+            ]);
+            hero.capture = Some(Capture::start_command(command).expect("synthetic capture"));
+        }
+        let call = tokio::spawn(async move {
+            client
+                .call_method(
+                    None::<&str>,
+                    OBJECT_PATH,
+                    Some("org.forjaos.Hero.Trigger"),
+                    "StopPushToTalk",
+                    &(),
+                )
+                .await
+                .expect("stop reply")
+                .body()
+                .deserialize::<String>()
+                .expect("reply body")
+        });
+        let event = tokio::time::timeout(Duration::from_secs(1), voice_rx.recv())
+            .await
+            .expect("trigger received")
+            .expect("trigger event");
+        interface
+            .get_mut()
+            .await
+            .handle_voice_event(event, interface.signal_emitter())
+            .await;
+        let reply = tokio::time::timeout(Duration::from_secs(2), call)
+            .await
+            .expect("stop completed")
+            .expect("call task");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&reply).unwrap()["status"],
+            "transcribing"
+        );
+        let mut hero = interface.get_mut().await;
+        assert_eq!(hero.state, State::Transcribing);
+        if let Some(task) = hero.stt_task.take() {
+            task.abort();
+        }
     }
 
     #[test]
@@ -1348,6 +1605,7 @@ mod tests {
         let mut hero = Hero {
             state: State::Idle,
             state_tx,
+            state_epoch: Arc::new(AtomicU64::new(0)),
             microphone_enabled: true,
             capture: None,
             voice_generation: 0,
