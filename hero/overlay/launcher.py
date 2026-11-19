@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Launch the text-only HERO command overlay."""
+"""Launch the HERO command overlay in an unlocked Plasma session."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from PySide6.QtCore import (
     SLOT,
     Slot,
 )
-from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusPendingCallWatcher, QDBusVariant
+from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage, QDBusPendingCallWatcher, QDBusVariant
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtCore import QTranslator
 from PySide6.QtQml import QQmlApplicationEngine
@@ -36,6 +36,8 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 BUS_NAME = "org.forjaos.Hero"
 OBJECT_PATH = "/org/forjaos/Hero"
 INTERFACE = "org.forjaos.Hero"
+SCREEN_SAVER = "org.freedesktop.ScreenSaver"
+SCREEN_SAVER_PATH = "/ScreenSaver"
 DEFAULTS = {
     "heroState": "indisponível",
     "wifi": "indisponível",
@@ -691,6 +693,25 @@ class HeroBackend(QObject):
             self._pending_id = ""
 
 
+def _session_unlocked(bus: QDBusConnection) -> bool:
+    saver = QDBusInterface(SCREEN_SAVER, SCREEN_SAVER_PATH, SCREEN_SAVER, bus)
+    if not bus.isConnected() or not saver.isValid():
+        return False
+    reply = saver.call("GetActive")
+    return reply.type() != QDBusMessage.MessageType.ErrorMessage and reply.arguments() == [False]
+
+
+class LockWatcher(QObject):
+    def __init__(self, root: QObject) -> None:
+        super().__init__()
+        self.root = root
+
+    @Slot(bool)
+    def active_changed(self, active: bool) -> None:
+        if active:
+            self.root.close()
+
+
 def _toggle_existing() -> bool:
     name = "forjaos-hero-overlay"
     client = QLocalSocket()
@@ -705,9 +726,12 @@ def _toggle_existing() -> bool:
 
 
 def main() -> int:
+    app = QApplication(sys.argv)
+    bus = QDBusConnection.sessionBus()
+    if not _session_unlocked(bus):
+        return 0
     if _toggle_existing():
         return 0
-    app = QApplication(sys.argv)
     app.setApplicationName("ForjaOS HERO")
     root_dir = Path("/usr/share/forjaos/hero-overlay")
     if not root_dir.exists():
@@ -722,6 +746,13 @@ def main() -> int:
     if not engine.rootObjects():
         return 1
     root = engine.rootObjects()[0]
+    lock_watcher = LockWatcher(root)
+    if not bus.connect(SCREEN_SAVER, SCREEN_SAVER_PATH, SCREEN_SAVER, "ActiveChanged", "b", lock_watcher, SLOT("active_changed(bool)")):
+        root.close()
+        return 1
+    if not _session_unlocked(bus):
+        root.close()
+        return 0
     server = QLocalServer(app)
     if not server.listen("forjaos-hero-overlay"):
         return 1
@@ -733,6 +764,10 @@ def main() -> int:
 
     server.newConnection.connect(handle_connection)
     root.closing.connect(lambda _: backend.closeOverlay())
+    if not _session_unlocked(bus):
+        root.close()
+        return 0
+    root.show()
     return app.exec()
 
 

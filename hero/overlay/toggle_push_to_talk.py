@@ -11,6 +11,8 @@ from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 BUS_NAME = "org.forjaos.Hero"
 OBJECT_PATH = "/org/forjaos/Hero"
 INTERFACE = "org.forjaos.Hero"
+SCREEN_SAVER = "org.freedesktop.ScreenSaver"
+SCREEN_SAVER_PATH = "/ScreenSaver"
 
 
 class VoiceResult(QObject):
@@ -35,6 +37,12 @@ class VoiceResult(QObject):
 
 
 def notify(bus: QDBusConnection, body: str) -> None:
+    saver = QDBusInterface(SCREEN_SAVER, SCREEN_SAVER_PATH, SCREEN_SAVER, bus)
+    if not saver.isValid():
+        return
+    lock_reply = saver.call("GetActive")
+    if lock_reply.type() == QDBusMessage.MessageType.ErrorMessage or lock_reply.arguments() != [False]:
+        return
     notifications = QDBusInterface(
         "org.freedesktop.Notifications", "/org/freedesktop/Notifications",
         "org.freedesktop.Notifications", bus,

@@ -11,7 +11,7 @@ Window {
     height: hero.overlayHeight
     x: hero.overlayX
     y: hero.overlayY
-    visible: true
+    visible: false
     color: "transparent"
     flags: Qt.Popup | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
     title: qsTr("ForjaOS — Central de Comando")
@@ -22,7 +22,9 @@ Window {
         else if (receivedActivation && visible) close()
     }
     onClosing: hero.closeOverlay()
-    Component.onCompleted: promptInput.forceActiveFocus()
+    onVisibleChanged: {
+        if (visible) promptInput.forceActiveFocus()
+    }
 
     Shortcut {
         sequence: "Esc"
