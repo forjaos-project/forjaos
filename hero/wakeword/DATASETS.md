@@ -90,6 +90,13 @@ Nenhum substituto foi aprovado para ADR-012. A escolha depende de um modelo
 pt-BR treinado com dados de procedência verificada e das métricas FR-080/081;
 a validação por 20 locutores reais segue pendente conforme acima.
 
+`worker.py` já implementa a inferência openWakeWord em quadros PCM de 80 ms
+recebidos por stdin, com modelos ONNX indicados por caminhos locais explícitos.
+Ele não baixa nem seleciona classificadores pré-treinados. Os testes usam
+classificador sintético; o worker ainda não está instalado na imagem nem ligado
+ao `herod`, pois os modelos compartilhados e o classificador pt-BR ainda não
+passaram pelos gates de procedência e validação acima.
+
 Em 19/11/2026, a [questão #338](https://github.com/dscripka/openWakeWord/issues/338)
 continuava aberta sem resposta do mantenedor sobre a licença dos ONNX
 compartilhados. As [questões #348](https://github.com/dscripka/openWakeWord/issues/348)
