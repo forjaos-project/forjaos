@@ -25,8 +25,11 @@ nomes de ativação. Na cópia de 27.0 de 15/11/2026, foram 6.111 candidatos de
 treino, 1.484 de desenvolvimento e 976 de teste, sem locutores repetidos
 entre as divisões. O manifesto privado está em
 `D:\ForjaOS\datasets\wakeword\derived\`; ele não extrai áudio nem substitui
-as gravações autorizadas de FR-081. A presença de cada MP3 no arquivo ainda
-precisa ser conferida antes de treinar.
+as gravações autorizadas de FR-081. Em 19/11/2026, uma nova execução em
+`derived\verified-2026-11-19\` conferiu que os 8.571 caminhos apontam para
+entradas MP3 regulares no tar, sem extração; o manifesto gerado foi idêntico
+ao anterior. Isso verifica presença no arquivo, não integridade da decodificação,
+licença de cada gravação ou cobertura das frases por 20 locutores reais.
 
 | Uso | Fonte | Licença e limite |
 | --- | --- | --- |
@@ -86,3 +89,12 @@ pesos de origem permissiva comprovada.
 Nenhum substituto foi aprovado para ADR-012. A escolha depende de um modelo
 pt-BR treinado com dados de procedência verificada e das métricas FR-080/081;
 a validação por 20 locutores reais segue pendente conforme acima.
+
+Em 19/11/2026, a [questão #338](https://github.com/dscripka/openWakeWord/issues/338)
+continuava aberta sem resposta do mantenedor sobre a licença dos ONNX
+compartilhados. As [questões #348](https://github.com/dscripka/openWakeWord/issues/348)
+e [#357](https://github.com/dscripka/openWakeWord/issues/357) reiteravam a
+mesma dúvida. O [README upstream](https://github.com/dscripka/openWakeWord/blob/main/README.md#license)
+continuava distinguindo código Apache-2.0 de modelos pré-treinados CC BY-NC-SA
+4.0 sem classificar expressamente esses dois artefatos. A verificação dos MP3
+não altera essa pendência de licença nem autoriza embarcar os modelos.
