@@ -22,6 +22,7 @@ from PySide6.QtCore import (
     QTimer,
     QUrl,
     Signal,
+    SLOT,
     Slot,
 )
 from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusPendingCallWatcher, QDBusVariant
@@ -256,6 +257,8 @@ class HeroBackend(QObject):
         self._pool = QThreadPool.globalInstance()
         self._bus = QDBusConnection.sessionBus()
         self._hero = QDBusInterface(BUS_NAME, OBJECT_PATH, INTERFACE, self._bus, self)
+        self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceTranscribed", "s", self, SLOT("_on_voice_transcribed(QString)"))
+        self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceFailed", "s", self, SLOT("_on_voice_failed(QString)"))
         self._notifications: QDBusInterface | None = None
         self._notification_ids: dict[int, str] = {}
         self._refresh_timer = QTimer(self)
@@ -465,10 +468,16 @@ class HeroBackend(QObject):
         except (ValueError, TypeError, IndexError):
             reply = {}
         watcher.deleteLater()
-        if reply.get("status") == "ok" and isinstance(reply.get("text"), str):
-            self.voiceTranscribed.emit(reply["text"])
-        else:
+        if reply.get("status") != "transcribing":
             self.voiceError.emit(QCoreApplication.translate("main", "Não foi possível transcrever a gravação local."))
+
+    @Slot(str)
+    def _on_voice_transcribed(self, text: str) -> None:
+        self.voiceTranscribed.emit(text)
+
+    @Slot(str)
+    def _on_voice_failed(self, _reason: str) -> None:
+        self.voiceError.emit(QCoreApplication.translate("main", "Não foi possível transcrever a gravação local."))
 
     @Property(str, notify=changed)
     def pendingId(self) -> str:

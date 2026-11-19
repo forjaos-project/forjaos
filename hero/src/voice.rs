@@ -28,6 +28,8 @@ impl Capture {
         command.args([
             "--record",
             "--raw",
+            "--media-role=Communication",
+            "--properties={\"node.name\":\"forjaos.hero.microphone\",\"media.name\":\"HERO microphone\",\"application.name\":\"ForjaOS HERO\"}",
             "--format",
             "s16",
             "--rate",
@@ -39,7 +41,7 @@ impl Capture {
         Self::start_command(command)
     }
 
-    fn start_command(mut command: Command) -> Result<Self, &'static str> {
+    pub(crate) fn start_command(mut command: Command) -> Result<Self, &'static str> {
         let mut process = command
             .stdin(Stdio::null())
             .stdout(Stdio::piped())

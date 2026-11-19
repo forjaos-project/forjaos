@@ -162,6 +162,8 @@ RUN ln -s /opt/forjaos/graphify-runtime/.venv/bin/graphify /usr/bin/graphify \
     && ln -s /usr/share/forjaos/hero-overlay/launcher.py /usr/libexec/forjaos/hero-overlay \
     && chmod 0755 /usr/share/forjaos/hero-overlay/toggle_microphone.py \
     && ln -s /usr/share/forjaos/hero-overlay/toggle_microphone.py /usr/libexec/forjaos/hero-mic-toggle \
+    && chmod 0755 /usr/share/forjaos/hero-overlay/toggle_push_to_talk.py \
+    && ln -s /usr/share/forjaos/hero-overlay/toggle_push_to_talk.py /usr/libexec/forjaos/hero-ptt-toggle \
     && chmod 0755 /usr/share/forjaos/voice-runtime/launcher.py \
     && ln -s /usr/share/forjaos/voice-runtime/launcher.py /usr/libexec/forjaos/voice-worker \
     && chmod 0755 /usr/share/forjaos/voice-runtime/playback.py \
@@ -169,6 +171,7 @@ RUN ln -s /opt/forjaos/graphify-runtime/.venv/bin/graphify /usr/bin/graphify \
     && test -x /usr/bin/graphify \
     && test -x /usr/libexec/forjaos/hero-overlay \
     && test -x /usr/libexec/forjaos/hero-mic-toggle \
+    && test -x /usr/libexec/forjaos/hero-ptt-toggle \
     && test -x /usr/libexec/forjaos/voice-worker \
     && test -x /usr/libexec/forjaos/hero-speak
 
