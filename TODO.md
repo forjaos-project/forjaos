@@ -54,7 +54,7 @@ Build, ISO e testes rodam **local**. O GitHub guarda o código e recebe só a IS
 
 Testes, medições de NFR, boot/instalação das ISOs e validação em hardware real ficam todos aqui.
 
-- [ ] `F4-002` Validar os oito modelos WeKws (FR-080–082): usar uma gravação autorizada da voz de Rodrigo para smoke funcional; coletar as oito frases de 20 locutores reais com consentimento para treino, avaliação e distribuição; completar ao menos 8 h de áudio ambiente negativo; montar os splits sem sobreposição de locutores, medir FAR e latência, embarcar modelos aprovados e testar o overlay ao vivo. A amostra individual de Rodrigo não conta como validação FR-081.
+  - [ ] `F4-002` Validar os oito modelos WeKws (FR-080–082) ([issue #101](https://github.com/forjaos-project/forjaos/issues/101)): usar uma gravação autorizada da voz de Rodrigo para smoke funcional; coletar as oito frases de 20 locutores reais com consentimento para treino, avaliação e distribuição; completar ao menos 8 h de áudio ambiente negativo; montar os splits sem sobreposição de locutores, medir FAR e latência, embarcar modelos aprovados e testar o overlay ao vivo. A amostra individual de Rodrigo não conta como validação FR-081.
 - [ ] Rodar toda a suíte de testes e corrigir o que quebrar
 - [ ] `F1-004` Notebook híbrido (PRIME offload) e checklist de hardware (FR-015, FR-016) — depende do notebook de referência estar disponível (§10.2)
 - [ ] `F5-001` Validação física completa (§11) nos 2 hardwares com registro em docs/releases/ (ADR-024, G5). No Dell Inspiron de teste, o Anaconda iniciou e conectou à rede; o particionador parou com `no free partition slots` apesar de 97,66 GiB livres. Repetir após a correção da partição e validar Windows, GRUB e Secure Boot/MOK.
