@@ -4,6 +4,7 @@ import importlib.util
 import os
 from pathlib import Path
 import tempfile
+import types
 import unittest
 from unittest.mock import patch
 
@@ -16,6 +17,42 @@ SPEC.loader.exec_module(GAME)
 
 
 class GameModeTests(unittest.TestCase):
+    def test_performance_profile_is_restored_only_if_game_mode_still_owns_it(self):
+        class ProfileValue(str):
+            def __new__(cls, value, variant_level=0):
+                del variant_level
+                return super().__new__(cls, value)
+
+        class Properties:
+            active = "balanced"
+            profiles = [{"Profile": "balanced"}, {"Profile": "performance"}]
+
+            def Get(self, _interface, name):
+                return self.active if name == "ActiveProfile" else self.profiles
+
+            def Set(self, _interface, name, value):
+                if name == "ActiveProfile":
+                    self.active = str(value)
+
+        properties = Properties()
+        dbus = types.SimpleNamespace(
+            SystemBus=lambda: types.SimpleNamespace(get_object=lambda *_args: object()),
+            Interface=lambda _proxy, _interface: properties,
+            String=ProfileValue,
+        )
+        with patch.dict("sys.modules", {"dbus": dbus}):
+            previous = GAME.set_performance_profile()
+            self.assertEqual(previous, "balanced")
+            self.assertEqual(properties.active, "performance")
+            GAME.restore_power_profile(previous)
+            self.assertEqual(properties.active, "balanced")
+
+            previous = GAME.set_performance_profile()
+            self.assertEqual(previous, "balanced")
+            properties.active = "balanced"  # Respect a user's change during the session.
+            GAME.restore_power_profile(previous)
+            self.assertEqual(properties.active, "balanced")
+
     def test_only_owned_steam_or_gamescope_processes_activate_mode(self):
         with tempfile.TemporaryDirectory() as directory:
             proc = Path(directory)
@@ -60,6 +97,50 @@ class GameModeTests(unittest.TestCase):
                 self.assertEqual(GAME.change_mode("off", runtime), 0)
             self.assertFalse((runtime / "game-mode-manual").exists())
             self.assertTrue((runtime / "game-mode-suppressed").exists())
+
+    def test_game_session_pauses_only_a_running_memory_service_and_restores_it(self):
+        with patch.object(GAME, "user_service_active", return_value=True), \
+                patch.object(GAME, "systemctl") as systemctl:
+            systemctl.return_value.returncode = 0
+            self.assertTrue(GAME.stop_memory_for_game())
+            systemctl.assert_called_once_with("stop", "memd.service")
+        with patch.object(GAME, "user_service_active", side_effect=[False]), \
+                patch.object(GAME, "systemctl") as systemctl:
+            systemctl.return_value.returncode = 0
+            GAME.restore_memory_after_game(True)
+            systemctl.assert_called_once_with("start", "memd.service")
+        with patch.object(GAME, "user_service_active", return_value=False), \
+                patch.object(GAME, "systemctl") as systemctl:
+            self.assertFalse(GAME.stop_memory_for_game())
+            systemctl.assert_not_called()
+
+    def test_game_session_unloads_only_models_reported_as_running(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            ollama = home / ".brew" / "bin" / "ollama"
+            ollama.parent.mkdir(parents=True)
+            ollama.touch()
+            calls = []
+
+            def run(command, **_kwargs):
+                calls.append(command)
+                if command[-1] == "ps":
+                    return GAME.subprocess.CompletedProcess(
+                        command, 0,
+                        stdout="NAME ID SIZE PROCESSOR UNTIL\nqwen3:8b abc 5 GB 100% GPU 4m\n"
+                        "llama3.1:latest def 2 GB 100% GPU 4m\n",
+                    )
+                return GAME.subprocess.CompletedProcess(command, 0, stdout="stopped\n")
+
+            with patch.object(GAME.Path, "home", return_value=home), \
+                    patch.object(GAME.subprocess, "run", side_effect=run):
+                GAME.unload_ollama_models()
+
+            self.assertEqual(calls, [
+                [str(ollama), "ps"],
+                [str(ollama), "stop", "qwen3:8b"],
+                [str(ollama), "stop", "llama3.1:latest"],
+            ])
 
     def test_image_installs_target_and_scoped_services(self):
         containerfile = (ROOT / "image/Containerfile").read_text(encoding="utf-8")

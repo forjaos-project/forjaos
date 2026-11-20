@@ -15,6 +15,8 @@ import threading
 GAME_PROCESSES = frozenset({"steam", "gamescope"})
 TARGET = "hero-game.target"
 POLL_SECONDS = 5
+POWER_PROFILES = "org.freedesktop.UPower.PowerProfiles"
+POWER_PROFILES_PATH = "/org/freedesktop/UPower/PowerProfiles"
 
 
 def runtime_dir() -> Path:
@@ -48,6 +50,104 @@ def gaming_process_running(proc_root: Path = Path("/proc"), uid: int | None = No
 def systemctl(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["systemctl", "--user", *args], capture_output=True,
                           text=True, check=False)
+
+
+def user_service_active(service: str) -> bool:
+    return systemctl("is-active", "--quiet", service).returncode == 0
+
+
+def stop_memory_for_game() -> bool:
+    if not user_service_active("memd.service"):
+        return False
+    result = systemctl("stop", "memd.service")
+    if result.returncode:
+        print("Modo Jogo: não foi possível pausar a Memória.", file=sys.stderr)
+    return True
+
+
+def restore_memory_after_game(was_active: bool) -> None:
+    if was_active and not user_service_active("memd.service"):
+        result = systemctl("start", "memd.service")
+        if result.returncode:
+            print("Modo Jogo: não foi possível restaurar a Memória.", file=sys.stderr)
+
+
+def unload_ollama_models() -> None:
+    cli = Path.home() / ".brew/bin/ollama"
+    if not cli.is_file():
+        found = shutil.which("ollama")
+        if not found:
+            return
+        cli = Path(found)
+    try:
+        result = subprocess.run([str(cli), "ps"], capture_output=True, text=True,
+                                check=False, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print(f"Modo Jogo: não foi possível consultar modelos Ollama: {error}.", file=sys.stderr)
+        return
+    if result.returncode:
+        print("Modo Jogo: não foi possível consultar modelos Ollama.", file=sys.stderr)
+        return
+
+    models = []
+    for line in result.stdout.splitlines():
+        columns = line.split()
+        if not columns or columns[0].upper() == "NAME":
+            continue
+        model = columns[0]
+        if len(model) <= 128 and all(char.isalnum() or char in "._:/-" for char in model):
+            models.append(model)
+    for model in dict.fromkeys(models):
+        try:
+            stopped = subprocess.run([str(cli), "stop", model], capture_output=True, text=True,
+                                     check=False, timeout=15)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            print(f"Modo Jogo: falha ao descarregar {model}: {error}.", file=sys.stderr)
+            continue
+        if stopped.returncode:
+            print(f"Modo Jogo: falha ao descarregar {model}.", file=sys.stderr)
+
+
+def set_performance_profile() -> str | None:
+    """Select the performance profile and return the previous profile for restoration."""
+    try:
+        import dbus
+
+        bus = dbus.SystemBus()
+        proxy = bus.get_object(POWER_PROFILES, POWER_PROFILES_PATH)
+        properties = dbus.Interface(proxy, "org.freedesktop.DBus.Properties")
+        active = str(properties.Get(POWER_PROFILES, "ActiveProfile"))
+        available = properties.Get(POWER_PROFILES, "Profiles")
+        if not any(str(profile.get("Profile")) == "performance" for profile in available):
+            print("Modo Jogo: perfil performance indisponível.", file=sys.stderr)
+            return None
+        if active != "performance":
+            properties.Set(POWER_PROFILES, "ActiveProfile",
+                           dbus.String("performance", variant_level=1))
+            return active
+        return None
+    except Exception as error:
+        print(f"Modo Jogo: perfil de energia indisponível: {error}", file=sys.stderr)
+        return None
+
+
+def restore_power_profile(previous: str | None) -> None:
+    """Restore only when the profile is still the one selected by Game Mode."""
+    if previous is None or previous == "performance":
+        return
+    try:
+        import dbus
+
+        bus = dbus.SystemBus()
+        proxy = bus.get_object(POWER_PROFILES, POWER_PROFILES_PATH)
+        properties = dbus.Interface(proxy, "org.freedesktop.DBus.Properties")
+        active = str(properties.Get(POWER_PROFILES, "ActiveProfile"))
+        if active == "performance":
+            properties.Set(POWER_PROFILES, "ActiveProfile",
+                           dbus.String(previous, variant_level=1))
+    except Exception as error:
+        print(f"Modo Jogo: não foi possível restaurar o perfil de energia: {error}",
+              file=sys.stderr)
 
 
 def is_active() -> bool:
@@ -102,6 +202,8 @@ def game_session() -> None:
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
+    memd_was_active = stop_memory_for_game()
+    unload_ollama_models()
     cookie = None
     notifications = None
     try:
@@ -116,47 +218,18 @@ def game_session() -> None:
     except Exception as error:
         print(f"Modo Jogo: Não perturbe indisponível: {error}", file=sys.stderr)
 
-    power = None
-    if shutil.which("powerprofilesctl"):
-        try:
-            power = subprocess.Popen(
-                ["powerprofilesctl", "launch", "--profile", "performance", "--reason",
-                 "ForjaOS Game Mode", "--appid", "forjaos-game", "/usr/bin/sleep", "infinity"],
-                start_new_session=True,
-            )
-            try:
-                status = power.wait(timeout=0.2)
-                print(f"Modo Jogo: perfil performance indisponível (código {status}).",
-                      file=sys.stderr)
-                power = None
-            except subprocess.TimeoutExpired:
-                pass
-        except OSError as error:
-            print(f"Modo Jogo: perfil de energia indisponível: {error}", file=sys.stderr)
-    else:
-        print("Modo Jogo: powerprofilesctl indisponível.", file=sys.stderr)
+    previous_power_profile = set_performance_profile()
 
     try:
         stop.wait()
     finally:
-        if power is not None and power.poll() is None:
-            try:
-                os.killpg(power.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            try:
-                power.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                try:
-                    os.killpg(power.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                power.wait()
         if notifications is not None and cookie is not None:
             try:
                 notifications.UnInhibit(cookie)
             except Exception:
                 pass  # Closing the session bus also releases this inhibition.
+        restore_power_profile(previous_power_profile)
+        restore_memory_after_game(memd_was_active)
 
 
 def main() -> int:
