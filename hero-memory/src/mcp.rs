@@ -133,7 +133,32 @@ fn call_tool(paths: &StorePaths, params: &Value) -> Value {
         _ => return tool_error("Ferramenta desconhecida."),
     };
     match response {
-        Ok(text) => json!({"content":[{"type":"text", "text":text}], "isError":false}),
+        Ok(text) => {
+            let mut content = vec![json!({"type":"text", "text":text})];
+            if matches!(name, "memory_search" | "memory_timeline") {
+                if let Ok(Value::Array(hits)) = serde_json::from_str::<Value>(&text) {
+                    for hit in hits {
+                        let Some(relative) = hit["path"].as_str() else {
+                            continue;
+                        };
+                        let Ok(path) = paths.vault.join(relative).canonicalize() else {
+                            continue;
+                        };
+                        let Ok(vault) = paths.vault.canonicalize() else {
+                            continue;
+                        };
+                        if !path.starts_with(vault) || !path.is_file() {
+                            continue;
+                        }
+                        if let Ok(uri) = reqwest::Url::from_file_path(path) {
+                            content.push(json!({"type":"resource_link", "uri":uri.as_str(),
+                                "name":relative, "mimeType":"text/markdown"}));
+                        }
+                    }
+                }
+            }
+            json!({"content":content, "isError":false})
+        }
         Err(error) => tool_error(&error),
     }
 }
@@ -270,6 +295,11 @@ mod tests {
             &paths,
             &json!({"name":"memory_related","arguments":{"entity":"projeto"}}),
         );
+        assert_eq!(search["content"][1]["type"], "resource_link");
+        assert!(search["content"][1]["uri"]
+            .as_str()
+            .unwrap()
+            .starts_with("file:///"));
 
         assert_eq!(search["isError"], false);
         assert_eq!(timeline["isError"], false);

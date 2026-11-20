@@ -31,9 +31,9 @@ const SERVERS: &[Server] = &[
     },
 ];
 
-struct Client {
+struct Client<'a> {
     name: &'static str,
-    executable: &'static str,
+    executable: &'a str,
 }
 
 const CLIENTS: &[Client] = &[
@@ -213,5 +213,40 @@ pub fn register(json_output: bool, english: bool) -> i32 {
         0
     } else {
         1
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn memory_registration_uses_stdio_and_is_detected_for_every_client() {
+        let root = std::env::temp_dir().join(format!("forja-mcp-register-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let executable = root.join("client");
+        fs::write(
+            &executable,
+            "#!/bin/sh\ncase \"$2\" in\n add) case \"$*\" in\n *hero-memory*--mcp*) exit 0;;\n *) exit 1;;\n esac;;\n get|list) echo hero-memory;;\n *) exit 1;;\nesac\n",
+        ).unwrap();
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+        let memory = SERVERS
+            .iter()
+            .find(|server| server.name == "hero-memory")
+            .unwrap();
+        assert_eq!(memory.executable, "/usr/libexec/forjaos/memd");
+        assert_eq!(memory.args, ["--mcp"]);
+        for name in ["claude-code", "codex", "hermes"] {
+            let client = Client {
+                name,
+                executable: executable.to_str().unwrap(),
+            };
+            register_with(&client, memory).unwrap();
+            assert!(already_registered(&client, memory).unwrap());
+        }
+        fs::remove_file(executable).unwrap();
+        fs::remove_dir(root).unwrap();
     }
 }
