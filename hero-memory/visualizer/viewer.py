@@ -2,14 +2,18 @@
 """Local read-only QML viewer for the ForjaOS Markdown vault."""
 
 import json
+import os
+from datetime import datetime, timedelta
+import sqlite3
+from index import read_hits, read_preview, safe_path
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 
-from PySide6.QtCore import QObject, Property, Signal, Slot
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QObject, Property, Signal, Slot, QThread, QTimer, QUrl
+from PySide6.QtGui import QGuiApplication, QDesktopServices
 from PySide6.QtQml import QQmlApplicationEngine
 
 
@@ -19,7 +23,7 @@ SECRET_ASSIGNMENT = re.compile(
     r"(?i)^\s*[A-Z0-9_]*(API[_-]?KEY|ACCESS[_-]?TOKEN|TOKEN|SECRET|PASSWORD|PASSWD|AUTHORIZATION)\s*[:=].*$"
 )
 BEARER = re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/-]+=*")
-TOKEN = re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b")
+TOKEN = re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16})\b")
 
 
 def redact(text):
@@ -32,19 +36,109 @@ def redact(text):
     return "\n".join(safe)
 
 
+class Loader(QThread):
+    ready = Signal(object)
+
+    def __init__(self, operation, parent):
+        super().__init__(parent)
+        self.operation = operation
+
+    def run(self):
+        try:
+            self.ready.emit((self.operation(), ""))
+        except (OSError, ValueError, sqlite3.Error, subprocess.SubprocessError):
+            self.ready.emit((None, "Não foi possível ler a memória local. Verifique memd e o índice."))
+
+
 class Vault(QObject):
     changed = Signal()
+    graphChanged = Signal()
 
     def __init__(self):
         super().__init__()
-        self._collectors = self._load_collectors()
-        self._notes = self._load_notes(self._is_enabled("notes"))
-        self._graph = self._load_graph()
-        self._collector_status = "Coletores do memd"
+        self._collectors = []
+        self._notes = []
+        self._graph = {"nodes": [], "links": []}
+        self._collector_status = "Carregando memória local…"
+        self._day = datetime.now().strftime("%Y-%m-%d")
+        self._preview = ""
+        self._workers = []
+        self._database = Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share")) / "hero/memory.db"
+        self._refreshing = False
 
-    def _is_enabled(self, source):
-        return any(item.get("source") == source and item.get("enabled") is True
-                   for item in self._collectors)
+    def _start(self, operation, callback):
+        worker = Loader(operation, self)
+        self._workers.append(worker)
+        worker.ready.connect(callback)
+        worker.finished.connect(lambda: self._workers.remove(worker))
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def close(self):
+        for worker in list(self._workers):
+            worker.wait()
+
+    @Slot()
+    def refresh(self):
+        if self._refreshing:
+            return
+        self._refreshing = True
+        def loaded(reply):
+            result, error = reply
+            self._refreshing = False
+            if result is not None:
+                self._collectors, graph = result
+                if graph != self._graph:
+                    self._graph = graph
+                    self.graphChanged.emit()
+            self._collector_status = error or "Índice local · leitura somente · FTS5"
+            self.changed.emit()
+            self.selectDay(self._day)
+        self._start(lambda: (self._load_collectors(), self._load_graph()), loaded)
+
+    @Property(str, notify=changed)
+    def day(self):
+        return self._day
+
+    @Property(str, notify=changed)
+    def preview(self):
+        return self._preview
+
+    @Slot(str)
+    def selectDay(self, day):
+        try:
+            start = datetime.strptime(day, "%Y-%m-%d")
+        except ValueError:
+            self._collector_status = "Data inválida. Use AAAA-MM-DD."
+            self.changed.emit()
+            return
+        self._day = day
+        def loaded(reply):
+            rows, error = reply
+            if day != self._day:
+                return
+            self._notes = rows or []
+            self._preview = redact(read_preview(VAULT, f"daily/{day}.md"))
+            if error:
+                self._collector_status = error
+            self.changed.emit()
+        self._start(lambda: read_hits(self._database, since=int(start.timestamp()),
+                    until=int((start + timedelta(days=1)).timestamp())), loaded)
+
+    @Slot(str, result=str)
+    def previewNote(self, relative):
+        return redact(read_preview(VAULT, relative))
+
+    @Slot(str, result="QVariantList")
+    def related(self, entity):
+        return [link for link in self._graph["links"]
+                if link.get("source") == entity or link.get("target") == entity][:100]
+
+    @Slot(str, result=bool)
+    def openNote(self, relative):
+        path = safe_path(VAULT, relative)
+        return bool(path and path.is_file() and path.suffix == ".md"
+                    and QDesktopServices.openUrl(QUrl.fromLocalFile(str(path))))
 
     @staticmethod
     def _load_collectors():
@@ -64,38 +158,20 @@ class Vault(QObject):
             return []
 
     @staticmethod
-    def _load_notes(include_vault_notes):
-        notes = []
-        if not VAULT.exists():
-            return notes
-        for path in VAULT.rglob("*.md"):
-            try:
-                relative = path.relative_to(VAULT)
-                if any(part.startswith(".") for part in relative.parts):
-                    continue
-                if relative.parts and relative.parts[0] == "notes" and not include_vault_notes:
-                    continue
-                if path.is_symlink() or not path.is_file() or path.stat().st_size > 2 * 1024 * 1024:
-                    continue
-                content = redact(path.read_text(encoding="utf-8"))
-                title = next((line[2:].strip() for line in content.splitlines()
-                              if line.startswith("# ") and line[2:].strip()), path.stem)
-                notes.append({"title": title, "path": path.relative_to(VAULT).as_posix(),
-                              "excerpt": " ".join(content.split())[:240],
-                              "modified": path.stat().st_mtime})
-            except (OSError, UnicodeError, ValueError):
-                continue
-        return sorted(notes, key=lambda item: item["modified"], reverse=True)
-
-    @staticmethod
     def _load_graph():
         path = VAULT / "graph" / "graph.json"
         try:
+            if path.is_symlink() or path.stat().st_size > 32 * 1024 * 1024:
+                return {"nodes": [], "links": []}
             graph = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(graph, dict):
+                return {"nodes": [], "links": []}
             nodes, links = graph.get("nodes", []), graph.get("links", [])
             if not isinstance(nodes, list) or not isinstance(links, list):
                 return {"nodes": [], "links": []}
-            return {"nodes": nodes[:10000], "links": links[:30000]}
+            return {"nodes": [node for node in nodes[:10000] if isinstance(node, dict) and isinstance(node.get("id"), str)],
+                    "links": [link for link in links[:30000] if isinstance(link, dict)
+                              and isinstance(link.get("source"), str) and isinstance(link.get("target"), str)]}
         except (OSError, UnicodeError, ValueError):
             return {"nodes": [], "links": []}
 
@@ -103,11 +179,11 @@ class Vault(QObject):
     def timeline(self):
         return self._notes[:500]
 
-    @Property("QVariantList", notify=changed)
+    @Property("QVariantList", notify=graphChanged)
     def nodes(self):
         return self._graph["nodes"]
 
-    @Property("QVariantList", notify=changed)
+    @Property("QVariantList", notify=graphChanged)
     def links(self):
         return self._graph["links"]
 
@@ -130,44 +206,31 @@ class Vault(QObject):
             self._collector_status = "Comando forja indisponível nesta sessão."
             self.changed.emit()
             return False
-        try:
+        def update():
             subprocess.run(
-                [binary, "memory", "collectors", "enable" if enabled else "disable",
-                 source, "--json"],
+                [binary, "memory", "collectors", "enable" if enabled else "disable", source, "--json"],
                 check=True, capture_output=True, text=True, timeout=15,
             )
-            self._collectors = self._load_collectors()
-            if source == "notes":
-                self._notes = self._load_notes(self._is_enabled("notes"))
-            self._collector_status = f"Coletor {source}: {'ativo' if enabled else 'inativo'}."
+            return self._load_collectors()
+        def loaded(reply):
+            collectors, error = reply
+            if collectors is not None:
+                self._collectors = collectors
+                self.refresh()
+            self._collector_status = error or f"Coletor {source}: {'ativo' if enabled else 'inativo'}."
             self.changed.emit()
-            return True
-        except (OSError, subprocess.SubprocessError) as error:
-            self._collector_status = f"Falha ao alterar o coletor {source}: {error}"
-            self.changed.emit()
-            return False
+        self._start(update, loaded)
+        return True
 
     @Slot(str, result="QVariantList")
     def search(self, query):
-        query = query.strip().casefold()
-        if not query:
+        try:
+            return read_hits(self._database, query=query, limit=100)
+        except (OSError, sqlite3.Error):
+            self._collector_status = "Busca indisponível. Reconstrua o índice com forja memory rebuild."
+            self.changed.emit()
             return []
-        terms = query.split()
-        matches = []
-        for note in self._notes:
-            haystack = (note["title"] + " " + note["excerpt"] + " " + note["path"]).casefold()
-            if not all(term in haystack for term in terms):
-                try:
-                    full_path = VAULT / note["path"]
-                    content = redact(full_path.read_text(encoding="utf-8")).casefold()
-                    if not all(term in content or term in haystack for term in terms):
-                        continue
-                except (OSError, UnicodeError):
-                    continue
-            matches.append(note)
-            if len(matches) == 100:
-                break
-        return matches
+
 
 
 def main():
@@ -179,6 +242,12 @@ def main():
     engine.load(str(qml_path))
     if not engine.rootObjects():
         return 1
+    QTimer.singleShot(0, vault.refresh)
+    refresh_timer = QTimer()
+    refresh_timer.setInterval(30000)
+    refresh_timer.timeout.connect(vault.refresh)
+    refresh_timer.start()
+    app.aboutToQuit.connect(vault.close)
     return app.exec()
 
 
