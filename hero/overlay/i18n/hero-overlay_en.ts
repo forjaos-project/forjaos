@@ -36,6 +36,7 @@
     <message><source>Guará  ·  </source><translation>Guará  ·  </translation></message>
     <message><source>Pergunte ou solicite uma ação…</source><translation>Ask a question or request an action…</translation></message>
     <message><source>Segure para falar</source><translation>Hold to speak</translation></message>
+    <message><source>Interromper fala</source><translation>Stop speaking</translation></message>
     <message><source>A fala inicia uma conversa local com o HERO</source><translation>Speech starts a local conversation with HERO</translation></message>
     <message><source>Áudio</source><translation>Audio</translation></message>
     <message><source>Voz</source><translation>Voice</translation></message>

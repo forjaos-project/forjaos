@@ -16,6 +16,19 @@ Window {
     flags: Qt.Popup | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
     title: qsTr("ForjaOS — Central de Comando")
     property bool receivedActivation: false
+    property string activeViseme: "rest"
+    property var visemeEvents: []
+    property double speechClockStart: 0
+    readonly property var visemeScaleX: ({
+        rest: 0.55, closed: 0.9, labiodental: 1.05, alveolar: 0.9, velar: 0.82,
+        postalveolar: 0.95, nasal: 0.86, lateral: 0.95, rhotic: 0.8,
+        open: 1.25, mid: 1.05, wide: 1.35, round: 0.72, narrow: 0.8, glide: 1.0
+    })
+    readonly property var visemeScaleY: ({
+        rest: 0.45, closed: 0.55, labiodental: 0.7, alveolar: 0.65, velar: 0.75,
+        postalveolar: 0.8, nasal: 0.55, lateral: 0.65, rhotic: 0.85,
+        open: 1.8, mid: 1.2, wide: 0.7, round: 1.25, narrow: 0.9, glide: 1.0
+    })
 
     onActiveChanged: {
         if (active) receivedActivation = true
@@ -24,6 +37,23 @@ Window {
     onClosing: hero.closeOverlay()
     onVisibleChanged: {
         if (visible) promptInput.forceActiveFocus()
+    }
+
+    Timer {
+        interval: 16
+        repeat: true
+        running: hero.heroState === "falando" || hero.heroState === "speaking"
+        onTriggered: {
+            const elapsed = Date.now() - root.speechClockStart
+            let active = "rest"
+            for (const item of root.visemeEvents) {
+                if (elapsed >= item.start_ms && elapsed < item.end_ms) {
+                    active = item.viseme
+                    break
+                }
+            }
+            root.activeViseme = active
+        }
     }
 
     Shortcut {
@@ -141,6 +171,23 @@ Window {
                         fillMode: Image.PreserveAspectFit
                         scale: hero.busy ? 1.05 : 1
                         Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.InOutQuad } }
+                        Rectangle {
+                            x: assistantMascot.width * 0.43
+                            y: assistantMascot.height * 0.765
+                            width: assistantMascot.width * 0.12
+                            height: assistantMascot.height * 0.05
+                            radius: height / 2
+                            color: "#0f131d"
+                            visible: hero.heroState === "falando" || hero.heroState === "speaking"
+                            transform: Scale {
+                                origin.x: width * 0.5
+                                origin.y: height * 0.5
+                                xScale: root.visemeScaleX[root.activeViseme] || 1
+                                yScale: root.visemeScaleY[root.activeViseme] || 1
+                                Behavior on xScale { NumberAnimation { duration: 45 } }
+                                Behavior on yScale { NumberAnimation { duration: 45 } }
+                            }
+                        }
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
@@ -379,6 +426,13 @@ Window {
                             ToolTip.visible: hovered || activeFocus
                         }
                         Button {
+                            id: interruptSpeechButton
+                            visible: hero.heroState === "falando" || hero.heroState === "speaking"
+                            text: qsTr("Interromper fala")
+                            onClicked: hero.interruptSpeech()
+                            Accessible.name: text
+                        }
+                        Button {
                             id: sendButton
                             text: hero.busy ? "…" : qsTr("Enviar")
                             enabled: !hero.busy && hero.pendingId.length === 0 && promptInput.text.trim().length > 0
@@ -453,6 +507,23 @@ Window {
         function onVoiceError(message) {
             messages.append({question: qsTr("Áudio"), answer: message, tool: "", tier: "", status: "erro", pending: false})
             conversation.positionViewAtEnd()
+        }
+        function onVoiceVisemes(eventsJson) {
+            try {
+                const batch = JSON.parse(eventsJson)
+                if (!Array.isArray(batch.items) || !Number.isFinite(batch.offset_ms)) return
+                if (batch.offset_ms === 0 || root.speechClockStart === 0)
+                    root.speechClockStart = Date.now() - batch.offset_ms
+                root.visemeEvents = batch.items.map(function(item) {
+                    return {
+                        viseme: String(item.viseme || "rest"),
+                        start_ms: batch.offset_ms + Number(item.start_ms || 0),
+                        end_ms: batch.offset_ms + Number(item.end_ms || 0)
+                    }
+                })
+            } catch (error) {
+                root.visemeEvents = []
+            }
         }
         function onVoiceIgnored() {
             messages.append({question: qsTr("Voz"), answer: qsTr("Gatilho ignorado: HERO ocupado."), tool: "", tier: "", status: "erro", pending: false})

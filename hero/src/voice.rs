@@ -10,7 +10,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
-use tokio::sync::{broadcast, oneshot, watch};
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
 const MAX_AUDIO_BYTES: usize = 16_000 * 2 * 30;
 const CAPTURE_SECONDS: u64 = 30;
@@ -89,24 +89,29 @@ fn regular_file(path: &std::path::Path) -> bool {
     fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
 }
 
-pub async fn speak(text: &str, cancel: oneshot::Receiver<()>) -> Result<(), &'static str> {
+pub async fn speak(
+    text: &str,
+    cancel: oneshot::Receiver<()>,
+    visemes: mpsc::UnboundedSender<String>,
+) -> Result<(), &'static str> {
     let model = selected_piper_model()?;
     let mut command = Command::new("/usr/libexec/forjaos/hero-speak");
     command.args(["--model", model.to_str().ok_or("invalid_voice_path")?]);
-    speak_with_command(text, cancel, command).await
+    speak_with_command(text, cancel, command, visemes).await
 }
 
 async fn speak_with_command(
     text: &str,
     mut cancel: oneshot::Receiver<()>,
     mut command: Command,
+    visemes: mpsc::UnboundedSender<String>,
 ) -> Result<(), &'static str> {
     if text.trim().is_empty() || text.chars().count() > 4000 {
         return Err("invalid_speech_text");
     }
     let mut process = command
         .stdin(Stdio::piped())
-        .stdout(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .kill_on_drop(true)
         .spawn()
@@ -120,12 +125,49 @@ async fn speak_with_command(
         .map_err(|_| "local_tts_failed")?;
     input.shutdown().await.map_err(|_| "local_tts_failed")?;
     drop(input);
-    let result = tokio::select! {
-        status = process.wait() => status.map_err(|_| "local_tts_failed").and_then(|status| {
-            if status.success() { Ok(()) } else { Err("local_tts_failed") }
-        }),
-        _ = &mut cancel => Err("speech_cancelled"),
-        () = tokio::time::sleep(Duration::from_secs(60)) => Err("speech_timeout"),
+    let Some(stdout) = process.stdout.take() else {
+        return Err("local_tts_failed");
+    };
+    let mut output = BufReader::new(stdout);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    let result = loop {
+        let mut line = String::new();
+        let read = match tokio::select! {
+            read = output.read_line(&mut line) => read.map_err(|_| "local_tts_failed"),
+            _ = &mut cancel => break Err("speech_cancelled"),
+            () = tokio::time::sleep_until(deadline) => break Err("speech_timeout"),
+        } {
+            Ok(read) => read,
+            Err(error) => break Err(error),
+        };
+        if read == 0 {
+            break process
+                .wait()
+                .await
+                .map_err(|_| "local_tts_failed")
+                .and_then(|status| {
+                    if status.success() {
+                        Ok(())
+                    } else {
+                        Err("local_tts_failed")
+                    }
+                });
+        }
+        if read > 1024 * 1024 || !line.ends_with('\n') {
+            break Err("local_tts_failed");
+        }
+        let event: Value = match serde_json::from_str(&line) {
+            Ok(event) => event,
+            Err(_) => break Err("local_tts_failed"),
+        };
+        match event["event"].as_str() {
+            Some("visemes") if event["items"].is_array() => {
+                let _ = visemes.send(line.trim_end().to_string());
+            }
+            Some("done") => {}
+            Some("cancelled") => break Err("speech_cancelled"),
+            _ => break Err("local_tts_failed"),
+        }
     };
     if process.try_wait().is_ok_and(|status| status.is_none()) {
         #[cfg(unix)]
@@ -1083,14 +1125,19 @@ mod tests {
         let command =
             python_command("import sys; sys.exit(0 if sys.stdin.read() == 'resposta' else 2)");
         let (_cancel, receiver) = oneshot::channel();
+        let (visemes, _viseme_rx) = mpsc::unbounded_channel();
         assert_eq!(
-            speak_with_command("resposta", receiver, command).await,
+            speak_with_command("resposta", receiver, command, visemes).await,
             Ok(())
         );
 
         let command = python_command("import sys,time; sys.stdin.read(); time.sleep(5)");
         let (cancel, receiver) = oneshot::channel();
-        let task = tokio::spawn(async move { speak_with_command("pare", receiver, command).await });
+        let (visemes, _viseme_rx) = mpsc::unbounded_channel();
+        let task =
+            tokio::spawn(
+                async move { speak_with_command("pare", receiver, command, visemes).await },
+            );
         tokio::time::sleep(Duration::from_millis(100)).await;
         cancel.send(()).expect("cancel speech");
         assert_eq!(
@@ -1100,5 +1147,21 @@ mod tests {
                 .expect("speech task"),
             Err("speech_cancelled")
         );
+    }
+
+    #[tokio::test]
+    async fn speech_process_forwards_aligned_viseme_events() {
+        let command = python_command(
+            "import sys; sys.stdin.read(); print('{\"event\":\"visemes\",\"offset_ms\":0,\"items\":[{\"viseme\":\"open\"}]}',flush=True)",
+        );
+        let (_cancel, receiver) = oneshot::channel();
+        let (visemes, mut received) = mpsc::unbounded_channel();
+        assert_eq!(
+            speak_with_command("fala", receiver, command, visemes).await,
+            Ok(())
+        );
+        let event = received.recv().await.expect("viseme event");
+        let event: serde_json::Value = serde_json::from_str(&event).expect("JSON viseme event");
+        assert_eq!(event["items"][0]["viseme"], "open");
     }
 }

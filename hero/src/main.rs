@@ -125,6 +125,7 @@ struct Hero {
 
 enum VoiceEvent {
     Trigger(TriggerRequest),
+    InterruptSpeech(oneshot::Sender<String>),
     ReloadWakeWord(oneshot::Sender<String>),
     WakeDetected(u64),
     WakeEndpointFinished(u64, voice::WakeEndpointResult),
@@ -133,6 +134,7 @@ enum VoiceEvent {
     Transcribed(u64, Result<String, &'static str>),
     TurnCompleted(u64, String, String),
     ActionCompleted(VoiceActionResult),
+    Visemes(u64, String),
     SpeechCompleted(u64, Result<(), &'static str>),
 }
 
@@ -172,6 +174,10 @@ struct VoiceTrigger {
 
 #[interface(name = "org.forjaos.Hero.Trigger")]
 impl VoiceTrigger {
+    async fn interrupt_speech(&self) -> String {
+        self.request_interrupt_speech().await
+    }
+
     async fn start_push_to_talk(
         &self,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
@@ -199,6 +205,21 @@ impl VoiceTrigger {
 }
 
 impl VoiceTrigger {
+    async fn request_interrupt_speech(&self) -> String {
+        let (response, receiver) = oneshot::channel();
+        if self
+            .voice_tx
+            .send(VoiceEvent::InterruptSpeech(response))
+            .is_err()
+        {
+            return json!({"status":"unavailable"}).to_string();
+        }
+        match tokio::time::timeout(Duration::from_secs(5), receiver).await {
+            Ok(Ok(reply)) => reply,
+            _ => json!({"status":"unavailable"}).to_string(),
+        }
+    }
+
     async fn reload_wake_word_inner(&self) -> String {
         let (response, receiver) = oneshot::channel();
         if self
@@ -279,6 +300,27 @@ struct PendingAction {
 impl Hero {
     async fn handle_voice_event(&mut self, event: VoiceEvent, emitter: &SignalEmitter<'_>) {
         match event {
+            VoiceEvent::InterruptSpeech(response) => {
+                if self.state != State::Speaking || self.speech.is_none() {
+                    let _ = response.send(json!({"status":"not_speaking"}).to_string());
+                    return;
+                }
+                self.voice_generation = self.voice_generation.wrapping_add(1);
+                if let Some(speech) = self.speech.take() {
+                    let _ = speech.cancel.send(());
+                    let _ = speech.task.await;
+                }
+                let _ = self.transition_to("ocioso", emitter).await;
+                audit::record_trigger(
+                    "overlay",
+                    "conversa-de-voz",
+                    "speech.cancel",
+                    "livre",
+                    "interrompido",
+                    0,
+                );
+                let _ = response.send(json!({"status":"interrupted"}).to_string());
+            }
             VoiceEvent::ReloadWakeWord(response) => {
                 if !matches!(self.state, State::Idle | State::Speaking) {
                     let _ = response.send(json!({"status":"busy"}).to_string());
@@ -527,6 +569,11 @@ impl Hero {
                     }
                 }
             }
+            VoiceEvent::Visemes(generation, events)
+                if generation == self.voice_generation && self.state == State::Speaking =>
+            {
+                let _ = Self::visemes_changed(emitter, &events).await;
+            }
             _ => {}
         }
     }
@@ -536,8 +583,16 @@ impl Hero {
         let _ = self.transition_to("falando", emitter).await;
         let (cancel, receiver) = oneshot::channel();
         let voice_tx = self.voice_tx.clone();
+        let (viseme_tx, mut viseme_rx) = mpsc::unbounded_channel();
+        let viseme_events = self.voice_tx.clone();
+        let viseme_task = tokio::spawn(async move {
+            while let Some(events) = viseme_rx.recv().await {
+                let _ = viseme_events.send(VoiceEvent::Visemes(generation, events));
+            }
+        });
         let task = tokio::spawn(async move {
-            let result = voice::speak(&answer, receiver).await;
+            let result = voice::speak(&answer, receiver, viseme_tx).await;
+            let _ = viseme_task.await;
             let _ = voice_tx.send(VoiceEvent::SpeechCompleted(generation, result));
         });
         self.speech = Some(SpeechTask { cancel, task });
@@ -1090,6 +1145,9 @@ impl Hero {
 
     #[zbus(signal, name = "VoiceIgnored")]
     async fn voice_ignored(emitter: &SignalEmitter<'_>, state: &str) -> zbus::Result<()>;
+
+    #[zbus(signal, name = "VisemesChanged")]
+    async fn visemes_changed(emitter: &SignalEmitter<'_>, events_json: &str) -> zbus::Result<()>;
 
     async fn ask_text(
         &mut self,
@@ -1802,6 +1860,70 @@ mod tests {
         if let Some(task) = hero.stt_task.take() {
             task.abort();
         }
+    }
+
+    #[tokio::test]
+    async fn independent_speech_interrupt_is_exposed_over_dbus() {
+        let (server, client) = voice_test_connection().await;
+        let (voice_tx, mut voice_rx) = mpsc::unbounded_channel();
+        let trigger = server
+            .object_server()
+            .interface::<_, VoiceTrigger>(OBJECT_PATH)
+            .await
+            .expect("trigger interface");
+        trigger.get_mut().await.voice_tx = voice_tx;
+        let interface = server
+            .object_server()
+            .interface::<_, Hero>(OBJECT_PATH)
+            .await
+            .expect("HERO interface");
+        {
+            let mut hero = interface.get_mut().await;
+            hero.transition_to("pensando", interface.signal_emitter())
+                .await
+                .expect("thinking starts");
+            hero.transition_to("falando", interface.signal_emitter())
+                .await
+                .expect("speech starts");
+            let (cancel, receiver) = oneshot::channel();
+            let task = tokio::spawn(async move { receiver.await.expect("speech cancelled") });
+            hero.speech = Some(SpeechTask { cancel, task });
+        }
+        let call = tokio::spawn(async move {
+            client
+                .call_method(
+                    None::<&str>,
+                    OBJECT_PATH,
+                    Some("org.forjaos.Hero.Trigger"),
+                    "InterruptSpeech",
+                    &(),
+                )
+                .await
+                .expect("interrupt reply")
+                .body()
+                .deserialize::<String>()
+                .expect("reply body")
+        });
+        let event = tokio::time::timeout(Duration::from_secs(1), voice_rx.recv())
+            .await
+            .expect("interrupt received")
+            .expect("interrupt event");
+        interface
+            .get_mut()
+            .await
+            .handle_voice_event(event, interface.signal_emitter())
+            .await;
+        let reply = tokio::time::timeout(Duration::from_secs(2), call)
+            .await
+            .expect("interrupt completed")
+            .expect("interrupt task");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&reply).unwrap()["status"],
+            "interrupted"
+        );
+        let hero = interface.get().await;
+        assert_eq!(hero.state, State::Idle);
+        assert!(hero.speech.is_none());
     }
 
     #[tokio::test]

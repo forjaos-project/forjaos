@@ -89,7 +89,7 @@ ApplicationWindow {
                 Label { visible: wizard.step === 0; text: wizard.tr("Escolha idioma e teclado. A aplicação do layout ocorre nas configurações do Plasma.", "Choose language and keyboard. Apply the layout in Plasma settings."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 ComboBox { visible: wizard.step === 0; model: ["Português (Brasil)", "English (US)"]; onCurrentIndexChanged: wizard.language = currentIndex === 0 ? "pt-BR" : "en-US" }
                 ComboBox { visible: wizard.step === 0; model: ["Teclado brasileiro (ABNT2)", "US International"]; onCurrentIndexChanged: wizard.keyboard = currentIndex === 0 ? "br" : "us" }
-                Label { visible: wizard.step === 1; text: wizard.tr("Escolha o nome do mascote. A prévia de voz será exibida quando houver vozes instaladas.", "Choose the mascot name. Voice preview will appear when voices are installed."); color: "#94a3b8"; wrapMode: Text.WordWrap }
+                Label { visible: wizard.step === 1; text: wizard.tr("Escolha o nome do mascote e, se quiser, baixe uma das vozes locais pt-BR licenciadas em CC0.", "Choose the mascot name and, optionally, download one of the local pt-BR voices licensed CC0."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 Flow {
                     visible: wizard.step === 1
                     Layout.fillWidth: true
@@ -106,6 +106,10 @@ ApplicationWindow {
                     }
                 }
                 TextField { id: customName; visible: wizard.step === 1; placeholderText: "Nome personalizado (opcional)"; maximumLength: 24; onTextChanged: { if (text.trim().length) wizard.mascot = text.trim() } }
+                Label { visible: wizard.step === 1; text: wizard.tr("Voz local do Guará", "Guará local voice"); color: "#f1f5f9" }
+                ComboBox { id: voiceChoice; visible: wizard.step === 1; model: ["pt_BR-cadu-medium", "pt_BR-jeff-medium"]; Layout.fillWidth: true }
+                Button { visible: wizard.step === 1; text: wizard.tr("Baixar e selecionar voz", "Download and select voice"); enabled: bridge.voiceStatus.indexOf("Baixando") !== 0; onClicked: bridge.downloadVoice(voiceChoice.currentText) }
+                Label { visible: wizard.step === 1; text: bridge.voiceStatus; color: "#94a3b8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                 Label { visible: wizard.step === 2; text: wizard.tr("Selecione o perfil. O primeiro boot prepara zsh, Starship, Homebrew, Git via KWallet e Podman rootless. As instalações escolhidas rodam em segundo plano.", "Choose a profile. First boot prepares zsh, Starship, Homebrew, Git via KWallet, and rootless Podman. Selected installs run in the background."); color: "#94a3b8"; wrapMode: Text.WordWrap }
                 Flow {
                     visible: wizard.step === 2

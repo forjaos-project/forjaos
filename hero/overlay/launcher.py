@@ -236,6 +236,7 @@ class HeroBackend(QObject):
     requestFinished = Signal()
     voiceTranscribed = Signal(str)
     voiceAnswer = Signal(str)
+    voiceVisemes = Signal(str)
     voiceIgnored = Signal(str)
     voiceError = Signal(str)
 
@@ -265,6 +266,8 @@ class HeroBackend(QObject):
         self._trigger = QDBusInterface(BUS_NAME, OBJECT_PATH, TRIGGER_INTERFACE, self._bus, self)
         self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceTranscribed", "s", self, SLOT("_on_voice_transcribed(QString)"))
         self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceAnswer", "s", self, SLOT("_on_voice_answer(QString)"))
+        self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VisemesChanged", "s", self, SLOT("_on_voice_visemes(QString)"))
+        self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "StateChanged", "s", self, SLOT("_on_hero_state_changed(QString)"))
         self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceIgnored", "s", self, SLOT("_on_voice_ignored(QString)"))
         self._bus.connect(BUS_NAME, OBJECT_PATH, INTERFACE, "VoiceFailed", "s", self, SLOT("_on_voice_failed(QString)"))
         self._notifications: QDBusInterface | None = None
@@ -477,6 +480,13 @@ class HeroBackend(QObject):
         watcher = QDBusPendingCallWatcher(self._trigger.asyncCall("StopPushToTalk"), self)
         watcher.finished.connect(self._push_to_talk_stopped)
 
+    @Slot()
+    def interruptSpeech(self) -> None:
+        if self.heroState not in {"falando", "speaking"}:
+            return
+        watcher = QDBusPendingCallWatcher(self._trigger.asyncCall("InterruptSpeech"), self)
+        watcher.finished.connect(lambda finished: finished.deleteLater())
+
     def _push_to_talk_stopped(self, watcher: QDBusPendingCallWatcher) -> None:
         try:
             reply = json.loads(str(watcher.reply().arguments()[0])) if not watcher.isError() else {}
@@ -493,6 +503,14 @@ class HeroBackend(QObject):
     @Slot(str)
     def _on_voice_answer(self, answer: str) -> None:
         self.voiceAnswer.emit(answer)
+
+    @Slot(str)
+    def _on_voice_visemes(self, events_json: str) -> None:
+        self.voiceVisemes.emit(events_json)
+
+    @Slot(str)
+    def _on_hero_state_changed(self, _state: str) -> None:
+        self.changed.emit()
 
     @Slot(str)
     def _on_voice_ignored(self, state: str) -> None:
