@@ -162,7 +162,7 @@ async fn free_vram_mb() -> Option<u64> {
 }
 
 async fn selected_model() -> &'static str {
-    if game_mode_active().await || free_vram_mb().await.is_none_or(|free| free < 6_144) {
+    if free_vram_mb().await.is_none_or(|free| free < 6_144) {
         "qwen3:4b"
     } else {
         "qwen3:8b"
@@ -291,6 +291,7 @@ async fn local_answer(
     model: &str,
     system_prompt: &str,
     history: &[Turn],
+    unload_after_response: bool,
 ) -> Result<String, &'static str> {
     local_answer_at(
         client,
@@ -299,8 +300,17 @@ async fn local_answer(
         model,
         system_prompt,
         history,
+        unload_after_response,
     )
     .await
+}
+
+fn model_keep_alive(game_mode: bool) -> serde_json::Value {
+    if game_mode {
+        json!(0)
+    } else {
+        json!("5m")
+    }
 }
 
 async fn local_answer_at(
@@ -310,6 +320,7 @@ async fn local_answer_at(
     model: &str,
     system_prompt: &str,
     history: &[Turn],
+    unload_after_response: bool,
 ) -> Result<String, &'static str> {
     let mut messages = vec![Message {
         role: "system",
@@ -320,13 +331,14 @@ async fn local_answer_at(
         role: "user",
         content: query.to_string(),
     });
+    let keep_alive = model_keep_alive(unload_after_response);
     let response = client
         .post(endpoint)
         .json(&json!({
             "model": model,
             "messages": messages,
             "stream": false,
-            "keep_alive": "5m",
+            "keep_alive": keep_alive,
             "options": {"num_predict": 512}
         }))
         .send()
@@ -662,22 +674,28 @@ async fn answer_with_provider(
     system_prompt: &str,
     history: &[Turn],
 ) -> Result<(String, String), &'static str> {
+    let game_mode = game_mode_active().await;
     match choice.provider {
         Provider::Ollama => {
             if !ollama_installed() || !ensure_server(client).await {
                 return Err("ollama_unavailable");
             }
-            let model = match choice.model.as_deref() {
-                Some(model) => model.to_string(),
-                None => selected_model().await.to_string(),
+            let model = match (game_mode, choice.model.as_deref()) {
+                (true, _) => "qwen3:4b".to_string(),
+                (false, Some(model)) => model.to_string(),
+                (false, None) => selected_model().await.to_string(),
             };
             if !model_available(client, &model).await {
                 return Err("model_not_installed");
             }
-            let answer = local_answer(client, query, &model, system_prompt, history).await?;
+            let answer =
+                local_answer(client, query, &model, system_prompt, history, game_mode).await?;
             Ok((answer, model))
         }
         provider => {
+            if game_mode {
+                return Err("game_mode_local_only");
+            }
             let model = choice.model.as_deref().ok_or("provider_model_required")?;
             let answer =
                 cloud_answer(client, provider, model, system_prompt, query, history).await?;
@@ -700,6 +718,9 @@ fn provider_error_message(code: &str) -> &'static str {
         }
         "model_not_installed" => "O modelo local configurado não está instalado no Ollama.",
         "ollama_unavailable" => "O serviço Ollama local não está disponível.",
+        "game_mode_local_only" => {
+            "No Modo Jogo, o HERO responde apenas com o modelo local Qwen3 4B."
+        }
         "provider_response_invalid" => "O provedor retornou uma resposta inválida.",
         _ => "O provedor configurado não respondeu. Nenhum provedor alternativo foi usado.",
     }
@@ -709,14 +730,14 @@ fn provider_error_message(code: &str) -> &'static str {
 mod tests {
     use super::{
         answer_with_provider, append_history, busy, classify_with_model_endpoint, cloud_answer_at,
-        cloud_endpoint, json_reply, local_answer_at, model_available_at, nonempty_response,
-        persona_prompt, provider_error_message, route_from_model_output, safe_snapshot_value,
-        server_ready_at, CloudTarget, Message, SnapshotDoApp, Turn,
+        cloud_endpoint, json_reply, local_answer_at, model_available_at, model_keep_alive,
+        nonempty_response, persona_prompt, provider_error_message, route_from_model_output,
+        safe_snapshot_value, server_ready_at, CloudTarget, Message, SnapshotDoApp, Turn,
     };
     use crate::persona::Persona;
     use crate::routes::{Provider, RouteProvider};
     use crate::test_support::TestHome;
-    use serde_json::Value;
+    use serde_json::{json, Value};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
     use tokio::task::JoinHandle;
@@ -827,6 +848,12 @@ mod tests {
     }
 
     #[test]
+    fn game_mode_models_unload_after_each_response() {
+        assert_eq!(model_keep_alive(true), json!(0));
+        assert_eq!(model_keep_alive(false), json!("5m"));
+    }
+
+    #[test]
     fn model_route_parser_allows_only_known_routes() {
         for (content, expected) in [
             (r#"{"route":"sistema"}"#, "sistema"),
@@ -931,21 +958,21 @@ mod tests {
         let (url, server) =
             mock_endpoint(r#"{"message":{"content":" resposta local "}}"#, 200).await;
         assert_eq!(
-            local_answer_at(&client, &url, "pergunta", "qwen3:4b", "persona", &[]).await,
+            local_answer_at(&client, &url, "pergunta", "qwen3:4b", "persona", &[], false).await,
             Ok("resposta local".into())
         );
         server.await.expect("success mock task");
 
         let (url, server) = mock_endpoint(r#"{"message":{"content":"falha"}}"#, 500).await;
         assert_eq!(
-            local_answer_at(&client, &url, "pergunta", "qwen3:4b", "persona", &[]).await,
+            local_answer_at(&client, &url, "pergunta", "qwen3:4b", "persona", &[], false).await,
             Err("provider_request_failed")
         );
         server.await.expect("HTTP error mock task");
 
         let (url, server) = mock_endpoint(r#"{"wrong":true}"#, 200).await;
         assert_eq!(
-            local_answer_at(&client, &url, "pergunta", "qwen3:4b", "persona", &[]).await,
+            local_answer_at(&client, &url, "pergunta", "qwen3:4b", "persona", &[], false).await,
             Err("provider_response_invalid")
         );
         server.await.expect("invalid JSON mock task");
@@ -957,7 +984,8 @@ mod tests {
                 "pergunta",
                 "qwen3:4b",
                 "persona",
-                &[]
+                &[],
+                false
             )
             .await,
             Err("provider_request_failed")
