@@ -145,6 +145,16 @@ fn memory_commands_use_private_session_bus() {
         assert!(value.is_object() || value.is_array(), "{args:?}: {value}");
     }
 
+    let window_toggle = Command::new(env!("CARGO_BIN_EXE_forja"))
+        .args(["memory", "collectors", "enable", "windows", "--json"])
+        .env("DBUS_SESSION_BUS_ADDRESS", address)
+        .env("PATH", "/nonexistent")
+        .output()
+        .expect("run window collector toggle without KWin tools");
+    assert!(!window_toggle.status.success());
+    let value: Value = serde_json::from_slice(&window_toggle.stdout).expect("window toggle JSON");
+    assert_eq!(value["status"], "kwin_configuration_failed");
+
     let readable: &[&[&str]] = &[
         &["search", "needle"],
         &["timeline"],
@@ -173,6 +183,14 @@ fn memory_commands_use_private_session_bus() {
         );
         assert!(!output.stdout.is_empty(), "{args:?}: no readable output");
     }
+
+    let sanitized = Command::new(env!("CARGO_BIN_EXE_forja"))
+        .args(["memory", "search", "\u{1b}[31mneedle"])
+        .env("DBUS_SESSION_BUS_ADDRESS", address)
+        .output()
+        .expect("run terminal-safe search");
+    assert!(sanitized.status.success());
+    assert!(!sanitized.stdout.contains(&0x1b));
 
     let mut collect = Command::new(env!("CARGO_BIN_EXE_forja"))
         .args([
@@ -210,6 +228,18 @@ fn memory_commands_use_private_session_bus() {
     assert!(!malformed.status.success());
     let value: Value = serde_json::from_slice(&malformed.stdout).expect("malformed response JSON");
     assert_eq!(value["status"], "invalid_memd_response");
+
+    let unavailable = Command::new(env!("CARGO_BIN_EXE_forja"))
+        .args(["memory", "search", "needle", "--json"])
+        .env(
+            "DBUS_SESSION_BUS_ADDRESS",
+            "unix:path=/nonexistent/forja-session-bus",
+        )
+        .output()
+        .expect("run unavailable daemon case");
+    assert!(!unavailable.status.success());
+    let value: Value = serde_json::from_slice(&unavailable.stdout).expect("unavailable JSON");
+    assert_eq!(value["status"], "memd_unavailable");
 }
 
 #[test]

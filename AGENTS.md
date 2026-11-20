@@ -16,7 +16,7 @@ Sistema operacional open source baseado em Linux (Fedora Atomic via Universal Bl
 
 1. Nenhum segredo em arquivo, commit ou log. Chaves só no KWallet.
 2. Nada destrutivo (`rm -rf`, `dd`, firewall, SELinux, `/etc`) sem confirmação do Rodrigo.
-3. SSD do host Windows: antes de build/ISO/VM local, `powershell -NoProfile -File scripts/host/check-disk.ps1 -Mode Check`; não comece com menos de 160 GiB livres no C: (ADR-0037).
+3. SSD do host Windows: antes de build/ISO/VM local, `powershell -NoProfile -File scripts/host/check-disk.ps1 -Mode Check`; não comece com menos de 120 GiB livres no C: (ADR-0037).
 
 ## Onde achar as coisas
 

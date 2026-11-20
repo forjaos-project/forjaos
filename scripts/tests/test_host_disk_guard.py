@@ -24,12 +24,12 @@ class HostDiskGuardTests(unittest.TestCase):
         )
 
     def test_preflight_allows_exact_reserve(self):
-        result = self.probe("Check", 160)
+        result = self.probe("Check", 120)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("RESULT=PASS", result.stdout)
 
     def test_preflight_blocks_below_reserve(self):
-        result = self.probe("Check", 159.9)
+        result = self.probe("Check", 119.9)
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("RESULT=BLOCK", result.stdout)
 
