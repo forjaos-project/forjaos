@@ -7,7 +7,7 @@ param(
     [string]$DockerCliOverride
 )
 
-$minStartGiB = 160
+$minStartGiB = 120
 $stopGiB = 120
 $dockerData = Join-Path $env:LOCALAPPDATA 'Docker\wsl\disk\docker_data.vhdx'
 $dockerCli = Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin\docker.exe'
