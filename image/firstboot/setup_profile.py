@@ -18,6 +18,7 @@ PROFILES = {
     "ai": (["ollama"], []),
 }
 NAMES = {"Guará", "Tupã", "Jaci", "Iara", "Ipê", "Boto", "Curió", "Arara"}
+PIPER_VOICES = {"pt_BR-cadu-medium", "pt_BR-jeff-medium"}
 ALIASES = {"guara": "Guará", "tupa": "Tupã", "jaci": "Jaci", "iara": "Iara",
            "ipe": "Ipê", "boto": "Boto", "curio": "Curió", "arara": "Arara"}
 CONFIG = Path.home() / ".config" / "forjaos"
@@ -185,7 +186,22 @@ def main():
     persona_dir = Path.home() / ".config" / "hero"
     persona_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     persona = persona_dir / "persona.toml"
-    persona.write_text("name = " + json.dumps(args.mascot, ensure_ascii=False) + "\n", encoding="utf-8")
+    selected_voice = None
+    if persona.is_file() and not persona.is_symlink():
+        try:
+            for line in persona.read_text(encoding="utf-8").splitlines():
+                key, separator, value = line.partition("=")
+                if separator and key.strip() == "voice":
+                    candidate = json.loads(value.strip())
+                    if candidate in PIPER_VOICES:
+                        selected_voice = candidate
+                    break
+        except (OSError, ValueError, TypeError):
+            selected_voice = None
+    persona_content = "name = " + json.dumps(args.mascot, ensure_ascii=False) + "\n"
+    if selected_voice:
+        persona_content += "voice = " + json.dumps(selected_voice) + "\n"
+    persona.write_text(persona_content, encoding="utf-8")
     os.chmod(persona, 0o600)
     if not configure_git_credentials():
         private_json(state, {"status": "failed", "profile": args.profile, "step": "git-keyring"})

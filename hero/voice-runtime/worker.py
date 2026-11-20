@@ -20,15 +20,33 @@ def viseme_for(phoneme: str) -> str:
     if phoneme in {"m", "b", "p"}:
         return "closed"
     if phoneme in {"f", "v"}:
-        return "teeth"
-    if phoneme in {"a", "ɐ", "ɜ", "ɑ", "æ"}:
+        return "labiodental"
+    if phoneme in {"θ", "ð"}:
+        return "alveolar"
+    if phoneme in {"t", "d", "s", "z"}:
+        return "alveolar"
+    if phoneme in {"k", "g", "ɡ"}:
+        return "velar"
+    if phoneme in {"tʃ", "dʒ", "ʃ", "ʒ"}:
+        return "postalveolar"
+    if phoneme in {"n", "ɲ"}:
+        return "nasal"
+    if phoneme in {"l", "ʎ"}:
+        return "lateral"
+    if phoneme in {"ɾ", "r", "ʁ", "x", "ɣ"}:
+        return "rhotic"
+    if phoneme in {"a", "ɑ", "æ"}:
         return "open"
-    if phoneme in {"e", "ɛ", "i", "ɪ", "j"}:
+    if phoneme in {"ɐ", "ɜ", "e", "ɛ", "ə"}:
+        return "mid"
+    if phoneme in {"i", "ɪ"}:
         return "wide"
-    if phoneme in {"o", "ɔ", "u", "ʊ", "w"}:
+    if phoneme in {"o", "ɔ"}:
         return "round"
-    if phoneme in {"s", "z", "ʃ", "ʒ", "t", "d", "n", "l", "ɾ", "r", "ɲ", "ʎ"}:
-        return "tongue"
+    if phoneme in {"u", "ʊ"}:
+        return "narrow"
+    if phoneme in {"j", "w"}:
+        return "glide"
     return "rest"
 
 

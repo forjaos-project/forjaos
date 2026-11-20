@@ -6,7 +6,7 @@ import json
 import subprocess
 import sys
 
-from PySide6.QtCore import QObject, Slot, QUrl
+from PySide6.QtCore import QObject, Property, QProcess, Signal, Slot, QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
@@ -14,9 +14,63 @@ from PySide6.QtQml import QQmlApplicationEngine
 NAMES = {"Guará", "Tupã", "Jaci", "Iara", "Ipê", "Boto", "Curió", "Arara"}
 PROFILES = {"web", "backend", "gamedev", "devops", "ai", "minimal"}
 CONFIG = Path.home() / ".config" / "forjaos"
+PIPER_VOICES = {"pt_BR-cadu-medium", "pt_BR-jeff-medium"}
 
 
 class Bridge(QObject):
+    voiceStatusChanged = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._voice_status = "Escolha uma voz para baixar e usar, se quiser."
+        self._voice_process = None
+
+    @Property(str, notify=voiceStatusChanged)
+    def voiceStatus(self):
+        return self._voice_status
+
+    def _set_voice_status(self, status):
+        self._voice_status = status
+        self.voiceStatusChanged.emit()
+
+    @Slot(str, result=str)
+    def downloadVoice(self, voice):
+        if voice not in PIPER_VOICES:
+            return "Voz indisponível no catálogo."
+        if self._voice_process is not None and self._voice_process.state() != QProcess.ProcessState.NotRunning:
+            return "Um download de voz já está em andamento."
+        process = QProcess(self)
+        process.setProgram("forja")
+        process.setArguments(["mascot", "voices", "download", voice])
+        process.finished.connect(lambda code, _status: self._finish_voice_download(voice, code))
+        process.errorOccurred.connect(lambda _error: self._set_voice_status("Não foi possível iniciar o download da voz."))
+        self._voice_process = process
+        self._set_voice_status(f"Baixando {voice}; aguarde a verificação do arquivo.")
+        process.start()
+        if not process.waitForStarted(2000):
+            self._set_voice_status("CLI forja indisponível; a voz não foi instalada.")
+        return self._voice_status
+
+    def _finish_voice_download(self, voice, exit_code):
+        process = self._voice_process
+        self._voice_process = None
+        if process is not None:
+            process.deleteLater()
+        if exit_code != 0:
+            self._set_voice_status("Download ou verificação da voz falhou; nenhuma voz foi selecionada.")
+            return
+        try:
+            selected = subprocess.run(
+                ["forja", "mascot", "voice", voice],
+                capture_output=True, text=True, check=False, timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            selected = None
+        if selected is None or selected.returncode != 0:
+            self._set_voice_status("Voz baixada, mas não foi possível selecioná-la no perfil.")
+            return
+        self._set_voice_status(f"Voz {voice} baixada, verificada e selecionada.")
+
     @Slot(result=str)
     def setupLog(self):
         try:
