@@ -2015,24 +2015,52 @@ async fn main() -> zbus::Result<()> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::MutexGuard;
 
     static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
-    struct TestDirectory(PathBuf);
+    struct TestDirectory {
+        path: PathBuf,
+        previous_home: Option<std::ffi::OsString>,
+        _guard: MutexGuard<'static, ()>,
+    }
 
     impl TestDirectory {
         fn new() -> Self {
+            let guard = TEST_LOCK
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
             let path =
                 std::env::temp_dir().join(format!("forja-memory-test-{}-{id}", std::process::id()));
             fs::create_dir_all(&path).expect("create temporary test directory");
-            Self(path)
+            let previous_home = std::env::var_os("HOME");
+            std::env::set_var("HOME", &path);
+            Self {
+                path,
+                previous_home,
+                _guard: guard,
+            }
+        }
+
+        fn store(&self) -> StorePaths {
+            StorePaths {
+                vault: self.path.join("vault"),
+                index: self.path.join("data/hero/memory.db"),
+                config: self.path.join("config/hero/memory.toml"),
+            }
         }
     }
 
     impl Drop for TestDirectory {
         fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
+            let _ = fs::remove_dir_all(&self.path);
+            if let Some(home) = self.previous_home.take() {
+                std::env::set_var("HOME", home);
+            } else {
+                std::env::remove_var("HOME");
+            }
         }
     }
 
@@ -2042,8 +2070,8 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let temp = TestDirectory::new();
-        let vault = temp.0.join("vault");
-        let outside = temp.0.join("outside.md");
+        let vault = temp.path.join("vault");
+        let outside = temp.path.join("outside.md");
         fs::create_dir_all(&vault).unwrap();
         fs::write(&outside, "# Conteúdo externo").unwrap();
         symlink(&outside, vault.join("linked.md")).unwrap();
@@ -2057,7 +2085,7 @@ mod tests {
     #[test]
     fn note_retention_preserves_non_markdown_attachments() {
         let temp = TestDirectory::new();
-        let notes = temp.0.join("notes");
+        let notes = temp.path.join("notes");
         fs::create_dir_all(&notes).unwrap();
         let markdown = notes.join("old.md");
         let attachment = notes.join("attachment.pdf");
@@ -2075,7 +2103,7 @@ mod tests {
     #[test]
     fn hero_retention_removes_only_hero_authored_markdown() {
         let temp = TestDirectory::new();
-        let daily = temp.0.join("daily");
+        let daily = temp.path.join("daily");
         fs::create_dir_all(&daily).unwrap();
         let hero_note = daily.join("hero.md");
         let user_note = daily.join("user.md");
@@ -2093,9 +2121,9 @@ mod tests {
     #[test]
     fn event_graph_cooccurrence_does_not_cross_a_fifteen_minute_bucket() {
         let temp = TestDirectory::new();
-        let vault = temp.0.join("vault");
-        let index = temp.0.join("memory.db");
-        let config = temp.0.join("memory.toml");
+        let vault = temp.path.join("vault");
+        let index = temp.path.join("memory.db");
+        let config = temp.path.join("memory.toml");
         fs::create_dir_all(vault.join("graph")).unwrap();
         let note = vault.join("notes/current.md");
         fs::create_dir_all(note.parent().unwrap()).unwrap();
@@ -2141,5 +2169,347 @@ mod tests {
             serde_json::from_slice(&fs::read(paths.vault.join("graph/graph.json")).unwrap())
                 .unwrap();
         assert!(updated.links.is_empty());
+    }
+
+    #[test]
+    fn initialize_rebuild_search_and_timeline_use_the_local_index() {
+        let temp = TestDirectory::new();
+        let paths = temp.store();
+        paths.initialize().unwrap();
+        let projects = paths.vault.join("projects");
+        fs::create_dir_all(&projects).unwrap();
+        fs::write(
+            projects.join("alpha.md"),
+            "---\ntitle: Projeto Alpha\n---\nO vulcão guarda magma. [[Beta]].",
+        )
+        .unwrap();
+        fs::write(
+            projects.join("beta.md"),
+            "---\ntitle: Beta\n---\nA resposta está no mapa.",
+        )
+        .unwrap();
+        fs::write(
+            paths.vault.join("notes/pessoal.md"),
+            "# Nota privada\nconteúdo local",
+        )
+        .unwrap();
+
+        let (indexed, semantic) = paths.rebuild().unwrap();
+        let hits = paths.search("vulcão", 10).unwrap();
+        let timeline = paths.timeline(30, 20).unwrap();
+        let graph: GraphDocument =
+            serde_json::from_slice(&fs::read(paths.vault.join("graph/graph.json")).unwrap())
+                .unwrap();
+
+        assert_eq!(indexed, 2);
+        assert!(!semantic);
+        assert_eq!(hits.len(), 1);
+        assert!(hits[0].id.ends_with("alpha.md"));
+        assert_eq!(timeline.len(), 2);
+        assert!(graph.links.iter().any(|link| link.relation == "references"));
+        assert!(paths.search("   ", 10).is_err());
+
+        paths.set_collector("notes", true).unwrap();
+        let (with_notes, _) = paths.rebuild().unwrap();
+        assert_eq!(with_notes, 3);
+        assert_eq!(paths.search("privada", 10).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn collectors_and_retention_configuration_validate_and_persist() {
+        let temp = TestDirectory::new();
+        let paths = temp.store();
+        let collectors = paths.collectors().unwrap();
+        assert_eq!(collectors.len(), COLLECTORS.len());
+        for (source, expected) in [
+            ("shell", true),
+            ("git", true),
+            ("hero", true),
+            ("windows", false),
+            ("code", false),
+            ("notes", false),
+        ] {
+            assert_eq!(
+                collectors
+                    .iter()
+                    .find(|collector| collector["source"] == source)
+                    .unwrap()["enabled"],
+                expected
+            );
+        }
+        assert!(paths.set_collector("unknown", true).is_err());
+        paths.set_collector("shell", false).unwrap();
+        assert!(paths
+            .collect_event("shell", "echo segredo", "", 0, 0)
+            .is_err());
+        paths.set_collector("shell", true).unwrap();
+        assert!(paths.set_retention("unknown", 1).is_err());
+        assert!(paths.set_retention("shell", 36_501).is_err());
+        paths.set_retention("notes", 12).unwrap();
+        assert_eq!(paths.config_values().unwrap()["retention_days.notes"], "12");
+    }
+
+    #[test]
+    fn remembered_notes_are_redacted_searchable_and_removable() {
+        let temp = TestDirectory::new();
+        let paths = temp.store();
+        let id = paths
+            .remember("API_KEY=abc123\nLembrar do farol azul")
+            .unwrap();
+        let note_path = paths.vault.join(&id);
+        let saved = fs::read_to_string(&note_path).unwrap();
+
+        assert!(saved.contains("[SEGREDO REDIGIDO]"));
+        assert_eq!(paths.search("farol", 10).unwrap().len(), 1);
+        assert!(paths.forget("../secret.md").is_err());
+        paths.forget(&id).unwrap();
+        assert!(!note_path.exists());
+        assert!(paths.search("farol", 10).unwrap().is_empty());
+    }
+
+    #[test]
+    fn collector_events_redact_content_and_update_searchable_graph() {
+        let temp = TestDirectory::new();
+        let paths = temp.store();
+        let id = paths
+            .collect_event(
+                "shell",
+                "TOKEN=supersecret echo deploy",
+                "/tmp/projeto",
+                0,
+                42,
+            )
+            .unwrap();
+        let event_path = paths.vault.join(&id);
+        let event = fs::read_to_string(&event_path).unwrap();
+        let _ = paths.rebuild().unwrap();
+        let hits = paths.search("SHELL", 10).unwrap();
+        let graph: GraphDocument =
+            serde_json::from_slice(&fs::read(paths.vault.join("graph/graph.json")).unwrap())
+                .unwrap();
+
+        assert!(event.contains("[SEGREDO REDIGIDO]"));
+        assert!(!event.contains("supersecret"));
+        assert_eq!(hits.len(), 1);
+        assert!(graph
+            .nodes
+            .iter()
+            .any(|node| node.id == id && node.node_type == "command"));
+        assert!(paths.collect_event("shell", "  ", "", 0, 0).is_err());
+        assert!(paths.collect_event("invalid", "evento", "", 0, 0).is_err());
+    }
+
+    #[test]
+    fn local_git_repository_registration_scan_and_removal_work() {
+        let temp = TestDirectory::new();
+        let paths = temp.store();
+        paths.initialize().unwrap();
+        let repository = temp.path.join("repo");
+        fs::create_dir_all(&repository).unwrap();
+        let git = |args: &[&str]| {
+            let output = Command::new("git")
+                .arg("-C")
+                .arg(&repository)
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        };
+        git(&["init", "--quiet"]);
+        git(&["config", "user.name", "Forja Test"]);
+        git(&["config", "user.email", "forja-test@example.invalid"]);
+        fs::write(repository.join("README.md"), "primeiro commit").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "--quiet", "-m", "primeiro"]);
+
+        let first = paths
+            .register_git_repository(repository.to_str().unwrap())
+            .unwrap();
+        let first: serde_json::Value = serde_json::from_str(&first).unwrap();
+        assert_eq!(first["registered"], true);
+        assert!(paths
+            .register_git_repository(repository.to_str().unwrap())
+            .unwrap()
+            .contains("false"));
+        fs::write(repository.join("README.md"), "segundo commit").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "--quiet", "-m", "segundo"]);
+        let scan: serde_json::Value =
+            serde_json::from_str(&paths.scan_git_repositories().unwrap()).unwrap();
+        assert_eq!(scan["status"], "ok");
+        assert_eq!(scan["commits_recorded"], 1);
+        let removed: serde_json::Value = serde_json::from_str(
+            &paths
+                .unregister_git_repository(repository.to_str().unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(removed["unregistered"], true);
+    }
+
+    #[test]
+    fn graphify_output_is_safely_merged_into_the_shared_graph() {
+        let temp = TestDirectory::new();
+        let vault = temp.path.join("vault");
+        let output = vault.join("graph/code/demo/graphify-out");
+        fs::create_dir_all(&output).unwrap();
+        fs::write(
+            output.join("graph.json"),
+            r#"{"nodes":[{"id":"a","label":"A"},{"name":"b","file":"src/b.rs"}],"links":[{"source":"a","target":"b","type":"calls"},{"source":"missing","target":"b"}]}"#,
+        )
+        .unwrap();
+        let mut nodes = Vec::new();
+        let mut links = Vec::new();
+
+        append_code_graphs(&vault, &mut nodes, &mut links).unwrap();
+
+        assert_eq!(nodes.len(), 2);
+        assert!(nodes.iter().all(|node| node.id.starts_with("code:demo:")));
+        assert_eq!(nodes[1].source_file, "src/b.rs");
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].relation, "calls");
+        assert!(append_code_graphs(
+            &temp.path.join("empty-vault"),
+            &mut Vec::new(),
+            &mut Vec::new()
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn markdown_graph_and_redaction_helpers_handle_supported_shapes() {
+        assert_eq!(memory_node_type("daily/collectors/git/sha.md"), "commit");
+        assert_eq!(
+            memory_node_type("daily/collectors/windows/app.md"),
+            "window"
+        );
+        assert_eq!(
+            memory_node_type("daily/collectors/hero/chat.md"),
+            "conversation"
+        );
+        assert_eq!(memory_node_type("daily/collectors/shell/cmd.md"), "command");
+        assert_eq!(memory_node_type("projects/repo.md"), "repository");
+        assert_eq!(memory_node_type("notes/x.md"), "note");
+        assert_eq!(
+            markdown_title(
+                "---\ntitle: \"Minha nota\"\n---\n# Outro",
+                Path::new("fallback.md")
+            ),
+            "Outro"
+        );
+        assert_eq!(
+            markdown_title("# Cabeçalho\ntexto", Path::new("fallback.md")),
+            "Cabeçalho"
+        );
+        assert_eq!(
+            markdown_title("sem título", Path::new("fallback.md")),
+            "fallback"
+        );
+        assert_eq!(
+            wikilinks("[[Alvo]] [[Alvo|apelido]] [[Alvo#parte]]"),
+            vec!["Alvo", "Alvo|apelido", "Alvo#parte"]
+        );
+        assert_eq!(alias_key("  Olá, MUNDO!  "), "olá, mundo!");
+        assert_eq!(markdown_inline("linha\n`código`"), "linha\\`código\\`");
+        let redacted =
+            redact_secrets("PASSWORD=hunter2\nAuthorization: Bearer abc.def\nhttps://u:p@host");
+        assert!(!redacted.contains("hunter2"));
+        assert!(!redacted.contains("abc.def"));
+        assert!(!redacted.contains("u:p"));
+    }
+
+    #[test]
+    fn purge_applies_collector_retention_to_hero_and_notes_only() {
+        let temp = TestDirectory::new();
+        let paths = temp.store();
+        paths.initialize().unwrap();
+        paths.set_retention("hero", 1).unwrap();
+        paths.set_retention("notes", 1).unwrap();
+        let hero = paths.vault.join("daily/old.md");
+        let notes = paths.vault.join("notes/old.md");
+        let attachment = paths.vault.join("notes/keep.pdf");
+        fs::write(&hero, "---\nsource: hero\n---\nnota antiga").unwrap();
+        fs::write(&notes, "# Nota antiga").unwrap();
+        fs::write(&attachment, b"preservar").unwrap();
+        let old = std::time::SystemTime::now() - Duration::from_secs(2 * 86_400);
+        for path in [&hero, &notes, &attachment] {
+            fs::File::open(path)
+                .unwrap()
+                .set_times(std::fs::FileTimes::new().set_modified(old))
+                .unwrap();
+        }
+
+        assert_eq!(paths.purge().unwrap(), 2);
+        assert!(!hero.exists());
+        assert!(!notes.exists());
+        assert!(attachment.exists());
+    }
+
+    #[tokio::test]
+    async fn dbus_service_methods_route_to_the_store_and_validate_inputs() {
+        let temp = TestDirectory::new();
+        let service = MemoryService {
+            paths: temp.store(),
+        };
+
+        assert!(service.search(" ", 10).await.is_err());
+        assert!(service.timeline(1, 10).await.is_ok());
+        assert!(service.rebuild().await.is_ok());
+        assert!(service.remember("nota do serviço").await.is_ok());
+        assert!(service.collectors().await.is_ok());
+        assert!(service.set_collector("windows", true).await.is_ok());
+        assert!(service.collect_window("", "título").await.is_err());
+        assert!(service
+            .collect_window("Editor", "arquivo aberto")
+            .await
+            .is_ok());
+        assert!(service.set_retention("notes", 30).await.is_ok());
+        assert!(service.set_retention("notes", 36_501).await.is_err());
+        assert!(service
+            .graph_repository("/missing/repository")
+            .await
+            .is_err());
+        assert!(service.register_git_repository("").await.is_err());
+        assert!(service
+            .unregister_git_repository("relative-missing")
+            .await
+            .is_err());
+        assert!(service.scan_git_repositories().await.is_ok());
+        assert!(service.purge().await.is_ok());
+    }
+
+    #[test]
+    fn rebuild_10k_notes_finishes_with_a_consistent_sqlite_index() {
+        let temp = TestDirectory::new();
+        let paths = temp.store();
+        let projects = paths.vault.join("projects");
+        fs::create_dir_all(&projects).unwrap();
+        for index in 0..10_000 {
+            fs::write(
+                projects.join(format!("note-{index:05}.md")),
+                format!("# Nota {index}\nDocumento sintético para medir a reconstrução do índice."),
+            )
+            .unwrap();
+        }
+
+        let started = std::time::Instant::now();
+        let (indexed, semantic) = paths.rebuild().unwrap();
+        let elapsed = started.elapsed();
+        let connection = paths.open().unwrap();
+        let integrity: String = connection
+            .query_row("PRAGMA integrity_check", [], |row| row.get(0))
+            .unwrap();
+
+        assert_eq!(indexed, 10_000);
+        assert!(!semantic);
+        assert!(
+            elapsed < Duration::from_secs(300),
+            "rebuild took {elapsed:?}"
+        );
+        assert_eq!(integrity, "ok");
     }
 }
