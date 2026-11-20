@@ -31,6 +31,24 @@ entradas MP3 regulares no tar, sem extração; o manifesto gerado foi idêntico
 ao anterior. Isso verifica presença no arquivo, não integridade da decodificação,
 licença de cada gravação ou cobertura das frases por 20 locutores reais.
 
+Em 19/11/2026, os 8.571 candidatos foram decodificados para WAV PCM mono
+16 kHz/16 bits em `D:\ForjaOS\datasets\wakeword\derived\negative-wavs-2026-11-19\`.
+O manifesto `negative-wavs.tsv` mantém os códigos anônimos e as divisões da
+origem; `conversion-summary.json` registra hash, contagens e duração. Foram
+convertidos 6.111 clipes de treino (7,0326 h), 1.484 de desenvolvimento
+(1,8384 h) e 976 de teste (1,3484 h). O teste de fala negativa ainda fica
+6,6516 h abaixo do mínimo de 8 h. Nenhum WAV foi copiado para o repositório.
+Common Voice continua sendo apenas fala negativa: não valida as oito frases,
+não substitui as gravações humanas autorizadas e seus locutores não devem ser
+reidentificados. O registro agregado está em
+[`docs/evidence/f4-002/negative-conversion-2026-11-19.md`](../../docs/evidence/f4-002/negative-conversion-2026-11-19.md).
+
+O ruído do OpenSLR SLR28 está em pasta privada separada; 1.260 WAVs foram
+normalizados para PCM mono 16 kHz/16 bits, somando 6,805 h. Veja
+`D:\ForjaOS\datasets\wakeword\derived\slr28-noise-wavs-2026-11-19\`.
+Esse material sozinho não alcança as 8 h de ambiente exigidas; a medição de FAR
+aguarda gravações adicionais e os positivos humanos autorizados.
+
 | Uso | Fonte | Licença e limite |
 | --- | --- | --- |
 | Exemplos positivos sintéticos | [Piper sample generator](https://github.com/dscripka/piper-sample-generator), com vozes pt-BR verificadas uma a uma | Verificar a licença de cada voz usada; gerar as frases do ForjaOS localmente. |
