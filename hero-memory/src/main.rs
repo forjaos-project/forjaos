@@ -849,7 +849,7 @@ impl StorePaths {
             matches!(
                 node.node_type.as_str(),
                 "command" | "commit" | "conversation" | "window"
-            ) && node.modified_at.abs_diff(modified_at) <= 900
+            ) && node.modified_at.div_euclid(900) == modified_at.div_euclid(900)
         }) {
             graph.links.push(GraphLink {
                 source: id.clone(),
@@ -892,9 +892,17 @@ impl StorePaths {
             if days == 0 {
                 continue;
             }
-            let directory = self.vault.join("daily/collectors").join(source);
+            let (directory, markdown_only) = match *source {
+                "notes" => (self.vault.join("notes"), true),
+                "code" => (self.vault.join("graph/code"), false),
+                _ => (self.vault.join("daily/collectors").join(source), false),
+            };
+            let retention = Duration::from_secs(days * 86_400);
             if directory.exists() {
-                removed += purge_directory(&directory, now, Duration::from_secs(days * 86_400))?;
+                removed += purge_directory(&directory, now, retention, markdown_only)?;
+            }
+            if *source == "hero" {
+                removed += purge_hero_notes(&self.vault.join("daily"), now, retention)?;
             }
         }
         if removed > 0 {
@@ -1568,11 +1576,12 @@ fn collect_markdown(
     for entry in entries {
         let entry = entry.map_err(|error| error.to_string())?;
         let path = entry.path();
-        let metadata = entry.metadata().map_err(|error| error.to_string())?;
-        if metadata.file_type().is_symlink() {
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
+        if file_type.is_symlink() {
             continue;
         }
-        if metadata.is_dir() {
+        let metadata = entry.metadata().map_err(|error| error.to_string())?;
+        if file_type.is_dir() {
             if entry.file_name().to_string_lossy().starts_with('.') {
                 continue;
             }
@@ -1580,7 +1589,7 @@ fn collect_markdown(
                 continue;
             }
             collect_markdown(&path, vault, notes_enabled, output)?;
-        } else if metadata.is_file()
+        } else if file_type.is_file()
             && path.extension().is_some_and(|extension| extension == "md")
             && !path
                 .file_name()
@@ -1676,6 +1685,7 @@ fn purge_directory(
     directory: &Path,
     now: std::time::SystemTime,
     retention: Duration,
+    markdown_only: bool,
 ) -> Result<usize, String> {
     let mut removed = 0;
     for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
@@ -1686,11 +1696,50 @@ fn purge_directory(
             continue;
         }
         if metadata.is_dir() {
-            removed += purge_directory(&path, now, retention)?;
+            removed += purge_directory(&path, now, retention, markdown_only)?;
         } else if metadata.is_file()
+            && (!markdown_only
+                || path
+                    .extension()
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("md")))
             && metadata
                 .modified()
                 .is_ok_and(|modified| now.duration_since(modified).unwrap_or_default() > retention)
+        {
+            fs::remove_file(path).map_err(|error| error.to_string())?;
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
+fn purge_hero_notes(
+    directory: &Path,
+    now: std::time::SystemTime,
+    retention: Duration,
+) -> Result<usize, String> {
+    let mut removed = 0;
+    for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path).map_err(|error| error.to_string())?;
+        if metadata.file_type().is_symlink()
+            || !metadata.is_file()
+            || !path
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("md"))
+            || metadata.len() > 2 * 1024 * 1024
+            || !metadata
+                .modified()
+                .is_ok_and(|modified| now.duration_since(modified).unwrap_or_default() > retention)
+        {
+            continue;
+        }
+        let contents = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        if contents
+            .lines()
+            .take(6)
+            .any(|line| line.trim() == "source: hero")
         {
             fs::remove_file(path).map_err(|error| error.to_string())?;
             removed += 1;
@@ -1960,4 +2009,137 @@ async fn main() -> zbus::Result<()> {
         .await?;
     std::future::pending::<()>().await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new() -> Self {
+            let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+            let path =
+                std::env::temp_dir().join(format!("forja-memory-test-{}-{id}", std::process::id()));
+            fs::create_dir_all(&path).expect("create temporary test directory");
+            Self(path)
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn collect_markdown_skips_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TestDirectory::new();
+        let vault = temp.0.join("vault");
+        let outside = temp.0.join("outside.md");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(&outside, "# Conteúdo externo").unwrap();
+        symlink(&outside, vault.join("linked.md")).unwrap();
+
+        let mut notes = Vec::new();
+        collect_markdown(&vault, &vault, true, &mut notes).unwrap();
+
+        assert!(notes.is_empty());
+    }
+
+    #[test]
+    fn note_retention_preserves_non_markdown_attachments() {
+        let temp = TestDirectory::new();
+        let notes = temp.0.join("notes");
+        fs::create_dir_all(&notes).unwrap();
+        let markdown = notes.join("old.md");
+        let attachment = notes.join("attachment.pdf");
+        fs::write(&markdown, "# Nota antiga").unwrap();
+        fs::write(&attachment, b"attachment").unwrap();
+        let future = std::time::SystemTime::now() + Duration::from_secs(86_400);
+
+        let removed = purge_directory(&notes, future, Duration::ZERO, true).unwrap();
+
+        assert_eq!(removed, 1);
+        assert!(!markdown.exists());
+        assert!(attachment.exists());
+    }
+
+    #[test]
+    fn hero_retention_removes_only_hero_authored_markdown() {
+        let temp = TestDirectory::new();
+        let daily = temp.0.join("daily");
+        fs::create_dir_all(&daily).unwrap();
+        let hero_note = daily.join("hero.md");
+        let user_note = daily.join("user.md");
+        fs::write(&hero_note, "---\nsource: hero\n---\n# Lembrança").unwrap();
+        fs::write(&user_note, "---\nsource: user\n---\n# Nota").unwrap();
+        let future = std::time::SystemTime::now() + Duration::from_secs(86_400);
+
+        let removed = purge_hero_notes(&daily, future, Duration::ZERO).unwrap();
+
+        assert_eq!(removed, 1);
+        assert!(!hero_note.exists());
+        assert!(user_note.exists());
+    }
+
+    #[test]
+    fn event_graph_cooccurrence_does_not_cross_a_fifteen_minute_bucket() {
+        let temp = TestDirectory::new();
+        let vault = temp.0.join("vault");
+        let index = temp.0.join("memory.db");
+        let config = temp.0.join("memory.toml");
+        fs::create_dir_all(vault.join("graph")).unwrap();
+        let note = vault.join("notes/current.md");
+        fs::create_dir_all(note.parent().unwrap()).unwrap();
+        fs::write(&note, "# Nota").unwrap();
+        let event_time = note
+            .metadata()
+            .unwrap()
+            .modified()
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let prior_bucket_time = event_time.div_euclid(900) * 900 - 1;
+        let graph = GraphDocument {
+            graph: GraphMetadata {
+                schema_version: 1,
+                graphify_version: "test".into(),
+            },
+            nodes: vec![GraphNode {
+                id: "daily/collectors/shell/event.md".into(),
+                label: "Evento anterior".into(),
+                source_file: "daily/collectors/shell/event.md".into(),
+                node_type: "command".into(),
+                modified_at: prior_bucket_time,
+            }],
+            links: Vec::new(),
+            hyperedges: Vec::new(),
+        };
+        fs::write(
+            vault.join("graph/graph.json"),
+            serde_json::to_vec(&graph).unwrap(),
+        )
+        .unwrap();
+        let paths = StorePaths {
+            vault,
+            index,
+            config,
+        };
+
+        paths.update_event_graph(&note).unwrap();
+
+        let updated: GraphDocument =
+            serde_json::from_slice(&fs::read(paths.vault.join("graph/graph.json")).unwrap())
+                .unwrap();
+        assert!(updated.links.is_empty());
+    }
 }

@@ -55,7 +55,9 @@ configuração do KWin é recarregada na sessão ativa quando possível. O colet
 O coletor `code`, também desligado por padrão, executa a análise por comando e
 requer a raiz Git do repositório. Todos os toggles aparecem no menu Coletores
 do visualizador.
-O purge remove arquivos de eventos antigos pelas retenções configuradas.
+O purge aplica as retenções configuradas aos eventos, notas lembradas pelo
+HERO, notas Markdown em `vault/notes/` e resultados Graphify. Arquivos que não
+são Markdown em `vault/notes/` são preservados.
 Defina `FORJA_MEMORY_COLLECTOR=0` em uma sessão shell para ignorar comandos
 daquela sessão.
 
