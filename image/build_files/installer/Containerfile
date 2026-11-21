@@ -29,6 +29,8 @@ RUN dnf install -y --setopt=install_weak_deps=False /tmp/forjaos-branding.rpm \
 
 COPY cosign.pub /tmp/forjaos.pub
 COPY image/build_files/installer/configure_installer.py /usr/libexec/forjaos-configure-installer.py
+COPY image/build_files/installer/patch_anaconda_users.py /usr/libexec/forjaos-patch-anaconda-users.py
+RUN python3 /usr/libexec/forjaos-patch-anaconda-users.py
 COPY image/build_files/installer/forjaos_bootc_installer.te /tmp/forjaos_bootc_installer.te
 RUN checkmodule -M -m -o /tmp/forjaos_bootc_installer.mod /tmp/forjaos_bootc_installer.te \
     && semodule_package -o /tmp/forjaos_bootc_installer.pp \
