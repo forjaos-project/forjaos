@@ -59,7 +59,7 @@ Testes, medições de NFR, boot/instalação das ISOs e validação em hardware 
 - [ ] `F4-005` ([issue #108](https://github.com/forjaos-project/forjaos/issues/108)) Validar NFR-009 por 1 h, abrir vault de teste no Obsidian e Logseq e concluir prova no hardware Linux de referência.
 - [ ] Rodar toda a suíte de testes e corrigir o que quebrar
 - [ ] `F1-004` Notebook híbrido (PRIME offload) e checklist de hardware (FR-015, FR-016) — depende do notebook de referência estar disponível (§10.2)
-- [ ] `F5-001` Validação física completa (§11) nos 2 hardwares com registro em docs/releases/ (ADR-024, G5). No Dell Inspiron, a ISO corrigida avançou além da falha `install_t` ([issue #114](https://github.com/forjaos-project/forjaos/issues/114)), mas a criação de senha falhou por AVC SELinux no `passwd` do destino ([issue #115](https://github.com/forjaos-project/forjaos/issues/115)). Repetir após a correção e validar instalação, Windows, GRUB e Secure Boot/MOK.
+- [ ] `F5-001` Validação física completa (§11) nos 2 hardwares com registro em docs/releases/ (ADR-024, G5). No Dell Inspiron, a instalação avançou além da falha `install_t` ([issue #114](https://github.com/forjaos-project/forjaos/issues/114)), mas a RC7 deixou `/etc/passwd` e `/etc/shadow` com tipo SELinux `etc_t`; as senhas de root e usuário falharam e o login ficou bloqueado ([issue #115](https://github.com/forjaos-project/forjaos/issues/115)). Retestar a correção do instalador, restabelecer um cenário com Windows para validar dual boot e verificar GRUB, Secure Boot/MOK e o segundo hardware.
 - [ ] Gerar a ISO final e subir no GitHub Release
 
 ## Feito (36)
