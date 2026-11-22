@@ -28,7 +28,23 @@ RUN dnf install -y --setopt=install_weak_deps=False /tmp/forjaos-branding.rpm \
     && dnf clean all && rm /tmp/forjaos-branding.rpm
 
 COPY cosign.pub /tmp/forjaos.pub
+COPY image/build_files/installer/secure_boot.der /usr/share/forjaos/secure_boot.der
+COPY image/build_files/installer/stage_mok.sh /usr/libexec/forjaos-stage-mok
+RUN chmod 0755 /usr/libexec/forjaos-stage-mok
 COPY image/build_files/installer/configure_installer.py /usr/libexec/forjaos-configure-installer.py
+COPY image/build_files/installer/patch_anaconda_users.py /usr/libexec/forjaos-patch-anaconda-users.py
+COPY image/build_files/installer/patch_anaconda_bootc.py /usr/libexec/forjaos-patch-anaconda-bootc.py
+RUN command -v setfiles \
+    && python3 /usr/libexec/forjaos-patch-anaconda-users.py \
+    && python3 /usr/libexec/forjaos-patch-anaconda-bootc.py
+COPY image/build_files/installer/forjaos_bootc_installer.te /tmp/forjaos_bootc_installer.te
+RUN checkmodule -M -m -o /tmp/forjaos_bootc_installer.mod /tmp/forjaos_bootc_installer.te \
+    && semodule_package -o /tmp/forjaos_bootc_installer.pp \
+         -m /tmp/forjaos_bootc_installer.mod \
+    && semodule -i /tmp/forjaos_bootc_installer.pp \
+    && semodule -l | grep -qx 'forjaos_bootc_installer' \
+    && rm /tmp/forjaos_bootc_installer.te \
+          /tmp/forjaos_bootc_installer.mod /tmp/forjaos_bootc_installer.pp
 ARG PAYLOAD_REF
 ARG TARGET_REF
 RUN python3 /usr/libexec/forjaos-configure-installer.py \

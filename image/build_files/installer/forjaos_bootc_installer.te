@@ -1,0 +1,14 @@
+module forjaos_bootc_installer 1.0;
+
+require {
+    type install_t;
+    type install_exec_t;
+    type unconfined_service_t;
+    class process { transition sigchld };
+}
+
+# Anaconda launches bootc from unconfined_service_t. Allow its
+# install_exec_t executable to enter install_t while SELinux stays enforcing.
+type_transition unconfined_service_t install_exec_t : process install_t;
+allow unconfined_service_t install_t : process transition;
+allow install_t unconfined_service_t : process sigchld;
