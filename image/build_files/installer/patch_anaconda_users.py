@@ -8,17 +8,44 @@ ANCHOR = '        proc = util.startProgram(["chpasswd", "-e"] + rootargs, stdin=
 RESTORE = '''        if root != "/":
             # restorecon inside this chroot silently succeeds when /sys/fs/selinux
             # is unavailable. Run setfiles in the live installer instead.
+            # setfiles refuses symbolic-link ancestors; /mnt points to /var/mnt
+            # in the bootc installer. Resolve the prefix before building paths.
+            label_root = os.path.realpath(root)
             policy = os.path.join(
-                root, "etc/selinux/targeted/contexts/files/file_contexts"
+                label_root, "etc/selinux/targeted/contexts/files/file_contexts"
             )
             account_files = [
-                (os.path.join(root, "etc/passwd"), "passwd_file_t"),
-                (os.path.join(root, "etc/shadow"), "shadow_t"),
+                (os.path.join(label_root, "etc/passwd"), "passwd_file_t"),
+                (os.path.join(label_root, "etc/shadow"), "shadow_t"),
             ]
+            # chpasswd replaces the backups too; an etc_t shadow- blocks unlink.
+            for name, expected_type in (
+                ("group", "passwd_file_t"), ("gshadow", "shadow_t"),
+                ("passwd-", "passwd_file_t"), ("shadow-", "shadow_t"),
+                ("group-", "passwd_file_t"), ("gshadow-", "shadow_t"),
+                (".pwd.lock", "passwd_file_t"),
+            ):
+                path = os.path.join(label_root, "etc", name)
+                if os.path.isfile(path):
+                    account_files.append((path, expected_type))
             if not os.path.isfile(policy):
                 raise OSError("Target SELinux file contexts not found: %s" % policy)
+            # The target can define types absent from the live installer (for
+            # example mysql-selinux). Validate against its compiled policy.
+            policy_dir = os.path.join(label_root, "etc/selinux/targeted/policy")
+            binary_policies = [
+                os.path.join(policy_dir, name)
+                for name in os.listdir(policy_dir)
+                if name.startswith("policy.") and name[7:].isdigit()
+                and os.path.isfile(os.path.join(policy_dir, name))
+            ]
+            if not binary_policies:
+                raise OSError("Target SELinux binary policy not found: %s" % policy_dir)
+            binary_policy = max(
+                binary_policies, key=lambda path: int(path.rsplit(".", 1)[1])
+            )
             status = util.execWithRedirect(
-                "setfiles", ["-F", "-r", root, policy]
+                "setfiles", ["-F", "-r", label_root, "-c", binary_policy, policy]
                 + [path for path, _ in account_files]
             )
             if status != 0:

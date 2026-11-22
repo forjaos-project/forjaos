@@ -43,7 +43,10 @@ def configure(root: Path, source: str, target: str, public_key: Path) -> None:
           "[install]\nenforce-container-sigpolicy = true\n")
     write(root, "/usr/share/anaconda/interactive-defaults.ks",
           "# Interactive install: storage and user choices remain in Anaconda.\n"
-          f"bootc --source-imgref registry:{source} --target-imgref {target}\n")
+          f"bootc --source-imgref registry:{source} --target-imgref {target}\n"
+          "\n%post --nochroot --erroronfail --log=/tmp/forjaos-mok-stage.log\n"
+          "/usr/libexec/forjaos-stage-mok\n"
+          "%end\n")
     # Fedora's default ExecStart invokes tmux directly from init_t, which is
     # denied for screen_exec_t under enforcing. The shell enters initrc_t.
     write(root, "/usr/lib/systemd/system/anaconda.service.d/10-forjaos-tmux.conf",

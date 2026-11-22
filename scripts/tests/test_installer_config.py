@@ -1,6 +1,7 @@
 """FR-010: the network installer must pin and verify its bootc payload."""
 
 import importlib.util
+import hashlib
 import json
 import tempfile
 import unittest
@@ -61,6 +62,21 @@ class InstallerConfigTests(unittest.TestCase):
         self.assertNotIn("${root}", iso_config)
         self.assertNotIn("selinux=0", iso_config)
         self.assertNotIn("enforcing=0", iso_config)
+
+    def test_interactive_install_stages_matching_mok_before_reboot(self):
+        module.configure(self.root, self.source, self.target, self.key)
+        kickstart = (self.root / "usr/share/anaconda/interactive-defaults.ks").read_text()
+        self.assertIn("%post --nochroot --erroronfail", kickstart)
+        self.assertIn("/usr/libexec/forjaos-stage-mok", kickstart)
+        self.assertEqual(kickstart.count("/usr/libexec/forjaos-stage-mok"), 1)
+        cert = ROOT / "image/build_files/installer/secure_boot.der"
+        self.assertEqual(
+            hashlib.sha256(cert.read_bytes()).hexdigest(),
+            "4e5c68474cb133fd8984d9599762cece9100c3e6cd8a9709aeaabd85dd9e70d1",
+        )
+        containerfile = (ROOT / "image/build_files/installer/Containerfile").read_text()
+        self.assertIn("COPY image/build_files/installer/secure_boot.der", containerfile)
+        self.assertIn("COPY image/build_files/installer/stage_mok.sh", containerfile)
 
     def test_rejects_unpinned_or_foreign_payload(self):
         for source in (
